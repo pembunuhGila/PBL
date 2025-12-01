@@ -1,6 +1,6 @@
 <?php
 $required_role = "admin";
-include "../../auth.php";
+include "../auth.php";
 include "../../conn.php";
 
 $page_title = "Struktur Lab";

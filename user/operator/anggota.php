@@ -1,6 +1,6 @@
 <?php
 $required_role = "operator";
-include "../../auth.php";
+include "../auth.php";
 include "../../conn.php";
 
 $page_title = "Anggota Lab";
