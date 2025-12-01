@@ -6,7 +6,7 @@ if (isset($_SESSION['id_user'])) {
     if ($_SESSION['role'] === 'admin') {
         header('Location: user/admin/dashboard.php');
     } else {
-        header('Location: user/operator/dashboard-operator.php');
+        header('Location: user/operator/dashboard.php');
     }
     exit;
 }
@@ -19,12 +19,13 @@ if (!isset($pdo)) {
 }
 
 $error = "";
+$debug_info = ""; // Untuk debugging
 
 // PROSES LOGIN
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $username = trim($_POST['username'] ?? '');
-    $password_raw = $_POST['password'] ?? '';
+    $password_raw = trim($_POST['password'] ?? ''); // Tambah trim untuk password
 
     if ($username === '' || $password_raw === '') {
         $error = "Isi username dan password.";
@@ -42,9 +43,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user) {
+                
+                // DEBUG INFO (hapus setelah berhasil)
+                // $debug_info = "Password Input (MD5): " . $password . "<br>";
+                // $debug_info .= "Password DB: " . $user['password'] . "<br>";
+                // $debug_info .= "Match: " . ($password === $user['password'] ? "YES" : "NO");
 
-                // COCOKKAN PASSWORD
-                if ($password === $user['password']) {
+                // COCOKKAN PASSWORD - hapus spasi tersembunyi
+                if (trim($password) === trim($user['password'])) {
 
                     // SET SESSION
                     $_SESSION['id_user'] = $user['id_user'];
@@ -58,12 +64,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($user['role'] === 'admin') {
                         header("Location: user/admin/dashboard.php");
                     } else {
-                        header("Location: user/operator/dashboard-operator.php");
+                        header("Location: user/operator/dashboard.php");
                     }
                     exit;
 
                 } else {
                     $error = "Password salah!";
+                    // Uncomment untuk debug
+                    // $error .= "<br><small>" . $debug_info . "</small>";
                 }
 
             } else {
@@ -116,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <line x1="12" y1="8" x2="12" y2="12"></line>
               <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
-            <span id="alertMessage"><?php echo htmlspecialchars($error); ?></span>
+            <span id="alertMessage"><?php echo $error; ?></span>
           </div>
           <?php endif; ?>
           
@@ -132,8 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                      id="username" 
                      name="username" 
                      placeholder="Masukkan username" 
-                     value="<?php echo isset($_COOKIE['remember_user']) ? htmlspecialchars($_COOKIE['remember_user']) : ''; ?>"
-                     required
+                     value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>"
                      autocomplete="username">
             </div>
           </div>
@@ -150,7 +157,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                      id="password" 
                      name="password" 
                      placeholder="Masukkan password" 
-                     required
                      autocomplete="current-password">
               <button type="button" class="toggle-password" id="togglePassword">
                 <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" id="eyeIcon">
@@ -216,62 +222,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const passwordInput = document.getElementById('password');
     const eyeIcon = document.getElementById('eyeIcon');
     
-    togglePassword.addEventListener('click', function() {
-      const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-      passwordInput.setAttribute('type', type);
-      
-      // Toggle icon
-      if(type === 'text') {
-        eyeIcon.innerHTML = `
-          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-          <line x1="1" y1="1" x2="23" y2="23"></line>
-        `;
-      } else {
-        eyeIcon.innerHTML = `
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-          <circle cx="12" cy="12" r="3"></circle>
-        `;
-      }
-    });
+    if (togglePassword) {
+      togglePassword.addEventListener('click', function() {
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        
+        // Toggle icon
+        if(type === 'text') {
+          eyeIcon.innerHTML = `
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+          `;
+        } else {
+          eyeIcon.innerHTML = `
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          `;
+        }
+      });
+    }
     
     // Hide alert when user starts typing
     const alertBox = document.getElementById('alertBox');
     if(alertBox) {
-      document.getElementById('username').addEventListener('input', function() {
-        alertBox.style.display = 'none';
-      });
+      const usernameInput = document.getElementById('username');
+      const passwordInputField = document.getElementById('password');
       
-      document.getElementById('password').addEventListener('input', function() {
-        alertBox.style.display = 'none';
-      });
+      if (usernameInput) {
+        usernameInput.addEventListener('input', function() {
+          alertBox.style.display = 'none';
+        });
+      }
+      
+      if (passwordInputField) {
+        passwordInputField.addEventListener('input', function() {
+          alertBox.style.display = 'none';
+        });
+      }
     }
-
-    function validateForm() {
-    let u = document.getElementById("username");
-    let p = document.getElementById("password");
-
-    let valid = true;
-
-    if (u.value.length < 4) {
-        u.classList.add("input-error");
-        valid = false;
-    } else {
-        u.classList.remove("input-error");
-    }
-
-    if (p.value.length < 8) {
-        p.classList.add("input-error");
-        valid = false;
-    } else {
-        p.classList.remove("input-error");
-    }
-
-    if (!valid) {
-        alert("Username minimal 4 karakter dan Password minimal 8 karakter!");
-    }
-
-    return valid;
-}
   </script>
   
 </body>

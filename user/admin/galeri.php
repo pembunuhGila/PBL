@@ -1,4 +1,9 @@
 <?php
+/**
+ * @var PDO $pdo
+ * @var string $current_page
+ * @var int $current_id_user
+ */
 $required_role = "admin";
 include "../auth.php";
 include "../../conn.php";

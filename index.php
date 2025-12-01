@@ -18,7 +18,7 @@ include 'navbar.php'; // Navbar
     $stmt_slider = $pdo->query("SELECT * FROM slider ORDER BY tanggal_dibuat DESC LIMIT 5");
     $sliders = $stmt_slider->fetchAll();
     ?>
-    
+
     <?php if(count($sliders) > 0): ?>
       <!-- SLIDER REAL DARI DATABASE -->
       <div class="gallery-slider">
