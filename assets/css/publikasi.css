@@ -1,0 +1,287 @@
+/* ============================================
+   PUBLIKASI.CSS - Halaman Publikasi
+============================================ */
+
+/* PAGE HERO */
+.page-hero {
+  margin-top: 85px;
+  height: 320px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(30, 74, 122, 0.92), rgba(14, 43, 102, 0.88));
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-title {
+  font-size: 48px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.page-subtitle {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.95);
+  text-align: center;
+}
+
+/* ============================================
+   PUBLIKASI SECTION
+============================================ */
+.publikasi-section {
+  padding: 80px 0;
+  background: #fff;
+}
+
+/* Header dengan Button */
+.publikasi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.publikasi-header .section-title {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.publikasi-header .section-title::after {
+  content: '';
+  display: block;
+  width: 100px;
+  height: 4px;
+  background: var(--primary-blue);
+  margin-top: 12px;
+  border-radius: 2px;
+}
+
+.sinta-btn {
+  background: #e8ebef;
+  color: var(--text-dark);
+  padding: 12px 24px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.sinta-btn:hover {
+  background: #d5dae0;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.publikasi-subtitle {
+  text-align: center;
+  color: #666;
+  font-size: 16px;
+  margin-bottom: 40px;
+}
+
+/* ============================================
+   PUBLIKASI GRID
+============================================ */
+.publikasi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
+  margin-bottom: 50px;
+}
+
+.publikasi-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s;
+  border: 2px solid #e8ebef;
+  display: flex;
+  flex-direction: column;
+}
+
+.publikasi-card:hover {
+  border-color: var(--primary-blue);
+  box-shadow: 0 8px 24px rgba(30, 74, 122, 0.15);
+  transform: translateY(-4px);
+}
+
+/* Cover Publikasi */
+.publikasi-cover {
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #e8ebef, #d5dae0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cover-placeholder {
+  font-size: 16px;
+  font-weight: 600;
+  color: #999;
+}
+
+.publikasi-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.publikasi-card:hover .publikasi-cover img {
+  transform: scale(1.05);
+}
+
+/* Body */
+.publikasi-body {
+  padding: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.publikasi-title {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  min-height: 75px;
+  display: flex;
+  align-items: center;
+}
+
+.publikasi-title a {
+  color: var(--text-dark);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.publikasi-title a:hover {
+  color: var(--primary-blue);
+}
+
+.publikasi-meta {
+  font-size: 14px;
+  color: #888;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e8ebef;
+}
+
+.publikasi-link {
+  display: inline-block;
+  color: var(--primary-blue);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s;
+  margin-top: auto;
+}
+
+.publikasi-link:hover {
+  color: #2563a8;
+  transform: translateX(4px);
+}
+
+/* ============================================
+   FOOTER / LOAD MORE
+============================================ */
+.publikasi-footer {
+  text-align: center;
+  margin-top: 40px;
+}
+
+.load-more-btn {
+  background: var(--primary-blue);
+  color: #fff;
+  padding: 14px 40px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.load-more-btn:hover {
+  background: #2563a8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(30, 74, 122, 0.3);
+}
+
+/* ============================================
+   RESPONSIVE
+============================================ */
+@media (max-width: 1024px) {
+  .publikasi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-title {
+    font-size: 36px;
+  }
+  
+  .page-subtitle {
+    font-size: 16px;
+  }
+  
+  .publikasi-section {
+    padding: 60px 0;
+  }
+  
+  .publikasi-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  
+  .sinta-btn {
+    width: 100%;
+    text-align: center;
+  }
+  
+  .publikasi-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .publikasi-title {
+    font-size: 16px;
+    min-height: auto;
+  }
+  
+  .load-more-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .publikasi-cover {
+    height: 160px;
+  }
+  
+  .publikasi-body {
+    padding: 20px;
+  }
+}

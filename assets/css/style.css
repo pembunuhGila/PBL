@@ -1,0 +1,973 @@
+/* ================================================
+   STYLE.CSS - LAB DATA TECHNOLOGY WEBSITE
+   Warna Accent: HIJAU (#2ecc71) - cocok dengan biru
+================================================ */
+
+/* VARIABLES */
+:root {
+  --primary-blue: #1e4a7a;
+  --accent-green: #2ecc71;        /* HIJAU ACCENT - ganti dari kuning */
+  --deep-blue: #0e2b66;
+  --light-gray: #f5f5f5;
+  --text-dark: #1b2552;
+  --card-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  --gradient-footer: linear-gradient(180deg, #223B54 42%, #507EAE 100%);
+}
+
+/* RESET */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: #fff;
+  color: var(--text-dark);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* CONTAINER */
+.container {
+  width: 92%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* =================================
+   NAVBAR STYLE - BIRU BACKGROUND
+================================= */
+.main-navbar {
+  width: 100%;
+  height: 85px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 999;
+  background: linear-gradient(135deg, var(--primary-blue), #2563a8);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+/* Hapus overlay blur putih */
+.main-navbar::before {
+  display: none;
+}
+
+.nav-container {
+  width: 92%;
+  max-width: 1400px;
+  margin: auto;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+/* LOGO & BRANDING - Text putih */
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 280px;
+  transition: opacity 0.3s ease;
+}
+
+.nav-logo:hover {
+  opacity: 0.85;
+}
+
+.nav-logo img {
+  height: 55px;
+  object-fit: contain;
+}
+
+.nav-logo-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.nav-logo-text strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff; /* Putih */
+}
+
+.nav-logo-text span {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9); /* Putih transparan */
+}
+
+/* PILL MENU WRAPPER - Biru gelap */
+.nav-menu-wrapper {
+  background: rgba(14, 43, 102, 0.5);
+  padding: 10px 30px;
+  border-radius: 100px 16px 100px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  backdrop-filter: blur(10px);
+}
+
+/* MENU - Text putih */
+.nav-menu {
+  list-style: none;
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+}
+
+.nav-menu li a {
+  color: rgba(255, 255, 255, 0.9); /* Putih */
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 16px;
+  display: inline-block;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.nav-menu li a:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* ACTIVE HIGHLIGHT - HIJAU */
+.nav-menu li.active a {
+  background: var(--accent-green);
+  color: #fff;
+}
+
+/* =================================
+   HERO / SLIDER SECTION
+================================= */
+.slider-wrapper {
+  margin-top: 85px;
+}
+
+.hero {
+  position: relative;
+  height: 480px;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Overlay gelap untuk hero agar text lebih terbaca */
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.25);
+  z-index: 1;
+}
+
+/* GALLERY SLIDER */
+.gallery-placeholder {
+  position: relative;
+  z-index: 2;
+  width: 85%;
+  max-width: 1000px;
+  height: 340px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #d5d5d5, #bfbfbf);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #777;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+
+/* 🖼️ GAMBAR SLIDER REAL - ganti di HTML atau via database */
+.gallery-slider {
+  position: relative;
+  z-index: 2;
+  width: 85%;
+  max-width: 1000px;
+  height: 340px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+
+.gallery-slider .slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.gallery-slider .slide.active {
+  opacity: 1;
+}
+
+/* 🖼️ GAMBAR SLIDER dari database: uploads/slider/nama-file.jpg */
+.gallery-slider .slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Slider dots */
+.slider-dots {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.slider-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.slider-dots span.active {
+  background: #fff;
+  width: 28px;
+  border-radius: 5px;
+}
+
+.slide-caption {
+  position: absolute;
+  bottom: 30px;
+  left: 30px;
+  right: 30px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  padding: 20px;
+  border-radius: 8px;
+  color: #fff;
+  z-index: 5;
+}
+
+.slide-caption h2 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.slide-caption p {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* =================================
+   ABOUT OVERLAY (TENTANG KAMI)
+================================= */
+.about-section {
+  position: relative;
+  color: #fff;
+  background-image: url('../img/tentang-kami.jpeg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  padding: 120px 0 100px;
+}
+
+/* Overlay gelap */
+.about-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45); /* Semakin besar semakin gelap */
+  z-index: 1;
+}
+
+.about-overlay {
+  position: relative;
+  z-index: 2; /* Supaya di atas overlay gelap */
+}
+
+.about-overlay small {
+  display: block;
+  opacity: 0.85;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.about-overlay h2 {
+  font-size: 36px;
+  margin-bottom: 14px;
+  font-weight: 700;
+}
+
+.about-overlay p {
+  opacity: 0.95;
+  line-height: 1.7;
+  font-size: 15px;
+}
+
+.read-more-btn {
+  display: inline-block;
+  margin-top: 100px;
+  background: #fff;
+  color: var(--primary-blue);
+  padding: 10px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.read-more-btn:hover {
+  background: var(--accent-green); /* Hijau OK untuk CTA button */
+  color: #fff;
+  transform: translateY(-2px);
+}
+/* =================================
+   SECTIONS
+================================= */
+.section {
+  padding: 70px 0;
+}
+
+.section-title {
+  font-size: 32px;
+  text-align: center;
+  color: var(--text-dark);
+  font-weight: 700;
+  margin-bottom: 40px;
+  position: relative;
+}
+
+/* Underline hijau di section title */
+.section-title::after {
+  content: '';
+  display: block;
+  width: 80px;
+  height: 4px;
+  background: var(--primary-blue); /* GANTI dari hijau ke biru */
+  margin: 12px auto 0;
+  border-radius: 2px;
+}
+
+/* =================================
+   FASILITAS & PERALATAN
+================================= */
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  margin-top: 40px;
+}
+
+.facility-card {
+  background: #f8f9fb;
+  padding: 28px 24px;
+  border-radius: 12px;
+  text-align: center;
+  transition: all 0.3s;
+  border: 2px solid transparent;
+}
+
+.facility-card:hover {
+  border-color: var(--primary-blue); /* GANTI dari hijau ke biru */
+  transform: translateY(-4px);
+  box-shadow: var(--card-shadow);
+}
+
+/* 🖼️ ICON FASILITAS - ganti di HTML atau via database */
+.facility-card .icon-placeholder {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #e0e0e0, #d0d0d0);
+  border-radius: 12px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #888;
+  font-weight: 600;
+}
+
+/* Jika pakai icon image real */
+.facility-card .icon-placeholder img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+}
+
+.facility-card h4 {
+  font-size: 17px;
+  color: var(--primary-blue);
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.facility-card p {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+}
+
+/* =================================
+   BERITA SECTION
+================================= */
+.news-section {
+  background: var(--primary-blue);
+  color: #fff;
+  padding: 70px 0;
+}
+
+.news-section .section-title {
+  color: #fff;
+  text-align: left;
+  margin-bottom: 8px;
+}
+
+.news-section .section-title::after {
+  margin: 12px 0;
+  background: rgba(255, 255, 255, 0.3);
+  width: 60%;
+}
+
+.news-section .load-more-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.news-section .load-more-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.news-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 30px;
+  margin-top: 30px;
+}
+
+.news-card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  padding: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.news-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-4px);
+}
+
+/* 🖼️ THUMBNAIL BERITA dari database: uploads/berita/nama-file.jpg */
+.news-card .thumb {
+  height: 200px;
+  background: linear-gradient(135deg, #d8d8d8, #c5c5c5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.news-card .thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.news-card-content {
+  padding: 20px;
+}
+
+.news-card h4 {
+  font-size: 18px;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.news-card p {
+  opacity: 0.9;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.load-more-btn {
+  display: inline-block;
+  margin-top: 32px;
+  background: var(--primary-blue); /* Biru default */
+  color: #fff;
+  padding: 12px 32px;
+  border-radius: 8px;
+  border: 2px solid var(--primary-blue);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-decoration: none;
+}
+
+.load-more-btn:hover {
+  background: var(--accent-green); /* Hijau hover untuk CTA */
+  border-color: var(--accent-green);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(46, 204, 113, 0.3);
+}
+/* =================================
+   PUBLIKASI SECTION
+================================= */
+.publikasi-section {
+  background: #fafbfc;
+}
+
+.publikasi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 35px;
+}
+
+.sinta-btn {
+  background: #e8ebef;
+  color: var(--text-dark);
+  padding: 10px 20px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.3s;
+}
+
+.sinta-btn:hover {
+  background: #d5dae0;
+}
+
+.pub-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.pub-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.06);
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.pub-card:hover {
+  box-shadow: var(--card-shadow);
+  transform: translateY(-4px);
+}
+
+.pub-card-inner {
+  padding: 20px;
+}
+
+/* 🖼️ COVER PUBLIKASI dari database: uploads/publikasi/nama-file.jpg */
+.pub-placeholder {
+  height: 150px;
+  background: linear-gradient(135deg, #e8e8e8, #d5d5d5);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.pub-placeholder img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pub-card h4 {
+  font-size: 15px;
+  color: var(--text-dark);
+  margin-bottom: 12px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.pub-meta {
+  font-size: 13px;
+  color: #888;
+}
+
+.pub-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--primary-blue);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  border: 2px solid var(--primary-blue); /* Border biru */
+  padding: 6px 16px;
+  border-radius: 20px;
+  transition: all 0.3s;
+}
+
+.pub-link:hover {
+  background: var(--primary-blue); /* Background biru */
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+/* =================================
+   KEGIATAN & PERKULIAHAN
+================================= */
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.activity-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  transition: all 0.3s;
+  border: 2px solid transparent;
+}
+
+.activity-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(30, 74, 122, 0.15); /* Shadow biru */
+  border: 2px solid var(--primary-blue); /* Border biru */
+}
+
+/* 🖼️ FOTO KEGIATAN dari database: uploads/kegiatan/nama-file.jpg */
+.activity-placeholder {
+  height: 180px;
+  background: linear-gradient(135deg, #e0e0e0, #d0d0d0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.activity-placeholder img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.activity-card-content {
+  padding: 16px;
+  text-align: center;
+}
+
+.activity-card h4 {
+  font-size: 15px;
+  color: var(--text-dark);
+  font-weight: 600;
+}
+
+.activity-card p {
+  font-size: 13px;
+  color: #666;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* =================================
+   FOOTER
+================================= */
+.footer {
+  /* Warna background utama */
+  background: var(--gradient-footer); 
+  color: var(--light-gray);
+  padding: 50px 0 20px;
+  font-family: 'Poppins', sans-serif; /* Asumsi font yang digunakan di file CSS lain */
+}
+
+/* Container utama di dalam footer (Anda mungkin sudah punya .container global) */
+.footer .container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* =================================
+   FOOTER 
+================================= */
+.footer {
+  /* Background gradient sesuai gambar */
+  background: linear-gradient(180deg, #3d5a73 0%, #5a87b8 100%);
+  color: #FFFFFF;
+  padding: 50px 0 20px;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Container utama di dalam footer */
+.footer .container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Struktur 4 kolom - layout horizontal dengan alignment */
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 60px;
+  margin-bottom: 35px;
+  padding-bottom: 0;
+}
+
+/* SEMUA kolom dengan border alignment */
+.footer-col {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Kolom 1 - Logo + Jurusan */
+.footer-col.jti {
+  max-width: 380px;
+}
+
+.footer-col.jti .logo-text-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  min-height: 65px; /* Pastikan tinggi minimal sama */
+}
+
+.footer-logo {
+  width: 65px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.footer-col.jti .text-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.footer-col.jti h4 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.3;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.4);
+  margin-bottom: 10px;
+}
+
+.footer-col.jti p {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Kolom 2, 3, 4 - tambah margin top untuk turun ke bawah */
+.footer-col:not(.jti) {
+  margin-top: 8px;
+}
+
+/* Styling Header Kolom 2, 3, 4 - SEJAJAR dengan kolom 1 */
+.footer-col h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: capitalize;
+  letter-spacing: 0.3px;
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.4);
+  margin-bottom: 15px;
+  width: 100%;
+  min-height: 22px; /* Tinggi minimal untuk alignment */
+  display: flex;
+  align-items: center;
+}
+
+/* Styling Teks Isi */
+.footer-col p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 0;
+}
+
+.footer-col a {
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.footer-col a:hover {
+  color: #fff;
+}
+
+/* Ikon Sosial Media */
+.social-icons {
+  display: flex;
+  gap: 15px;
+  margin-top: 0;
+  align-items: center;
+}
+
+.social-icons a {
+  color: rgba(255, 255, 255, 0.95);
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.social-icons a:hover {
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.social-icons svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Bagian Bawah Footer */
+.footer-bottom {
+  margin-top: 35px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* =================================
+   RESPONSIVE
+================================= */
+@media (max-width: 1200px) {
+  .grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .grid-4 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .pub-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .galeri-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .nav-container {
+    flex-direction: column;
+    height: auto;
+    padding: 12px 0;
+  }
+  
+  .nav-menu-wrapper {
+    width: 100%;
+  }
+  
+  .nav-menu {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+  
+  .grid-3,
+  .grid-4,
+  .pub-row,
+  .news-grid,
+  .galeri-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .footer-inner {
+    grid-template-columns: 1fr;
+  }
+  
+  .contact-inner {
+    flex-direction: column;
+    gap: 20px;
+    text-align: center;
+  }
+  
+  .publikasi-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  
+  .hero {
+    height: 350px;
+  }
+  
+  .gallery-placeholder,
+  .gallery-slider {
+    height: 250px;
+  }
+}
+
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .footer-inner {
+    gap: 40px;
+  }
+  
+  .footer-col.jti {
+    max-width: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .footer-inner {
+    flex-direction: column;
+    gap: 30px;
+  }
+  
+  .footer-col.jti {
+    max-width: 100%;
+  }
+  
+  .footer-col:not(.jti) {
+    margin-top: 0;
+  }
+  
+  .footer-col h4 {
+    min-height: auto;
+  }
+}

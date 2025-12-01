@@ -1,0 +1,417 @@
+/* ============================================
+   KONTAK.CSS - Halaman Kontak Tanpa Form
+   Direct WhatsApp & Email Contact
+============================================ */
+
+/* PAGE HERO */
+.page-hero {
+  margin-top: 85px;
+  height: 320px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(30, 74, 122, 0.92), rgba(14, 43, 102, 0.88));
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-title {
+  font-size: 48px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.page-subtitle {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.95);
+  text-align: center;
+}
+
+/* ============================================
+   CONTACT CARDS SECTION (WhatsApp & Email)
+============================================ */
+.kontak-cards-section {
+  padding: 80px 0;
+  background: #fff;
+}
+
+.contact-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 40px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.contact-card {
+  background: #fff;
+  padding: 40px 32px;
+  border-radius: 16px;
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+  border: 3px solid #e8ebef;
+  transition: all 0.4s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.contact-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: var(--primary-blue);
+  transform: scaleX(0);
+  transition: transform 0.4s ease;
+}
+
+.contact-card:hover::before {
+  transform: scaleX(1);
+}
+
+/* WhatsApp Card Styling */
+.whatsapp-card {
+  border-color: #25D366;
+}
+
+.whatsapp-card:hover {
+  border-color: #25D366;
+  box-shadow: 0 12px 40px rgba(37, 211, 102, 0.25);
+  transform: translateY(-8px);
+}
+
+.whatsapp-card .card-icon {
+  background: linear-gradient(135deg, #25D366, #128C7E);
+}
+
+.whatsapp-card::before {
+  background: linear-gradient(90deg, #25D366, #128C7E);
+}
+
+/* Email Card Styling */
+.email-card {
+  border-color: var(--primary-blue);
+}
+
+.email-card:hover {
+  border-color: var(--primary-blue);
+  box-shadow: 0 12px 40px rgba(30, 74, 122, 0.25);
+  transform: translateY(-8px);
+}
+
+.email-card .card-icon {
+  background: linear-gradient(135deg, var(--primary-blue), #2563a8);
+}
+
+.email-card::before {
+  background: linear-gradient(90deg, var(--primary-blue), #2563a8);
+}
+
+/* Card Icon */
+.card-icon {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  margin: 0 auto 24px;
+  transition: all 0.4s ease;
+}
+
+.contact-card:hover .card-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+/* Card Content */
+.contact-card h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 12px;
+}
+
+.contact-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary-blue);
+  margin-bottom: 12px;
+}
+
+.whatsapp-card .contact-value {
+  color: #25D366;
+}
+
+.contact-desc {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+/* Card Action Button */
+.card-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary-blue);
+  margin-top: auto;
+  transition: all 0.3s;
+}
+
+.whatsapp-card .card-action {
+  color: #25D366;
+}
+
+.contact-card:hover .card-action {
+  gap: 16px;
+}
+
+.card-action svg {
+  transition: transform 0.3s;
+}
+
+.contact-card:hover .card-action svg {
+  transform: translateX(4px);
+}
+
+/* ============================================
+   INFORMASI LAINNYA SECTION
+============================================ */
+.info-lainnya-section {
+  padding: 80px 0;
+  background: #f8f9fb;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 30px;
+  margin-top: 40px;
+}
+
+.info-box {
+  background: #fff;
+  padding: 32px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-left: 4px solid var(--primary-blue);
+  transition: all 0.3s;
+}
+
+.info-box:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(30, 74, 122, 0.15);
+}
+
+.info-icon {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, var(--primary-blue), #2563a8);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  margin-bottom: 20px;
+}
+
+.info-box h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary-blue);
+  margin-bottom: 16px;
+}
+
+.info-box p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #555;
+  margin: 0;
+}
+
+.info-box strong {
+  color: var(--text-dark);
+}
+
+/* Social Links Alternative Style */
+.social-links-alt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.social-alt-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8f9fb;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--primary-blue);
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s;
+  border: 2px solid transparent;
+}
+
+.social-alt-link:hover {
+  background: var(--primary-blue);
+  color: #fff;
+  border-color: var(--primary-blue);
+  transform: translateX(4px);
+}
+
+.social-alt-link svg {
+  flex-shrink: 0;
+}
+
+/* ============================================
+   GOOGLE MAPS SECTION
+============================================ */
+.maps-section {
+  padding: 80px 0;
+  background: #fff;
+}
+
+.maps-wrapper {
+  margin-top: 40px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.maps-wrapper iframe {
+  display: block;
+  width: 100%;
+  filter: grayscale(0%);
+  transition: filter 0.3s;
+}
+
+.maps-wrapper:hover iframe {
+  filter: grayscale(0%) brightness(1.05);
+}
+
+.maps-info {
+  background: #fff;
+  padding: 24px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  border-top: 3px solid var(--primary-blue);
+}
+
+.direction-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--primary-blue);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: all 0.3s;
+}
+
+.direction-btn:hover {
+  background: #2563a8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(30, 74, 122, 0.3);
+}
+
+/* ============================================
+   RESPONSIVE
+============================================ */
+@media (max-width: 1024px) {
+  .contact-cards-grid {
+    grid-template-columns: 1fr;
+    max-width: 500px;
+  }
+  
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .maps-info {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-title {
+    font-size: 36px;
+  }
+  
+  .page-subtitle {
+    font-size: 16px;
+  }
+  
+  .kontak-cards-section,
+  .info-lainnya-section,
+  .maps-section {
+    padding: 60px 0;
+  }
+  
+  .contact-card {
+    padding: 32px 24px;
+  }
+  
+  .card-icon {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .info-box {
+    padding: 24px;
+  }
+  
+  .info-icon {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .maps-wrapper iframe {
+    height: 350px;
+  }
+}
+
+/* Loading State Animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.contact-card:active {
+  animation: pulse 0.3s ease;
+}
