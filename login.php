@@ -1,4 +1,4 @@
-<?php
+<?php //login
 // Cek session dulu sebelum start
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
