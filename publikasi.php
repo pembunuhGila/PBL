@@ -11,7 +11,7 @@ include 'navbar.php';
   <div class="page-hero-overlay">
     <div class="container">
       <h1 class="page-title">Publikasi</h1>
-      <p class="page-subtitle">Publikasi dari anggota Lab Data Technology</p>
+      <p class="page-subtitle">Publikasi Anggota Laboratorium Data Technology</p>
     </div>
   </div>
 </div>
@@ -28,7 +28,7 @@ include 'navbar.php';
       </a>
     </div>
     
-    <p class="publikasi-subtitle">Publikasi dari anggota Lab Data Technology</p>
+    <p class="publikasi-subtitle">Publikasi Anggota Laboratorium Data Technology</p>
     
     <!-- PUBLIKASI GRID -->
     <div class="publikasi-grid">

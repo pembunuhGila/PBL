@@ -1,8 +1,8 @@
 <?php
 $host = 'localhost';
-$dbname = 'db_LabDataTechnology';
+$dbname = 'labdt_db';
 $username = 'postgres';
-$password = 'crazyMamad13*';
+$password = '123';
 
 try {
     $pdo = new PDO("pgsql:host=$host;dbname=$dbname", $username, $password);
