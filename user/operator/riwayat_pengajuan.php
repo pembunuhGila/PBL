@@ -30,7 +30,7 @@ if ($filter_status) {
 }
 
 if ($filter_bulan) {
-    $where_clauses[] = "DATE_FORMAT(r.created_at, '%Y-%m') = ?";
+    $where_clauses[] = "TO_CHAR(r.created_at, 'YYYY-MM') = ?";
     $params[] = $filter_bulan;
 }
 
@@ -67,9 +67,9 @@ $all_tables = [
     'kontak' => 'Kontak'
 ];
 
-// Get available months for filter
+// Get available months for filter (PostgreSQL compatible)
 $months_query = $pdo->prepare("
-    SELECT DISTINCT DATE_FORMAT(created_at, '%Y-%m') as month 
+    SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month 
     FROM riwayat_pengajuan 
     WHERE id_operator = ?
     ORDER BY month DESC

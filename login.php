@@ -1,5 +1,8 @@
 <?php
-session_start();
+// Cek session dulu sebelum start
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Jika sudah login, redirect sesuai role
 if (isset($_SESSION['id_user'])) {
@@ -19,20 +22,17 @@ if (!isset($pdo)) {
 }
 
 $error = "";
-$debug_info = ""; // Untuk debugging
+$debug_mode = isset($_GET['debug']); // Aktifkan dengan ?debug=1
 
 // PROSES LOGIN
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $username = trim($_POST['username'] ?? '');
-    $password_raw = trim($_POST['password'] ?? ''); // Tambah trim untuk password
+    $password_raw = trim($_POST['password'] ?? '');
 
     if ($username === '' || $password_raw === '') {
         $error = "Isi username dan password.";
     } else {
-
-        // Password DB pakai MD5
-        $password = md5($password_raw);
 
         $query = "SELECT * FROM users WHERE username = :username LIMIT 1";
 
@@ -44,13 +44,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($user) {
                 
-                // DEBUG INFO (hapus setelah berhasil)
-                // $debug_info = "Password Input (MD5): " . $password . "<br>";
-                // $debug_info .= "Password DB: " . $user['password'] . "<br>";
-                // $debug_info .= "Match: " . ($password === $user['password'] ? "YES" : "NO");
+                // Hash password dengan MD5
+                $password_hashed = md5($password_raw);
+                
+                // Debug info
+                if ($debug_mode) {
+                    echo "<pre>";
+                    echo "Username Input: " . $username . "\n";
+                    echo "Password Input: " . $password_raw . "\n";
+                    echo "Password MD5: " . $password_hashed . "\n";
+                    echo "DB Password: " . $user['password'] . "\n";
+                    echo "Match: " . ($password_hashed === $user['password'] ? "YES" : "NO") . "\n";
+                    echo "</pre>";
+                    exit;
+                }
 
-                // COCOKKAN PASSWORD - hapus spasi tersembunyi
-                if (trim($password) === trim($user['password'])) {
+                // Cocokkan password
+                if ($password_hashed === $user['password']) {
 
                     // SET SESSION
                     $_SESSION['id_user'] = $user['id_user'];
@@ -70,8 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 } else {
                     $error = "Password salah!";
-                    // Uncomment untuk debug
-                    // $error .= "<br><small>" . $debug_info . "</small>";
                 }
 
             } else {
@@ -79,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
         } catch (PDOException $e) {
-            $error = "PDO ERROR: " . $e->getMessage();
+            $error = "Database Error: " . $e->getMessage();
         }
 
     }
@@ -128,6 +136,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           </div>
           <?php endif; ?>
           
+          <!-- Debug Info (hanya jika ?debug=1) -->
+          <?php if ($debug_mode && isset($_POST['username'])): ?>
+          <div class="alert" style="background: #fff3cd; color: #856404; border-left: 4px solid #ffc107;">
+            <strong>🐛 DEBUG MODE</strong><br>
+            <small>Username: <?php echo htmlspecialchars($_POST['username']); ?></small><br>
+            <small>Cek console/terminal untuk detail</small>
+          </div>
+          <?php endif; ?>
+          
           <!-- Username -->
           <div class="form-group">
             <label for="username">Username</label>
@@ -141,7 +158,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                      name="username" 
                      placeholder="Masukkan username" 
                      value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>"
-                     autocomplete="username">
+                     autocomplete="username"
+                     required>
             </div>
           </div>
           
@@ -157,7 +175,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                      id="password" 
                      name="password" 
                      placeholder="Masukkan password" 
-                     autocomplete="current-password">
+                     autocomplete="current-password"
+                     required>
               <button type="button" class="toggle-password" id="togglePassword">
                 <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" id="eyeIcon">
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -174,8 +193,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>
             </svg>
           </button>
-          
-        </form>
         
         <!-- Footer -->
         <div class="login-footer">
@@ -260,6 +277,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
       }
     }
+    
+    // Auto-fill untuk testing (HAPUS DI PRODUCTION!)
+    // Uncomment baris ini untuk testing cepat
+    // document.getElementById('username').value = 'operator';
+    // document.getElementById('password').value = 'operator123';
   </script>
   
 </body>

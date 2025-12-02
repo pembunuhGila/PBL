@@ -36,7 +36,7 @@ if ($filter_operator) {
 }
 
 if ($filter_bulan) {
-    $where_clauses[] = "DATE_FORMAT(r.created_at, '%Y-%m') = ?";
+    $where_clauses[] = "TO_CHAR(r.created_at, 'YYYY-MM') = ?";
     $params[] = $filter_bulan;
 }
 
@@ -64,8 +64,8 @@ $riwayat_list = $stmt->fetchAll();
 $operators_query = $pdo->query("SELECT DISTINCT u.id_user, u.nama FROM users u INNER JOIN riwayat_pengajuan r ON u.id_user = r.id_operator ORDER BY u.nama");
 $operators = $operators_query->fetchAll();
 
-// Get available months
-$months_query = $pdo->query("SELECT DISTINCT DATE_FORMAT(created_at, '%Y-%m') as month FROM riwayat_pengajuan ORDER BY month DESC LIMIT 12");
+// Get available months (PostgreSQL compatible)
+$months_query = $pdo->query("SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month FROM riwayat_pengajuan ORDER BY month DESC LIMIT 12");
 $available_months = $months_query->fetchAll(PDO::FETCH_COLUMN);
 
 // Daftar tabel
