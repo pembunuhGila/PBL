@@ -36,7 +36,7 @@ if (isset($_GET['delete'])) {
 
 // Handle Add/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $id_kategori = $_POST['id_kategori'];
+    $kategori_konten = $_POST['kategori_konten']; // ✅ FIXED: Tidak lagi id_kategori
     $judul = $_POST['judul'];
     $slug = strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]/', '', $judul)));
     $isi = $_POST['isi'];
@@ -62,11 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && $data_owner['status'] == 'pending') {
                 if ($gambar) {
-                    $stmt = $pdo->prepare("UPDATE konten SET id_kategori=?, judul=?, slug=?, isi=?, gambar=?, status=? WHERE id_konten=?");
-                    $stmt->execute([$id_kategori, $judul, $slug, $isi, $gambar, $status, $id]);
+                    $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, gambar=?, status=? WHERE id_konten=?");
+                    $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $id]);
                 } else {
-                    $stmt = $pdo->prepare("UPDATE konten SET id_kategori=?, judul=?, slug=?, isi=?, status=? WHERE id_konten=?");
-                    $stmt->execute([$id_kategori, $judul, $slug, $isi, $status, $id]);
+                    $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, status=? WHERE id_konten=?");
+                    $stmt->execute([$kategori_konten, $judul, $slug, $isi, $status, $id]);
                 }
                 
                 $success = "Konten berhasil diupdate! Menunggu persetujuan admin.";
@@ -74,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $error = "Anda hanya bisa edit data pending milik Anda!";
             }
         } else {
-            $stmt = $pdo->prepare("INSERT INTO konten (id_kategori, judul, slug, isi, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id_kategori, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
+            $stmt = $pdo->prepare("INSERT INTO konten (kategori_konten, judul, slug, isi, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
@@ -89,18 +89,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
+// ✅ FIXED: Query tanpa JOIN ke tabel kategori
 $stmt = $pdo->prepare("
-    SELECT k.*, kat.nama as kategori_nama 
-    FROM konten k 
-    LEFT JOIN kategori kat ON k.id_kategori = kat.id_kategori 
-    WHERE k.id_user = ?
-    ORDER BY k.tanggal_posting DESC
+    SELECT * FROM konten 
+    WHERE id_user = ?
+    ORDER BY tanggal_posting DESC
 ");
 $stmt->execute([$_SESSION['id_user']]);
 $konten_list = $stmt->fetchAll();
 
-$stmt_kat = $pdo->query("SELECT * FROM kategori ORDER BY nama");
-$kategori_list = $stmt_kat->fetchAll();
+// ✅ FIXED: Ambil kategori unik dari kolom kategori_konten
+$stmt_kat = $pdo->query("SELECT DISTINCT kategori_konten FROM konten WHERE kategori_konten IS NOT NULL AND kategori_konten != '' ORDER BY kategori_konten");
+$kategori_list = $stmt_kat->fetchAll(PDO::FETCH_COLUMN);
 
 include "header.php";
 include "sidebar.php";
@@ -155,7 +155,7 @@ include "navbar.php";
                             <strong><?php echo htmlspecialchars($kon['judul']); ?></strong>
                             <br><small class="text-muted"><?php echo htmlspecialchars(substr($kon['isi'] ?? '', 0, 60)); ?>...</small>
                         </td>
-                        <td><span class="badge bg-info"><?php echo htmlspecialchars($kon['kategori_nama'] ?? '-'); ?></span></td>
+                        <td><span class="badge bg-info"><?php echo htmlspecialchars($kon['kategori_konten'] ?? '-'); ?></span></td>
                         <td><?php echo date('d M Y', strtotime($kon['tanggal_posting'])); ?></td>
                         <td>
                             <?php if ($kon['status'] == 'pending'): ?>
@@ -209,12 +209,14 @@ include "navbar.php";
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Kategori *</label>
-                            <select class="form-select" name="id_kategori" id="id_kategori" required>
-                                <option value="">-- Pilih --</option>
+                            <input type="text" class="form-control" name="kategori_konten" id="kategori_konten" 
+                                   list="kategoriList" required placeholder="Berita, Artikel, Tutorial, dll">
+                            <datalist id="kategoriList">
                                 <?php foreach ($kategori_list as $kat): ?>
-                                    <option value="<?php echo $kat['id_kategori']; ?>"><?php echo htmlspecialchars($kat['nama']); ?></option>
+                                    <option value="<?php echo htmlspecialchars($kat); ?>">
                                 <?php endforeach; ?>
-                            </select>
+                            </datalist>
+                            <small class="text-muted">Ketik kategori baru atau pilih yang ada</small>
                         </div>
                     </div>
                     
@@ -248,7 +250,7 @@ function editKonten(data) {
     document.getElementById('modalTitle').textContent = 'Edit Konten';
     document.getElementById('id_konten').value = data.id_konten;
     document.getElementById('judul').value = data.judul;
-    document.getElementById('id_kategori').value = data.id_kategori || '';
+    document.getElementById('kategori_konten').value = data.kategori_konten || '';
     document.getElementById('isi').value = data.isi || '';
     new bootstrap.Modal(document.getElementById('kontenModal')).show();
 }

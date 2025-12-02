@@ -34,11 +34,11 @@ if (isset($_GET['delete'])) {
 
 // Handle Add/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $id_kategori = $_POST['id_kategori'];
+    $kategori_konten = $_POST['kategori_konten']; // ✅ FIXED
     $judul = $_POST['judul'];
     $slug = strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]/', '', $judul)));
     $isi = $_POST['isi'];
-    $status = 'active';
+    $status = 'active'; // AUTO ACTIVE untuk admin
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -61,11 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $status_lama = $old_data['status'];
             
             if ($gambar) {
-                $stmt = $pdo->prepare("UPDATE konten SET id_kategori=?, judul=?, slug=?, isi=?, gambar=?, status=? WHERE id_konten=?");
-                $stmt->execute([$id_kategori, $judul, $slug, $isi, $gambar, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, gambar=?, status=? WHERE id_konten=?");
+                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $id]);
             } else {
-                $stmt = $pdo->prepare("UPDATE konten SET id_kategori=?, judul=?, slug=?, isi=?, status=? WHERE id_konten=?");
-                $stmt->execute([$id_kategori, $judul, $slug, $isi, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, status=? WHERE id_konten=?");
+                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $status, $id]);
             }
             
             // Catat riwayat jika status berubah
@@ -76,8 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             $success = "Konten berhasil diupdate!";
         } else {
-            $stmt = $pdo->prepare("INSERT INTO konten (id_kategori, judul, slug, isi, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id_kategori, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
+            $stmt = $pdo->prepare("INSERT INTO konten (kategori_konten, judul, slug, isi, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
@@ -92,16 +92,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$stmt = $pdo->query("
-    SELECT k.*, kat.nama as kategori_nama 
-    FROM konten k 
-    LEFT JOIN kategori kat ON k.id_kategori = kat.id_kategori 
-    ORDER BY k.tanggal_posting DESC
-");
+// ✅ FIXED: Query tanpa JOIN
+$stmt = $pdo->query("SELECT * FROM konten ORDER BY tanggal_posting DESC");
 $konten_list = $stmt->fetchAll();
 
-$stmt_kat = $pdo->query("SELECT * FROM kategori ORDER BY nama");
-$kategori_list = $stmt_kat->fetchAll();
+// ✅ FIXED: Ambil kategori unik
+$stmt_kat = $pdo->query("SELECT DISTINCT kategori_konten FROM konten WHERE kategori_konten IS NOT NULL AND kategori_konten != '' ORDER BY kategori_konten");
+$kategori_list = $stmt_kat->fetchAll(PDO::FETCH_COLUMN);
 
 include "header.php";
 include "sidebar.php";
@@ -133,6 +130,7 @@ include "navbar.php";
                         <th>Judul</th>
                         <th>Kategori</th>
                         <th>Tanggal</th>
+                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -151,12 +149,13 @@ include "navbar.php";
                             <strong><?php echo htmlspecialchars($kon['judul']); ?></strong>
                             <br><small class="text-muted"><?php echo htmlspecialchars(substr($kon['isi'] ?? '', 0, 60)); ?>...</small>
                         </td>
-                        <td><span class="badge bg-info"><?php echo htmlspecialchars($kon['kategori_nama'] ?? '-'); ?></span></td>
+                        <td><span class="badge bg-info"><?php echo htmlspecialchars($kon['kategori_konten'] ?? '-'); ?></span></td>
                         <td><?php echo date('d M Y', strtotime($kon['tanggal_posting'])); ?></td>
                         <td>
-                            <span class="badge <?php echo $kon['status']=='active' ? 'bg-success' : ($kon['status']=='pending' ? 'bg-warning' : 'bg-danger'); ?>">
-                                <?php echo ucfirst($kon['status']); ?>
-                            </span>
+                            <?php 
+                            $badge_class = $kon['status'] == 'active' ? 'bg-success' : ($kon['status'] == 'pending' ? 'bg-warning' : 'bg-danger');
+                            ?>
+                            <span class="badge <?php echo $badge_class; ?>"><?php echo ucfirst($kon['status']); ?></span>
                         </td>
                         <td>
                             <button class="btn btn-sm btn-warning" onclick='editKonten(<?php echo json_encode($kon); ?>)'>
@@ -193,12 +192,14 @@ include "navbar.php";
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Kategori *</label>
-                            <select class="form-select" name="id_kategori" id="id_kategori" required>
-                                <option value="">-- Pilih --</option>
+                            <input type="text" class="form-control" name="kategori_konten" id="kategori_konten" 
+                                   list="kategoriList" required placeholder="Berita, Artikel, Tutorial, dll">
+                            <datalist id="kategoriList">
                                 <?php foreach ($kategori_list as $kat): ?>
-                                    <option value="<?php echo $kat['id_kategori']; ?>"><?php echo htmlspecialchars($kat['nama']); ?></option>
+                                    <option value="<?php echo htmlspecialchars($kat); ?>">
                                 <?php endforeach; ?>
-                            </select>
+                            </datalist>
+                            <small class="text-muted">Ketik kategori baru atau pilih yang ada</small>
                         </div>
                     </div>
                     
@@ -211,7 +212,6 @@ include "navbar.php";
                         <label class="form-label">Isi Konten *</label>
                         <textarea class="form-control" name="isi" id="isi" rows="10" required></textarea>
                     </div>
-                
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -233,9 +233,8 @@ function editKonten(data) {
     document.getElementById('modalTitle').textContent = 'Edit Konten';
     document.getElementById('id_konten').value = data.id_konten;
     document.getElementById('judul').value = data.judul;
-    document.getElementById('id_kategori').value = data.id_kategori || '';
+    document.getElementById('kategori_konten').value = data.kategori_konten || '';
     document.getElementById('isi').value = data.isi || '';
-    document.getElementById('status').value = data.status;
     new bootstrap.Modal(document.getElementById('kontenModal')).show();
 }
 </script>
