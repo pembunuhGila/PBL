@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $jurnal = $_POST['jurnal'];
     $doi = $_POST['doi'];
     $tanggal_publikasi = $_POST['tanggal_publikasi'];
-    $status = $_POST['status'];
+    $status = 'active'; 
     $penulis_ids = $_POST['penulis'] ?? [];
     
     // Handle cover upload
@@ -186,7 +186,6 @@ include "navbar.php";
                         <th>Penulis</th>
                         <th>Jurnal</th>
                         <th>Tahun</th>
-                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -310,15 +309,6 @@ include "navbar.php";
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="addPenulis()">
                             <i class="bi bi-plus"></i> Tambah Penulis
                         </button>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" name="status" id="status" required>
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">

@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $id_anggota = $_POST['id_anggota'];
     $jabatan = $_POST['jabatan'];
     $urutan = $_POST['urutan'];
-    $status = $_POST['status'];
+    $status = 'active';
     
     try {
         if (isset($_POST['id_struktur']) && !empty($_POST['id_struktur'])) {
@@ -167,7 +167,6 @@ include "navbar.php";
                         <th>Foto</th>
                         <th>Nama</th>
                         <th>Jabatan</th>
-                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -246,15 +245,6 @@ include "navbar.php";
                         <small class="text-muted">
                             <i class="bi bi-info-circle"></i> Urutan 1 = Ketua/Pimpinan (ditampilkan paling atas)
                         </small>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" name="status" id="status" required>
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">

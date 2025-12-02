@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($action == 'profil') {
             $profil_lab = $_POST['profil_lab'];
             $penjelasan_logo = $_POST['penjelasan_logo'];
-            $status = $_POST['status'];
+            $status = 'active'; 
             
             $logo_lab = null;
             if (isset($_FILES['logo_lab']) && $_FILES['logo_lab']['error'] == 0) {
@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         elseif ($action == 'add_visi') {
             // INSERT Visi
             $stmt = $pdo->prepare("INSERT INTO visi (isi_visi, status, id_user) VALUES (?, ?, ?)");
-            $stmt->execute([$_POST['isi_visi'], $_POST['status'], $_SESSION['id_user']]);
+            $stmt->execute([$_POST['isi_visi'], 'active', $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         elseif ($action == 'add_misi') {
             // INSERT Misi
             $stmt = $pdo->prepare("INSERT INTO misi (isi_misi, urutan, status, id_user) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$_POST['isi_misi'], $_POST['urutan'], $_POST['status'], $_SESSION['id_user']]);
+            $stmt->execute([$_POST['isi_misi'], $_POST['urutan'], 'active' , $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         elseif ($action == 'add_sejarah') {
             // INSERT Sejarah
             $stmt = $pdo->prepare("INSERT INTO sejarah (tahun, judul, deskripsi, urutan, status, id_user) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$_POST['tahun'], $_POST['judul'], $_POST['deskripsi'], $_POST['urutan'], $_POST['status'], $_SESSION['id_user']]);
+            $stmt->execute([$_POST['tahun'], $_POST['judul'], $_POST['deskripsi'], $_POST['urutan'], 'active' , $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
@@ -212,14 +212,6 @@ include "navbar.php";
                 <textarea class="form-control" name="profil_lab" rows="6" required><?php echo $profil['profil_lab'] ?? ''; ?></textarea>
             </div>
             
-            <div class="mb-3">
-                <label class="form-label">Status</label>
-                <select class="form-select" name="status">
-                    <option value="active" <?php echo ($profil['status'] ?? '') == 'active' ? 'selected' : ''; ?>>Active</option>
-                    <option value="pending" <?php echo ($profil['status'] ?? '') == 'pending' ? 'selected' : ''; ?>>Pending</option>
-                </select>
-            </div>
-            
             <button type="submit" class="btn btn-primary">Simpan Profil</button>
         </form>
     </div>
@@ -304,13 +296,6 @@ include "navbar.php";
                         <label>Isi Visi *</label>
                         <textarea class="form-control" name="isi_visi" rows="3" required></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label>Status</label>
-                        <select class="form-select" name="status">
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
-                        </select>
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -339,13 +324,6 @@ include "navbar.php";
                     <div class="mb-3">
                         <label>Urutan</label>
                         <input type="number" class="form-control" name="urutan" value="<?php echo count($misi_list) + 1; ?>" min="1">
-                    </div>
-                    <div class="mb-3">
-                        <label>Status</label>
-                        <select class="form-select" name="status">
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
-                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -383,13 +361,6 @@ include "navbar.php";
                     <div class="mb-3">
                         <label>Urutan</label>
                         <input type="number" class="form-control" name="urutan" value="1" min="1">
-                    </div>
-                    <div class="mb-3">
-                        <label>Status</label>
-                        <select class="form-select" name="status">
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
-                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">

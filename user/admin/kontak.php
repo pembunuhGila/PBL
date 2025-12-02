@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $youtube = $_POST['youtube'] ?? '';
     $facebook = $_POST['facebook'] ?? '';
     $maps = $_POST['maps'] ?? '';
-    $status = $_POST['status'] ?? 'active';
+    $status = 'active';
     
     try {
         // Check if kontak exists
@@ -176,14 +176,6 @@ include "navbar.php";
                         </label>
                         <textarea class="form-control" name="maps" rows="3" placeholder="<iframe src='https://www.google.com/maps/embed?...' ...></iframe>"><?php echo htmlspecialchars($kontak['maps'] ?? ''); ?></textarea>
                         <small class="text-muted">Copy embed code dari Google Maps</small>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" name="status">
-                            <option value="active" <?php echo ($kontak['status'] ?? '') == 'active' ? 'selected' : ''; ?>>Active</option>
-                            <option value="pending" <?php echo ($kontak['status'] ?? '') == 'pending' ? 'selected' : ''; ?>>Pending</option>
-                        </select>
                     </div>
                     
                     <button type="submit" class="btn btn-primary">

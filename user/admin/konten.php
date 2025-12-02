@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $slug = strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]/', '', $judul)));
     $isi = $_POST['isi'];
-    $status = $_POST['status'];
+    $status = 'active';
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -133,7 +133,6 @@ include "navbar.php";
                         <th>Judul</th>
                         <th>Kategori</th>
                         <th>Tanggal</th>
-                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -212,15 +211,7 @@ include "navbar.php";
                         <label class="form-label">Isi Konten *</label>
                         <textarea class="form-control" name="isi" id="isi" rows="10" required></textarea>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" name="status" id="status">
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
-                    </div>
+                
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>

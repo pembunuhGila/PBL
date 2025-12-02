@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $deskripsi = $_POST['deskripsi'];
     $kategori_fasilitas = $_POST['kategori_fasilitas'];
-    $status = $_POST['status'];
+    $status = 'active';
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -171,15 +171,6 @@ include "navbar.php";
                     <div class="mb-3">
                         <label class="form-label">Deskripsi</label>
                         <textarea class="form-control" name="deskripsi" id="deskripsi" rows="4"></textarea>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" name="status" id="status">
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
-                            <option value="rejected">Rejected</option>
-                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">
