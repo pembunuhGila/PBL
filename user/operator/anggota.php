@@ -65,7 +65,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $pendidikan = json_encode($pendidikan_array);
     
     $pendidikan_terakhir = $_POST['pendidikan_terakhir'];
-    $bidang_keahlian = $_POST['bidang_keahlian'];
+    
+    // Process mata kuliah array
+    $matakuliah_array = [];
+    if (isset($_POST['matakuliah_nama']) && is_array($_POST['matakuliah_nama'])) {
+        foreach ($_POST['matakuliah_nama'] as $index => $nama_mk) {
+            if (!empty($nama_mk)) {
+                $matakuliah_array[] = [
+                    'nama' => $nama_mk,
+                    'kode' => $_POST['matakuliah_kode'][$index] ?? '',
+                    'sks' => $_POST['matakuliah_sks'][$index] ?? ''
+                ];
+            }
+        }
+    }
+    $bidang_keahlian = json_encode($matakuliah_array);
+    
     $tanggal_bergabung = $_POST['tanggal_bergabung'];
     $ruangan = $_POST['ruangan'];
     
