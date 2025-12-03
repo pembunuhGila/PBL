@@ -102,14 +102,14 @@ include "navbar.php";
 </div>
 
 <?php if (isset($success)): ?>
-    <div class="alert alert-success alert-dismissible fade show">
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
         <?php echo $success; ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
 
 <?php if (isset($error)): ?>
-    <div class="alert alert-danger alert-dismissible fade show">
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
         <?php echo $error; ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
@@ -119,29 +119,73 @@ include "navbar.php";
     <i class="bi bi-info-circle"></i> Semua struktur yang Anda tambahkan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
 </div>
 
-<!-- Table View -->
-<div class="card shadow">
-    <div class="card-header">
-        <h5 class="mb-0">Data Struktur</h5>
+<!-- Organizational Chart View -->
+<div class="row mb-4">
+    <?php 
+    $current_urutan = 0;
+    foreach ($struktur_list as $struktur): 
+        if ($struktur['status'] == 'active') {
+            // New row for each urutan level
+            if ($current_urutan != $struktur['urutan']) {
+                if ($current_urutan != 0) echo '</div><div class="row mb-4 justify-content-center">';
+                $current_urutan = $struktur['urutan'];
+            }
+    ?>
+    <div class="col-md-4 mb-3">
+        <div class="card shadow text-center h-100">
+            <div class="card-body">
+                <?php if ($struktur['foto']): ?>
+                    <img src="../../uploads/anggota/<?php echo $struktur['foto']; ?>" class="rounded-circle mb-3" width="100" height="100">
+                <?php else: ?>
+                    <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($struktur['nama']); ?>&size=100" class="rounded-circle mb-3">
+                <?php endif; ?>
+                <h5 class="card-title mb-1"><?php echo htmlspecialchars($struktur['nama']); ?></h5>
+                <p class="text-muted mb-2"><?php echo htmlspecialchars($struktur['jabatan']); ?></p>
+                <small class="text-muted"><?php echo htmlspecialchars($struktur['email']); ?></small>
+                <?php if ($struktur['urutan'] == 1): ?>
+                    <div class="mt-2">
+                        <span class="badge bg-primary">Ketua/Pimpinan</span>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
+    <?php 
+        }
+    endforeach; 
+    ?>
+</div>
+
+<!-- Table View for Operator -->
+<div class="card shadow">
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
                     <tr>
+                        <th>No</th>
                         <th>Urutan</th>
                         <th>Foto</th>
                         <th>Nama</th>
                         <th>Jabatan</th>
+                        <th>Email</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($struktur_list as $struktur): ?>
+                    <?php 
+                    if (count($struktur_list) > 0) {
+                        $no = 1;
+                        foreach ($struktur_list as $struktur): 
+                    ?>
                     <tr>
+                        <td><?php echo $no++; ?></td>
                         <td>
                             <span class="badge bg-secondary">#<?php echo $struktur['urutan']; ?></span>
+                            <?php if ($struktur['urutan'] == 1): ?>
+                                <i class="bi bi-star-fill text-warning" title="Ketua"></i>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <?php if ($struktur['foto']): ?>
@@ -152,6 +196,7 @@ include "navbar.php";
                         </td>
                         <td><?php echo htmlspecialchars($struktur['nama']); ?></td>
                         <td><?php echo htmlspecialchars($struktur['jabatan']); ?></td>
+                        <td><small><?php echo htmlspecialchars($struktur['email'] ?? '-'); ?></small></td>
                         <td>
                             <?php if ($struktur['status'] == 'pending'): ?>
                                 <span class="badge bg-warning">Pending</span>
@@ -174,7 +219,17 @@ include "navbar.php";
                             <?php endif; ?>
                         </td>
                     </tr>
-                    <?php endforeach; ?>
+                    <?php 
+                        endforeach;
+                    } else {
+                    ?>
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox" style="font-size: 2rem; opacity: 0.5;"></i>
+                            <p class="mt-2 mb-0">Belum ada data struktur. Silakan tambahkan struktur baru.</p>
+                        </td>
+                    </tr>
+                    <?php } ?>
                 </tbody>
             </table>
         </div>
@@ -248,5 +303,15 @@ function editStruktur(data) {
     new bootstrap.Modal(document.getElementById('strukturModal')).show();
 }
 </script>
+
+<style>
+.card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.15) !important;
+}
+</style>
 
 <?php include "footer.php"; ?>

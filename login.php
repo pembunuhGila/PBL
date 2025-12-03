@@ -118,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="login-header">
           <img src="assets/img/Logo Polinema.png" alt="Logo Polinema" class="login-logo">
           <h1>Lab Data Technology</h1>
-          <p>Admin Dashboard Login</p>
+          <p>User Dashboard Login</p>
         </div>
         
         <!-- Login Form -->

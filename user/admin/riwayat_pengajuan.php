@@ -14,45 +14,33 @@ $current_page = "riwayat_pengajuan.php";
 // Filter
 $filter_tabel = $_GET['tabel'] ?? '';
 $filter_status = $_GET['status'] ?? '';
-$filter_operator = $_GET['operator'] ?? '';
 $filter_bulan = $_GET['bulan'] ?? '';
 
 $where_clauses = [];
 $params = [];
 
 if ($filter_tabel) {
-    $where_clauses[] = "r.tabel_sumber = ?";
+    $where_clauses[] = "tabel_sumber = ?";
     $params[] = $filter_tabel;
 }
 
 if ($filter_status) {
-    $where_clauses[] = "r.status_baru = ?";
+    $where_clauses[] = "status_baru = ?";
     $params[] = $filter_status;
 }
 
-if ($filter_operator) {
-    $where_clauses[] = "r.id_operator = ?";
-    $params[] = $filter_operator;
-}
-
 if ($filter_bulan) {
-    $where_clauses[] = "TO_CHAR(r.created_at, 'YYYY-MM') = ?";
+    $where_clauses[] = "TO_CHAR(created_at, 'YYYY-MM') = ?";
     $params[] = $filter_bulan;
 }
 
 $where_sql = $where_clauses ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-// Get riwayat with user details
+// Query menggunakan VIEW - jauh lebih simple!
 $query = "
-    SELECT 
-        r.*,
-        u_op.nama as operator_nama,
-        u_adm.nama as admin_nama
-    FROM riwayat_pengajuan r
-    LEFT JOIN users u_op ON r.id_operator = u_op.id_user
-    LEFT JOIN users u_adm ON r.id_admin = u_adm.id_user
+    SELECT * FROM v_riwayat_pengajuan
     $where_sql
-    ORDER BY r.created_at DESC
+    ORDER BY created_at DESC
     LIMIT 200
 ";
 
@@ -60,12 +48,8 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $riwayat_list = $stmt->fetchAll();
 
-// Get list of operators for filter
-$operators_query = $pdo->query("SELECT DISTINCT u.id_user, u.nama FROM users u INNER JOIN riwayat_pengajuan r ON u.id_user = r.id_operator ORDER BY u.nama");
-$operators = $operators_query->fetchAll();
-
-// Get available months (PostgreSQL compatible)
-$months_query = $pdo->query("SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month FROM riwayat_pengajuan ORDER BY month DESC LIMIT 12");
+// Get available months for filter
+$months_query = $pdo->query("SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month FROM v_riwayat_pengajuan ORDER BY month DESC LIMIT 12");
 $available_months = $months_query->fetchAll(PDO::FETCH_COLUMN);
 
 // Daftar tabel
@@ -102,7 +86,7 @@ include "navbar.php";
                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending Review</div>
                         <div class="h4 mb-0 font-weight-bold">
                             <?php 
-                            $pending = $pdo->query("SELECT COUNT(*) FROM riwayat_pengajuan WHERE status_baru = 'pending'")->fetchColumn();
+                            $pending = $pdo->query("SELECT COUNT(*) FROM v_riwayat_pengajuan WHERE status_baru = 'pending'")->fetchColumn();
                             echo $pending;
                             ?>
                         </div>
@@ -123,7 +107,7 @@ include "navbar.php";
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Approved</div>
                         <div class="h4 mb-0 font-weight-bold">
                             <?php 
-                            $approved = $pdo->query("SELECT COUNT(*) FROM riwayat_pengajuan WHERE status_baru = 'active'")->fetchColumn();
+                            $approved = $pdo->query("SELECT COUNT(*) FROM v_riwayat_pengajuan WHERE status_baru = 'active'")->fetchColumn();
                             echo $approved;
                             ?>
                         </div>
@@ -144,7 +128,7 @@ include "navbar.php";
                         <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Rejected</div>
                         <div class="h4 mb-0 font-weight-bold">
                             <?php 
-                            $rejected = $pdo->query("SELECT COUNT(*) FROM riwayat_pengajuan WHERE status_baru = 'rejected'")->fetchColumn();
+                            $rejected = $pdo->query("SELECT COUNT(*) FROM v_riwayat_pengajuan WHERE status_baru = 'rejected'")->fetchColumn();
                             echo $rejected;
                             ?>
                         </div>
@@ -165,7 +149,7 @@ include "navbar.php";
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Activity</div>
                         <div class="h4 mb-0 font-weight-bold">
                             <?php 
-                            $total = $pdo->query("SELECT COUNT(*) FROM riwayat_pengajuan")->fetchColumn();
+                            $total = $pdo->query("SELECT COUNT(*) FROM v_riwayat_pengajuan")->fetchColumn();
                             echo $total;
                             ?>
                         </div>
@@ -183,7 +167,7 @@ include "navbar.php";
 <div class="card shadow mb-4">
     <div class="card-body">
         <form method="GET" class="row g-3">
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label"><i class="bi bi-table"></i> Tabel</label>
                 <select class="form-select" name="tabel">
                     <option value="">Semua Tabel</option>
@@ -195,7 +179,7 @@ include "navbar.php";
                 </select>
             </div>
             
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label class="form-label"><i class="bi bi-flag"></i> Status</label>
                 <select class="form-select" name="status">
                     <option value="">Semua Status</option>
@@ -207,18 +191,6 @@ include "navbar.php";
             </div>
             
             <div class="col-md-3">
-                <label class="form-label"><i class="bi bi-person"></i> Operator</label>
-                <select class="form-select" name="operator">
-                    <option value="">Semua Operator</option>
-                    <?php foreach ($operators as $op): ?>
-                        <option value="<?php echo $op['id_user']; ?>" <?php echo $filter_operator == $op['id_user'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($op['nama']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            
-            <div class="col-md-2">
                 <label class="form-label"><i class="bi bi-calendar-month"></i> Bulan</label>
                 <select class="form-select" name="bulan">
                     <option value="">Semua Bulan</option>
@@ -249,7 +221,7 @@ include "navbar.php";
 <?php if ($pending > 0): ?>
 <div class="alert alert-warning alert-dismissible fade show">
     <i class="bi bi-exclamation-triangle"></i> 
-    <strong>Perhatian:</strong> Ada <strong><?php echo $pending; ?> pengajuan</strong> dari operator yang menunggu review Anda.
+    <strong>Perhatian:</strong> Ada <strong><?php echo $pending; ?> pengajuan</strong> yang menunggu review Anda.
     <a href="?status=pending" class="alert-link">Lihat semua pending</a>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
@@ -261,7 +233,7 @@ include "navbar.php";
         <h5 class="mb-0">
             <i class="bi bi-file-earmark-text"></i> Daftar Riwayat 
             <span class="badge bg-primary"><?php echo count($riwayat_list); ?> records</span>
-            <?php if ($filter_tabel || $filter_status || $filter_operator || $filter_bulan): ?>
+            <?php if ($filter_tabel || $filter_status || $filter_bulan): ?>
                 <span class="badge bg-info">Filtered</span>
             <?php endif; ?>
         </h5>
@@ -275,7 +247,7 @@ include "navbar.php";
                         <th>Tabel</th>
                         <th>ID Data</th>
                         <th>Perubahan Status</th>
-                        <th>Operator</th>
+                        <th>Operator Pengajuan</th>
                         <th>Admin Review</th>
                         <th>Catatan</th>
                         <th>Aksi</th>
@@ -434,7 +406,7 @@ include "navbar.php";
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <th>Operator</th>
+                                                <th>Operator Pengajuan</th>
                                                 <td>
                                                     <?php if ($riwayat['operator_nama']): ?>
                                                         <i class="bi bi-person-badge text-primary"></i> 
@@ -484,7 +456,7 @@ include "navbar.php";
                                 <div class="text-muted">
                                     <i class="bi bi-inbox" style="font-size: 4rem; opacity: 0.3;"></i>
                                     <p class="mt-3 mb-0">
-                                        <?php if ($filter_tabel || $filter_status || $filter_operator || $filter_bulan): ?>
+                                        <?php if ($filter_tabel || $filter_status || $filter_bulan): ?>
                                             <strong>Tidak ada riwayat yang sesuai dengan filter</strong><br>
                                             <small>Coba ubah filter atau <a href="riwayat_pengajuan.php">reset filter</a></small>
                                         <?php else: ?>

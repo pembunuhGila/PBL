@@ -14,7 +14,6 @@ $current_page = "konten.php";
 // Handle Delete
 if (isset($_GET['delete'])) {
     try {
-        // Get data untuk riwayat
         $stmt_old = $pdo->prepare("SELECT judul, status FROM konten WHERE id_konten = ?");
         $stmt_old->execute([$_GET['delete']]);
         $old_data = $stmt_old->fetch();
@@ -22,7 +21,6 @@ if (isset($_GET['delete'])) {
         $stmt = $pdo->prepare("DELETE FROM konten WHERE id_konten = ?");
         $stmt->execute([$_GET['delete']]);
         
-        // Catat riwayat
         $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt_riwayat->execute(['konten', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus konten: ' . $old_data['judul']]);
         
@@ -34,11 +32,11 @@ if (isset($_GET['delete'])) {
 
 // Handle Add/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $kategori_konten = $_POST['kategori_konten']; // ✅ FIXED
+    $kategori_konten = $_POST['kategori_konten'];
     $judul = $_POST['judul'];
     $slug = strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]/', '', $judul)));
     $isi = $_POST['isi'];
-    $status = 'active'; // AUTO ACTIVE untuk admin
+    $status = 'active';
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -54,51 +52,64 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (isset($_POST['id_konten']) && !empty($_POST['id_konten'])) {
             $id = $_POST['id_konten'];
             
-            // Get status lama
             $stmt_old = $pdo->prepare("SELECT status FROM konten WHERE id_konten = ?");
             $stmt_old->execute([$id]);
             $old_data = $stmt_old->fetch();
             $status_lama = $old_data['status'];
             
-            if ($gambar) {
-                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, gambar=?, status=? WHERE id_konten=?");
-                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $id]);
+            // PostgreSQL FUNCTION call
+            $stmt = $pdo->prepare("SELECT * FROM sp_update_konten(?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$id, $kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
+            $result = $stmt->fetch();
+            $message = $result['p_message'];
+            
+            if (strpos($message, 'Success') !== false) {
+                if ($status_lama != $status) {
+                    $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt_riwayat->execute(['konten', $id, $_SESSION['id_user'], $status_lama, $status, 'Update konten: ' . $judul]);
+                }
+                $success = "Konten berhasil diupdate!";
             } else {
-                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, status=? WHERE id_konten=?");
-                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $status, $id]);
+                $error = $message;
             }
-            
-            // Catat riwayat jika status berubah
-            if ($status_lama != $status) {
-                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_riwayat->execute(['konten', $id, $_SESSION['id_user'], $status_lama, $status, 'Update konten: ' . $judul]);
-            }
-            
-            $success = "Konten berhasil diupdate!";
         } else {
-            $stmt = $pdo->prepare("INSERT INTO konten (kategori_konten, judul, slug, isi, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
+            // PostgreSQL FUNCTION call untuk INSERT
+            $stmt = $pdo->prepare("SELECT * FROM sp_insert_konten(?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user'], 'admin']);
+            $result = $stmt->fetch();
+            $new_id = $result['p_id_konten'];
+            $message = $result['p_message'];
             
-            $new_id = $pdo->lastInsertId();
-            
-            // Catat riwayat
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
-            
-            $success = "Konten berhasil ditambahkan!";
+            if ($new_id > 0) {
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
+                $success = "Konten berhasil ditambahkan dan langsung aktif!";
+            } else {
+                $error = $message;
+            }
         }
     } catch (PDOException $e) {
         $error = "Gagal menyimpan: " . $e->getMessage();
     }
 }
 
-// ✅ FIXED: Query tanpa JOIN
-$stmt = $pdo->query("SELECT * FROM konten ORDER BY tanggal_posting DESC");
-$konten_list = $stmt->fetchAll();
+// Get konten menggunakan PostgreSQL FUNCTION
+try {
+    $stmt = $pdo->prepare("SELECT * FROM sp_get_konten(?, ?, ?, ?, ?)");
+    $stmt->execute([$_SESSION['id_user'], 'admin', null, null, 200]);
+    $konten_list = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $error = "Gagal mengambil data: " . $e->getMessage();
+    $konten_list = [];
+}
 
-// ✅ FIXED: Ambil kategori unik
-$stmt_kat = $pdo->query("SELECT DISTINCT kategori_konten FROM konten WHERE kategori_konten IS NOT NULL AND kategori_konten != '' ORDER BY kategori_konten");
-$kategori_list = $stmt_kat->fetchAll(PDO::FETCH_COLUMN);
+// Get kategori
+try {
+    $stmt_kat = $pdo->query("SELECT DISTINCT kategori_konten FROM konten WHERE kategori_konten IS NOT NULL AND kategori_konten != '' ORDER BY kategori_konten");
+    $kategori_list = $stmt_kat->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    $kategori_list = [];
+}
 
 include "header.php";
 include "sidebar.php";
@@ -135,7 +146,10 @@ include "navbar.php";
                     </tr>
                 </thead>
                 <tbody>
-                    <?php $no = 1; foreach ($konten_list as $kon): ?>
+                    <?php 
+                    $no = 1; 
+                    foreach ($konten_list as $kon): 
+                    ?>
                     <tr>
                         <td><?php echo $no++; ?></td>
                         <td>
@@ -185,6 +199,10 @@ include "navbar.php";
                 <div class="modal-body">
                     <input type="hidden" name="id_konten" id="id_konten">
                     
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Data akan langsung aktif setelah disimpan
+                    </div>
+                    
                     <div class="row">
                         <div class="col-md-8 mb-3">
                             <label class="form-label">Judul *</label>
@@ -199,7 +217,6 @@ include "navbar.php";
                                     <option value="<?php echo htmlspecialchars($kat); ?>">
                                 <?php endforeach; ?>
                             </datalist>
-                            <small class="text-muted">Ketik kategori baru atau pilih yang ada</small>
                         </div>
                     </div>
                     
@@ -215,7 +232,7 @@ include "navbar.php";
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan</button>
+                    <button type="submit" class="btn btn-primary">Simpan & Aktifkan</button>
                 </div>
             </form>
         </div>

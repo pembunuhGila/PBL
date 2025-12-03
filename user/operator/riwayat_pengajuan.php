@@ -16,41 +16,48 @@ $filter_tabel = $_GET['tabel'] ?? '';
 $filter_status = $_GET['status'] ?? '';
 $filter_bulan = $_GET['bulan'] ?? '';
 
-$where_clauses = ["r.id_operator = ?"];
+$where_clauses = ["id_operator = ?"];
 $params = [$_SESSION['id_user']];
 
 if ($filter_tabel) {
-    $where_clauses[] = "r.tabel_sumber = ?";
+    $where_clauses[] = "tabel_sumber = ?";
     $params[] = $filter_tabel;
 }
 
 if ($filter_status) {
-    $where_clauses[] = "r.status_baru = ?";
+    $where_clauses[] = "status_baru = ?";
     $params[] = $filter_status;
 }
 
 if ($filter_bulan) {
-    $where_clauses[] = "TO_CHAR(r.created_at, 'YYYY-MM') = ?";
+    $where_clauses[] = "TO_CHAR(created_at, 'YYYY-MM') = ?";
     $params[] = $filter_bulan;
 }
 
 $where_sql = "WHERE " . implode(" AND ", $where_clauses);
 
-// Get riwayat dengan join ke tabel users untuk nama operator dan admin
+// Query menggunakan VIEW - hanya data operator ini
 $query = "
-    SELECT 
-        r.*,
-        u_adm.nama as admin_nama
-    FROM riwayat_pengajuan r
-    LEFT JOIN users u_adm ON r.id_admin = u_adm.id_user
+    SELECT * FROM v_riwayat_pengajuan_operator
     $where_sql
-    ORDER BY r.created_at DESC
+    ORDER BY created_at DESC
     LIMIT 200
 ";
 
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $riwayat_list = $stmt->fetchAll();
+
+// Get available months for filter - hanya data operator ini
+$months_query = $pdo->prepare("
+    SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month 
+    FROM v_riwayat_pengajuan_operator
+    WHERE id_operator = ?
+    ORDER BY month DESC
+    LIMIT 12
+");
+$months_query->execute([$_SESSION['id_user']]);
+$available_months = $months_query->fetchAll(PDO::FETCH_COLUMN);
 
 // Daftar tabel
 $all_tables = [
@@ -66,17 +73,6 @@ $all_tables = [
     'sejarah' => 'Sejarah',
     'kontak' => 'Kontak'
 ];
-
-// Get available months for filter (PostgreSQL compatible)
-$months_query = $pdo->prepare("
-    SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month 
-    FROM riwayat_pengajuan 
-    WHERE id_operator = ?
-    ORDER BY month DESC
-    LIMIT 12
-");
-$months_query->execute([$_SESSION['id_user']]);
-$available_months = $months_query->fetchAll(PDO::FETCH_COLUMN);
 
 include "header.php";
 include "sidebar.php";
@@ -97,9 +93,10 @@ include "navbar.php";
                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending</div>
                         <div class="h4 mb-0 font-weight-bold">
                             <?php 
-                            $pending = $pdo->prepare("SELECT COUNT(*) FROM riwayat_pengajuan WHERE id_operator = ? AND status_baru = 'pending'");
-                            $pending->execute([$_SESSION['id_user']]);
-                            echo $pending->fetchColumn();
+                            $pending_stmt = $pdo->prepare("SELECT COUNT(*) FROM v_riwayat_pengajuan_operator WHERE id_operator = ? AND status_baru = 'pending'");
+                            $pending_stmt->execute([$_SESSION['id_user']]);
+                            $pending = $pending_stmt->fetchColumn();
+                            echo $pending;
                             ?>
                         </div>
                     </div>
@@ -119,9 +116,10 @@ include "navbar.php";
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Approved</div>
                         <div class="h4 mb-0 font-weight-bold">
                             <?php 
-                            $approved = $pdo->prepare("SELECT COUNT(*) FROM riwayat_pengajuan WHERE id_operator = ? AND status_baru = 'active'");
-                            $approved->execute([$_SESSION['id_user']]);
-                            echo $approved->fetchColumn();
+                            $approved_stmt = $pdo->prepare("SELECT COUNT(*) FROM v_riwayat_pengajuan_operator WHERE id_operator = ? AND status_baru = 'active'");
+                            $approved_stmt->execute([$_SESSION['id_user']]);
+                            $approved = $approved_stmt->fetchColumn();
+                            echo $approved;
                             ?>
                         </div>
                     </div>
@@ -141,9 +139,10 @@ include "navbar.php";
                         <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Rejected</div>
                         <div class="h4 mb-0 font-weight-bold">
                             <?php 
-                            $rejected = $pdo->prepare("SELECT COUNT(*) FROM riwayat_pengajuan WHERE id_operator = ? AND status_baru = 'rejected'");
-                            $rejected->execute([$_SESSION['id_user']]);
-                            echo $rejected->fetchColumn();
+                            $rejected_stmt = $pdo->prepare("SELECT COUNT(*) FROM v_riwayat_pengajuan_operator WHERE id_operator = ? AND status_baru = 'rejected'");
+                            $rejected_stmt->execute([$_SESSION['id_user']]);
+                            $rejected = $rejected_stmt->fetchColumn();
+                            echo $rejected;
                             ?>
                         </div>
                     </div>
@@ -163,9 +162,10 @@ include "navbar.php";
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total</div>
                         <div class="h4 mb-0 font-weight-bold">
                             <?php 
-                            $total = $pdo->prepare("SELECT COUNT(*) FROM riwayat_pengajuan WHERE id_operator = ?");
-                            $total->execute([$_SESSION['id_user']]);
-                            echo $total->fetchColumn();
+                            $total_stmt = $pdo->prepare("SELECT COUNT(*) FROM v_riwayat_pengajuan_operator WHERE id_operator = ?");
+                            $total_stmt->execute([$_SESSION['id_user']]);
+                            $total = $total_stmt->fetchColumn();
+                            echo $total;
                             ?>
                         </div>
                     </div>
@@ -182,7 +182,7 @@ include "navbar.php";
 <div class="card shadow mb-4">
     <div class="card-body">
         <form method="GET" class="row g-3">
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label class="form-label"><i class="bi bi-table"></i> Tabel</label>
                 <select class="form-select" name="tabel">
                     <option value="">Semua Tabel</option>
@@ -220,7 +220,7 @@ include "navbar.php";
                 </select>
             </div>
             
-            <div class="col-md-3 d-flex align-items-end gap-2">
+            <div class="col-md-2 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary flex-grow-1">
                     <i class="bi bi-funnel"></i> Filter
                 </button>
@@ -235,8 +235,8 @@ include "navbar.php";
 <!-- Info Alert -->
 <div class="alert alert-info">
     <i class="bi bi-info-circle"></i> 
-    <strong>Informasi:</strong> Semua pengajuan Anda akan tercatat di sini. Status <span class="badge bg-warning">Pending</span> menunggu review admin, 
-    <span class="badge bg-success">Approved</span> sudah disetujui dan tampil di website, 
+    <strong>Informasi:</strong> Menampilkan semua pengajuan Anda. Status <span class="badge bg-warning">Pending</span> menunggu review admin, 
+    <span class="badge bg-success">Approved</span> sudah disetujui, 
     <span class="badge bg-danger">Rejected</span> ditolak oleh admin.
 </div>
 
@@ -246,6 +246,9 @@ include "navbar.php";
         <h5 class="mb-0">
             <i class="bi bi-file-earmark-text"></i> Daftar Riwayat 
             <span class="badge bg-primary"><?php echo count($riwayat_list); ?> records</span>
+            <?php if ($filter_tabel || $filter_status || $filter_bulan): ?>
+                <span class="badge bg-info">Filtered</span>
+            <?php endif; ?>
         </h5>
     </div>
     <div class="card-body p-0">
@@ -278,7 +281,6 @@ include "navbar.php";
                             <td><code class="text-primary">#<?php echo $riwayat['id_data']; ?></code></td>
                             <td>
                                 <?php
-                                // Badge untuk status lama
                                 $status_lama_badge = 'bg-secondary';
                                 $status_lama_icon = '';
                                 if ($riwayat['status_lama'] == 'active') {
@@ -292,7 +294,6 @@ include "navbar.php";
                                     $status_lama_icon = '❌';
                                 }
                                 
-                                // Badge untuk status baru
                                 $status_baru_badge = 'bg-secondary';
                                 $status_baru_icon = '';
                                 if ($riwayat['status_baru'] == 'active') {
@@ -314,6 +315,9 @@ include "navbar.php";
                                         <span class="badge <?php echo $status_lama_badge; ?>">
                                             <?php echo $status_lama_icon . ' ' . ucfirst($riwayat['status_lama']); ?>
                                         </span>
+                                        <i class="bi bi-arrow-right"></i>
+                                    <?php else: ?>
+                                        <span class="badge bg-info">🆕 New</span>
                                         <i class="bi bi-arrow-right"></i>
                                     <?php endif; ?>
                                     <span class="badge <?php echo $status_baru_badge; ?>">
@@ -466,11 +470,6 @@ include "navbar.php";
 
 .badge {
     font-weight: 500;
-}
-
-.card-hover:hover {
-    transform: translateY(-5px);
-    transition: transform 0.3s;
 }
 </style>
 

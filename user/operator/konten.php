@@ -36,11 +36,11 @@ if (isset($_GET['delete'])) {
 
 // Handle Add/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $kategori_konten = $_POST['kategori_konten']; // ✅ FIXED: Tidak lagi id_kategori
+    $kategori_konten = $_POST['kategori_konten'];
     $judul = $_POST['judul'];
     $slug = strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]/', '', $judul)));
     $isi = $_POST['isi'];
-    $status = 'pending'; // AUTO PENDING
+    $status = 'pending';
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -61,46 +61,56 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data_owner = $stmt_check->fetch();
             
             if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && $data_owner['status'] == 'pending') {
-                if ($gambar) {
-                    $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, gambar=?, status=? WHERE id_konten=?");
-                    $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $id]);
-                } else {
-                    $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, status=? WHERE id_konten=?");
-                    $stmt->execute([$kategori_konten, $judul, $slug, $isi, $status, $id]);
-                }
+                $stmt = $pdo->prepare("SELECT * FROM sp_update_konten(?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$id, $kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
+                $result = $stmt->fetch();
+                $message = $result['p_message'];
                 
-                $success = "Konten berhasil diupdate! Menunggu persetujuan admin.";
+                if (strpos($message, 'Success') !== false) {
+                    $success = "Konten berhasil diupdate! Menunggu persetujuan admin.";
+                } else {
+                    $error = $message;
+                }
             } else {
                 $error = "Anda hanya bisa edit data pending milik Anda!";
             }
         } else {
-            $stmt = $pdo->prepare("INSERT INTO konten (kategori_konten, judul, slug, isi, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
+            $stmt = $pdo->prepare("SELECT * FROM sp_insert_konten(?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user'], 'operator']);
+            $result = $stmt->fetch();
+            $new_id = $result['p_id_konten'];
+            $message = $result['p_message'];
             
-            $new_id = $pdo->lastInsertId();
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
-            
-            $success = "Konten berhasil ditambahkan! Menunggu persetujuan admin.";
+            if ($new_id > 0) {
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
+                $success = "Konten berhasil ditambahkan! Menunggu persetujuan admin.";
+            } else {
+                $error = $message;
+            }
         }
     } catch (PDOException $e) {
         $error = "Gagal menyimpan: " . $e->getMessage();
     }
 }
 
-// ✅ FIXED: Query tanpa JOIN ke tabel kategori
-$stmt = $pdo->prepare("
-    SELECT * FROM konten 
-    WHERE id_user = ?
-    ORDER BY tanggal_posting DESC
-");
-$stmt->execute([$_SESSION['id_user']]);
-$konten_list = $stmt->fetchAll();
+// Get konten milik operator
+try {
+    $stmt = $pdo->prepare("SELECT * FROM sp_get_konten(?, ?, ?, ?, ?)");
+    $stmt->execute([$_SESSION['id_user'], 'operator', null, null, 200]);
+    $konten_list = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $error = "Gagal mengambil data: " . $e->getMessage();
+    $konten_list = [];
+}
 
-// ✅ FIXED: Ambil kategori unik dari kolom kategori_konten
-$stmt_kat = $pdo->query("SELECT DISTINCT kategori_konten FROM konten WHERE kategori_konten IS NOT NULL AND kategori_konten != '' ORDER BY kategori_konten");
-$kategori_list = $stmt_kat->fetchAll(PDO::FETCH_COLUMN);
+// Get kategori
+try {
+    $stmt_kat = $pdo->query("SELECT DISTINCT kategori_konten FROM konten WHERE kategori_konten IS NOT NULL AND kategori_konten != '' ORDER BY kategori_konten");
+    $kategori_list = $stmt_kat->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    $kategori_list = [];
+}
 
 include "header.php";
 include "sidebar.php";
@@ -141,7 +151,10 @@ include "navbar.php";
                     </tr>
                 </thead>
                 <tbody>
-                    <?php $no = 1; foreach ($konten_list as $kon): ?>
+                    <?php 
+                    $no = 1; 
+                    foreach ($konten_list as $kon): 
+                    ?>
                     <tr>
                         <td><?php echo $no++; ?></td>
                         <td>
@@ -216,7 +229,6 @@ include "navbar.php";
                                     <option value="<?php echo htmlspecialchars($kat); ?>">
                                 <?php endforeach; ?>
                             </datalist>
-                            <small class="text-muted">Ketik kategori baru atau pilih yang ada</small>
                         </div>
                     </div>
                     

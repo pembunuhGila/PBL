@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_riwayat->execute(['struktur_lab', $new_id, $_SESSION['id_user'], null, $status, 'Tambah struktur: ' . $jabatan]);
             
-            $success = "Struktur berhasil ditambahkan!";
+            $success = "Struktur berhasil ditambahkan dan langsung aktif!";
         }
     } catch (PDOException $e) {
         $error = "Gagal menyimpan: " . $e->getMessage();
@@ -132,7 +132,7 @@ include "navbar.php";
         }
     ?>
     <div class="col-md-4 mb-3">
-        <div class="card shadow text-center">
+        <div class="card shadow text-center h-100">
             <div class="card-body">
                 <?php if ($struktur['foto']): ?>
                     <img src="../../uploads/anggota/<?php echo $struktur['foto']; ?>" class="rounded-circle mb-3" width="100" height="100">
@@ -155,24 +155,25 @@ include "navbar.php";
 
 <!-- Table View for Admin -->
 <div class="card shadow">
-    <div class="card-header">
-        <h5 class="mb-0">Data Struktur (Admin View)</h5>
-    </div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
                     <tr>
+                        <th>No</th>
                         <th>Urutan</th>
                         <th>Foto</th>
                         <th>Nama</th>
                         <th>Jabatan</th>
+                        <th>Email</th>
+                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($struktur_list as $struktur): ?>
+                    <?php $no = 1; foreach ($struktur_list as $struktur): ?>
                     <tr>
+                        <td><?php echo $no++; ?></td>
                         <td>
                             <span class="badge bg-secondary">#<?php echo $struktur['urutan']; ?></span>
                             <?php if ($struktur['urutan'] == 1): ?>
@@ -188,6 +189,7 @@ include "navbar.php";
                         </td>
                         <td><?php echo htmlspecialchars($struktur['nama']); ?></td>
                         <td><?php echo htmlspecialchars($struktur['jabatan']); ?></td>
+                        <td><small><?php echo htmlspecialchars($struktur['email'] ?? '-'); ?></small></td>
                         <td>
                             <?php 
                             $badge_class = $struktur['status'] == 'active' ? 'bg-success' : ($struktur['status'] == 'pending' ? 'bg-warning' : 'bg-danger');
@@ -222,6 +224,10 @@ include "navbar.php";
                 <div class="modal-body">
                     <input type="hidden" name="id_struktur" id="id_struktur">
                     
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Data akan langsung aktif setelah disimpan
+                    </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Anggota *</label>
                         <select class="form-select" name="id_anggota" id="id_anggota" required>
@@ -249,7 +255,7 @@ include "navbar.php";
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan</button>
+                    <button type="submit" class="btn btn-primary">Simpan & Aktifkan</button>
                 </div>
             </form>
         </div>
@@ -269,7 +275,6 @@ function editStruktur(data) {
     document.getElementById('id_anggota').value = data.id_anggota;
     document.getElementById('jabatan').value = data.jabatan;
     document.getElementById('urutan').value = data.urutan;
-    document.getElementById('status').value = data.status;
     
     new bootstrap.Modal(document.getElementById('strukturModal')).show();
 }
@@ -277,10 +282,11 @@ function editStruktur(data) {
 
 <style>
 .card {
-    transition: transform 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 .card:hover {
     transform: translateY(-5px);
+    box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.15) !important;
 }
 </style>
 
