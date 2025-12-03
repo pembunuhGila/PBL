@@ -55,12 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     $pendidikan = json_encode($pendidikan_array);
     
-    $pendidikan_terakhir = $_POST['pendidikan_terakhir'];
-    $bidang_keahlian = $_POST['bidang_keahlian'];
-    $tanggal_bergabung = $_POST['tanggal_bergabung'];
-    $ruangan = $_POST['ruangan'];
+    // Process mata kuliah array (bidang_keahlian as JSON)
+    $matakuliah_array = [];
+    if (isset($_POST['matakuliah_nama']) && is_array($_POST['matakuliah_nama'])) {
+        foreach ($_POST['matakuliah_nama'] as $index => $nama_mk) {
+            if (!empty($nama_mk)) {
+                $matakuliah_array[] = [
+                    'nama' => $nama_mk
+                ];
+            }
+        }
+    }
+    $bidang_keahlian = json_encode($matakuliah_array);
     
-    $status = 'active';
+    $tanggal_bergabung = $_POST['tanggal_bergabung'];
+    
+    $status = 'active'; // Admin langsung active
     
     $foto = null;
     if (isset($_FILES['foto']) && $_FILES['foto']['error'] == 0) {
@@ -83,11 +93,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $status_lama = $old_data['status'];
             
             if ($foto) {
-                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, pendidikan_terakhir=?, bidang_keahlian=?, tanggal_bergabung=?, ruangan=?, foto=?, status=? WHERE id_anggota=?");
-                $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $pendidikan_terakhir, $bidang_keahlian, $tanggal_bergabung, $ruangan, $foto, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, foto=?, status=? WHERE id_anggota=?");
+                $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $id]);
             } else {
-                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, pendidikan_terakhir=?, bidang_keahlian=?, tanggal_bergabung=?, ruangan=?, status=? WHERE id_anggota=?");
-                $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $pendidikan_terakhir, $bidang_keahlian, $tanggal_bergabung, $ruangan, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, status=? WHERE id_anggota=?");
+                $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $status, $id]);
             }
             
             if ($status_lama != $status) {
@@ -97,8 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             $success = "Anggota berhasil diupdate!";
         } else {
-            $stmt = $pdo->prepare("INSERT INTO anggota_lab (nama, nip, email, kontak, biodata_teks, pendidikan, pendidikan_terakhir, bidang_keahlian, tanggal_bergabung, ruangan, foto, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $pendidikan_terakhir, $bidang_keahlian, $tanggal_bergabung, $ruangan, $foto, $status, $_SESSION['id_user']]);
+            $stmt = $pdo->prepare("INSERT INTO anggota_lab (nama, nip, email, kontak, biodata_teks, pendidikan, bidang_keahlian, tanggal_bergabung, foto, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
@@ -154,8 +164,8 @@ include "navbar.php";
                         <th>Email</th>
                         <th>Kontak</th>
                         <th>Pendidikan</th>
+                        <th>Mata Kuliah</th>
                         <th>Status</th>
-                        <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -181,6 +191,30 @@ include "navbar.php";
                                     echo '<small>';
                                     foreach ($pendidikan_data as $edu) {
                                         echo '<strong>' . htmlspecialchars($edu['jenjang']) . '</strong><br>';
+                                    }
+                                    echo '</small>';
+                                } else {
+                                    echo '-';
+                                }
+                            } else {
+                                echo '-';
+                            }
+                            ?>
+                        </td>
+                        <td>
+                            <?php 
+                            if ($anggota['bidang_keahlian']) {
+                                $mk_data = json_decode($anggota['bidang_keahlian'], true);
+                                if (is_array($mk_data) && count($mk_data) > 0) {
+                                    echo '<small>';
+                                    $count = 0;
+                                    foreach ($mk_data as $mk) {
+                                        if ($count >= 2) {
+                                            echo '+ ' . (count($mk_data) - 2) . ' lainnya';
+                                            break;
+                                        }
+                                        echo htmlspecialchars($mk['nama']) . '<br>';
+                                        $count++;
                                     }
                                     echo '</small>';
                                 } else {
@@ -238,13 +272,17 @@ include "navbar.php";
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Email</label>
                             <input type="email" class="form-control" name="email" id="email">
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Kontak</label>
                             <input type="text" class="form-control" name="kontak" id="kontak">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Tanggal Bergabung</label>
+                            <input type="date" class="form-control" name="tanggal_bergabung" id="tanggal_bergabung">
                         </div>
                     </div>
                     
@@ -301,27 +339,29 @@ include "navbar.php";
                         <i class="bi bi-plus-circle"></i> Tambah Pendidikan
                     </button>
                     
-                    <div class="mb-3">
-                        <label class="form-label">Pendidikan Terakhir</label>
-                        <input type="text" class="form-control" name="pendidikan_terakhir" id="pendidikan_terakhir" placeholder="S2 Teknik Informatika">
-                        <small class="text-muted">Contoh: S2 Teknik Informatika, S3 Sistem Informasi</small>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Bidang Keahlian</label>
-                        <textarea class="form-control" name="bidang_keahlian" id="bidang_keahlian" rows="2" placeholder="Machine Learning, Data Science, Web Development"></textarea>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Tanggal Bergabung</label>
-                            <input type="date" class="form-control" name="tanggal_bergabung" id="tanggal_bergabung">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Ruangan</label>
-                            <input type="text" class="form-control" name="ruangan" id="ruangan">
+                    <hr class="my-4">
+                    <h6 class="mb-3">Mata Kuliah yang Diampu</h6>
+
+                    <div id="matakuliahContainer">
+                        <div class="matakuliah-item border rounded p-3 mb-3 bg-light">
+                            <div class="row align-items-end">
+                                <div class="col-auto mb-2">
+                                    <label class="form-label small d-block">&nbsp;</label>
+                                    <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)" style="display: none;">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                                <div class="col mb-2">
+                                    <label class="form-label small">Nama Mata Kuliah *</label>
+                                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addMatakuliah()">
+                        <i class="bi bi-plus-circle"></i> Tambah Mata Kuliah
+                    </button>                          
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -333,6 +373,7 @@ include "navbar.php";
 </div>
 
 <script>
+// PENDIDIKAN FUNCTIONS
 function addPendidikan() {
     const container = document.getElementById('pendidikanContainer');
     const newItem = document.createElement('div');
@@ -371,18 +412,44 @@ function addPendidikan() {
         </div>
     `;
     container.appendChild(newItem);
-    
-    // Show delete button on first item if more than 1
-    updateDeleteButtons();
+    updateDeleteButtons('pendidikan');
 }
 
 function removePendidikan(button) {
     button.closest('.pendidikan-item').remove();
-    updateDeleteButtons();
+    updateDeleteButtons('pendidikan');
 }
 
-function updateDeleteButtons() {
-    const items = document.querySelectorAll('.pendidikan-item');
+// MATA KULIAH FUNCTIONS
+function addMatakuliah() {
+    const container = document.getElementById('matakuliahContainer');
+    const newItem = document.createElement('div');
+    newItem.className = 'matakuliah-item border rounded p-3 mb-3 bg-light';
+    newItem.innerHTML = `
+        <div class="row align-items-end">
+            <div class="col-auto mb-2">
+                <label class="form-label small d-block">&nbsp;</label>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+            <div class="col mb-2">
+                <label class="form-label small">Nama Mata Kuliah *</label>
+                <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
+            </div>
+        </div>
+    `;
+    container.appendChild(newItem);
+    updateDeleteButtons('matakuliah');
+}
+
+function removeMatakuliah(button) {
+    button.closest('.matakuliah-item').remove();
+    updateDeleteButtons('matakuliah');
+}
+
+function updateDeleteButtons(type) {
+    const items = document.querySelectorAll(`.${type}-item`);
     items.forEach((item, index) => {
         const deleteBtn = item.querySelector('.btn-danger');
         if (items.length > 1) {
@@ -398,9 +465,9 @@ function resetForm() {
     document.querySelector('form').reset();
     document.getElementById('id_anggota').value = '';
     
-    // Reset pendidikan to one empty item
-    const container = document.getElementById('pendidikanContainer');
-    container.innerHTML = `
+    // Reset pendidikan
+    const pendidikanContainer = document.getElementById('pendidikanContainer');
+    pendidikanContainer.innerHTML = `
         <div class="pendidikan-item border rounded p-3 mb-3 bg-light">
             <div class="row">
                 <div class="col-md-3 mb-2">
@@ -435,6 +502,25 @@ function resetForm() {
             </div>
         </div>
     `;
+    
+    // Reset mata kuliah
+    const matakuliahContainer = document.getElementById('matakuliahContainer');
+        matakuliahContainer.innerHTML = `
+            <div class="matakuliah-item border rounded p-3 mb-3 bg-light">
+                <div class="row align-items-end">
+                    <div class="col-auto mb-2">
+                        <label class="form-label small d-block">&nbsp;</label>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)" style="display: none;">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                <div class="col mb-2">
+                    <label class="form-label small">Nama Mata Kuliah *</label>
+                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 function editAnggota(data) {
@@ -445,14 +531,11 @@ function editAnggota(data) {
     document.getElementById('email').value = data.email || '';
     document.getElementById('kontak').value = data.kontak || '';
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
-    document.getElementById('pendidikan_terakhir').value = data.pendidikan_terakhir || '';
-    document.getElementById('bidang_keahlian').value = data.bidang_keahlian || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
-    document.getElementById('ruangan').value = data.ruangan || '';
     
     // Parse and populate pendidikan
-    const container = document.getElementById('pendidikanContainer');
-    container.innerHTML = '';
+    const pendidikanContainer = document.getElementById('pendidikanContainer');
+    pendidikanContainer.innerHTML = '';
     
     let pendidikanData = [];
     try {
@@ -464,7 +547,6 @@ function editAnggota(data) {
     }
     
     if (pendidikanData.length === 0) {
-        // Add one empty item if no data
         pendidikanData = [{jenjang: '', institusi: '', jurusan: '', tahun: ''}];
     }
     
@@ -504,7 +586,44 @@ function editAnggota(data) {
                 </div>
             </div>
         `;
-        container.appendChild(newItem);
+        pendidikanContainer.appendChild(newItem);
+    });
+    
+    // Parse and populate mata kuliah
+    const matakuliahContainer = document.getElementById('matakuliahContainer');
+    matakuliahContainer.innerHTML = '';
+    
+    let matakuliahData = [];
+    try {
+        if (data.bidang_keahlian) {
+            matakuliahData = JSON.parse(data.bidang_keahlian);
+        }
+    } catch (e) {
+        console.error('Error parsing mata kuliah:', e);
+    }
+    
+    if (matakuliahData.length === 0) {
+        matakuliahData = [{nama: ''}];
+    }
+    
+    matakuliahData.forEach((mk, index) => {
+        const newItem = document.createElement('div');
+        newItem.className = 'matakuliah-item border rounded p-3 mb-3 bg-light';
+        newItem.innerHTML = `
+            <div class="row align-items-end">
+                <div class="col-auto mb-2">
+                    <label class="form-label small d-block">&nbsp;</label>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)" style="${matakuliahData.length > 1 ? '' : 'display: none;'}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+                <div class="col mb-2">
+                    <label class="form-label small">Nama Mata Kuliah *</label>
+                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${mk.nama || ''}" required>
+                </div>
+            </div>
+        `;
+        matakuliahContainer.appendChild(newItem);
     });
     
     new bootstrap.Modal(document.getElementById('anggotaModal')).show();

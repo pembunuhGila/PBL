@@ -1,6 +1,6 @@
 <?php
 $host = 'localhost';
-$dbname = 'labdt_db';
+$dbname = 'labDT_db';
 $username = 'postgres';
 $password = 'crazyMamad13*';
 

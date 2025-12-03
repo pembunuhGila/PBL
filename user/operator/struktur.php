@@ -223,12 +223,6 @@ include "navbar.php";
                         endforeach;
                     } else {
                     ?>
-                    <tr>
-                        <td colspan="8" class="text-center text-muted py-4">
-                            <i class="bi bi-inbox" style="font-size: 2rem; opacity: 0.5;"></i>
-                            <p class="mt-2 mb-0">Belum ada data struktur. Silakan tambahkan struktur baru.</p>
-                        </td>
-                    </tr>
                     <?php } ?>
                 </tbody>
             </table>
