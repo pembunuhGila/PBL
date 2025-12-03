@@ -47,7 +47,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email = $_POST['email'];
     $kontak = $_POST['kontak'];
     $biodata_teks = $_POST['biodata_teks'];
-    $pendidikan = $_POST['pendidikan'];
+    
+    // Process pendidikan array
+    $pendidikan_array = [];
+    if (isset($_POST['pendidikan_jenjang']) && is_array($_POST['pendidikan_jenjang'])) {
+        foreach ($_POST['pendidikan_jenjang'] as $index => $jenjang) {
+            if (!empty($jenjang) && !empty($_POST['pendidikan_institusi'][$index])) {
+                $pendidikan_array[] = [
+                    'jenjang' => $jenjang,
+                    'institusi' => $_POST['pendidikan_institusi'][$index],
+                    'tahun' => $_POST['pendidikan_tahun'][$index] ?? '',
+                    'jurusan' => $_POST['pendidikan_jurusan'][$index] ?? ''
+                ];
+            }
+        }
+    }
+    $pendidikan = json_encode($pendidikan_array);
+    
     $pendidikan_terakhir = $_POST['pendidikan_terakhir'];
     $bidang_keahlian = $_POST['bidang_keahlian'];
     $tanggal_bergabung = $_POST['tanggal_bergabung'];
@@ -159,6 +175,7 @@ include "navbar.php";
                         <th>NIP</th>
                         <th>Email</th>
                         <th>Kontak</th>
+                        <th>Pendidikan</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -178,6 +195,24 @@ include "navbar.php";
                         <td><?php echo htmlspecialchars($anggota['nip'] ?? '-'); ?></td>
                         <td><?php echo htmlspecialchars($anggota['email'] ?? '-'); ?></td>
                         <td><?php echo htmlspecialchars($anggota['kontak'] ?? '-'); ?></td>
+                        <td>
+                            <?php 
+                            if ($anggota['pendidikan']) {
+                                $pendidikan_data = json_decode($anggota['pendidikan'], true);
+                                if (is_array($pendidikan_data) && count($pendidikan_data) > 0) {
+                                    echo '<small>';
+                                    foreach ($pendidikan_data as $edu) {
+                                        echo '<strong>' . htmlspecialchars($edu['jenjang']) . '</strong><br>';
+                                    }
+                                    echo '</small>';
+                                } else {
+                                    echo '-';
+                                }
+                            } else {
+                                echo '-';
+                            }
+                            ?>
+                        </td>
                         <td>
                             <?php if ($anggota['status'] == 'pending'): ?>
                                 <span class="badge bg-warning">Pending</span>
@@ -209,7 +244,7 @@ include "navbar.php";
 
 <!-- Modal Form -->
 <div class="modal fade" id="anggotaModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <form method="POST" enctype="multipart/form-data">
                 <div class="modal-header">
@@ -255,20 +290,58 @@ include "navbar.php";
                         <textarea class="form-control" name="biodata_teks" id="biodata_teks" rows="3"></textarea>
                     </div>
                     
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Pendidikan</label>
-                            <textarea class="form-control" name="pendidikan" id="pendidikan" rows="2"></textarea>
+                    <hr class="my-4">
+                    <h6 class="mb-3">Riwayat Pendidikan</h6>
+                    
+                    <div id="pendidikanContainer">
+                        <div class="pendidikan-item border rounded p-3 mb-3 bg-light">
+                            <div class="row">
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label small">Jenjang *</label>
+                                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                                        <option value="">Pilih Jenjang</option>
+                                        <option value="D3">D3</option>
+                                        <option value="D4">D4</option>
+                                        <option value="S1">S1</option>
+                                        <option value="S2">S2</option>
+                                        <option value="S3">S3</option>
+                                        <option value="Profesi">Profesi</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <label class="form-label small">Institusi *</label>
+                                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label small">Jurusan</label>
+                                    <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika...">
+                                </div>
+                                <div class="col-md-2 mb-2">
+                                    <label class="form-label small">Tahun</label>
+                                    <div class="d-flex gap-1">
+                                        <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020">
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)" style="display: none;">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Pendidikan Terakhir</label>
-                            <input type="text" class="form-control" name="pendidikan_terakhir" id="pendidikan_terakhir">
-                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addPendidikan()">
+                        <i class="bi bi-plus-circle"></i> Tambah Pendidikan
+                    </button>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Pendidikan Terakhir</label>
+                        <input type="text" class="form-control" name="pendidikan_terakhir" id="pendidikan_terakhir" placeholder="S2 Teknik Informatika">
+                        <small class="text-muted">Contoh: S2 Teknik Informatika, S3 Sistem Informasi</small>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Bidang Keahlian</label>
-                        <textarea class="form-control" name="bidang_keahlian" id="bidang_keahlian" rows="2"></textarea>
+                        <textarea class="form-control" name="bidang_keahlian" id="bidang_keahlian" rows="2" placeholder="Machine Learning, Data Science, Web Development"></textarea>
                     </div>
                     
                     <div class="row">
@@ -292,10 +365,108 @@ include "navbar.php";
 </div>
 
 <script>
+function addPendidikan() {
+    const container = document.getElementById('pendidikanContainer');
+    const newItem = document.createElement('div');
+    newItem.className = 'pendidikan-item border rounded p-3 mb-3 bg-light';
+    newItem.innerHTML = `
+        <div class="row">
+            <div class="col-md-3 mb-2">
+                <label class="form-label small">Jenjang *</label>
+                <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                    <option value="">Pilih Jenjang</option>
+                    <option value="D3">D3</option>
+                    <option value="D4">D4</option>
+                    <option value="S1">S1</option>
+                    <option value="S2">S2</option>
+                    <option value="S3">S3</option>
+                    <option value="Profesi">Profesi</option>
+                </select>
+            </div>
+            <div class="col-md-4 mb-2">
+                <label class="form-label small">Institusi *</label>
+                <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
+            </div>
+            <div class="col-md-3 mb-2">
+                <label class="form-label small">Jurusan</label>
+                <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika...">
+            </div>
+            <div class="col-md-2 mb-2">
+                <label class="form-label small">Tahun</label>
+                <div class="d-flex gap-1">
+                    <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(newItem);
+    
+    // Show delete button on first item if more than 1
+    updateDeleteButtons();
+}
+
+function removePendidikan(button) {
+    button.closest('.pendidikan-item').remove();
+    updateDeleteButtons();
+}
+
+function updateDeleteButtons() {
+    const items = document.querySelectorAll('.pendidikan-item');
+    items.forEach((item, index) => {
+        const deleteBtn = item.querySelector('.btn-danger');
+        if (items.length > 1) {
+            deleteBtn.style.display = 'block';
+        } else {
+            deleteBtn.style.display = 'none';
+        }
+    });
+}
+
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Anggota Lab';
     document.querySelector('form').reset();
     document.getElementById('id_anggota').value = '';
+    
+    // Reset pendidikan to one empty item
+    const container = document.getElementById('pendidikanContainer');
+    container.innerHTML = `
+        <div class="pendidikan-item border rounded p-3 mb-3 bg-light">
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <label class="form-label small">Jenjang *</label>
+                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                        <option value="">Pilih Jenjang</option>
+                        <option value="D3">D3</option>
+                        <option value="D4">D4</option>
+                        <option value="S1">S1</option>
+                        <option value="S2">S2</option>
+                        <option value="S3">S3</option>
+                        <option value="Profesi">Profesi</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <label class="form-label small">Institusi *</label>
+                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <label class="form-label small">Jurusan</label>
+                    <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika...">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label small">Tahun</label>
+                    <div class="d-flex gap-1">
+                        <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020">
+                        <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)" style="display: none;">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 function editAnggota(data) {
@@ -306,11 +477,67 @@ function editAnggota(data) {
     document.getElementById('email').value = data.email || '';
     document.getElementById('kontak').value = data.kontak || '';
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
-    document.getElementById('pendidikan').value = data.pendidikan || '';
     document.getElementById('pendidikan_terakhir').value = data.pendidikan_terakhir || '';
     document.getElementById('bidang_keahlian').value = data.bidang_keahlian || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
     document.getElementById('ruangan').value = data.ruangan || '';
+    
+    // Parse and populate pendidikan
+    const container = document.getElementById('pendidikanContainer');
+    container.innerHTML = '';
+    
+    let pendidikanData = [];
+    try {
+        if (data.pendidikan) {
+            pendidikanData = JSON.parse(data.pendidikan);
+        }
+    } catch (e) {
+        console.error('Error parsing pendidikan:', e);
+    }
+    
+    if (pendidikanData.length === 0) {
+        // Add one empty item if no data
+        pendidikanData = [{jenjang: '', institusi: '', jurusan: '', tahun: ''}];
+    }
+    
+    pendidikanData.forEach((edu, index) => {
+        const newItem = document.createElement('div');
+        newItem.className = 'pendidikan-item border rounded p-3 mb-3 bg-light';
+        newItem.innerHTML = `
+            <div class="row">
+                <div class="col-md-3 mb-2">
+                    <label class="form-label small">Jenjang *</label>
+                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                        <option value="">Pilih Jenjang</option>
+                        <option value="D3" ${edu.jenjang === 'D3' ? 'selected' : ''}>D3</option>
+                        <option value="D4" ${edu.jenjang === 'D4' ? 'selected' : ''}>D4</option>
+                        <option value="S1" ${edu.jenjang === 'S1' ? 'selected' : ''}>S1</option>
+                        <option value="S2" ${edu.jenjang === 'S2' ? 'selected' : ''}>S2</option>
+                        <option value="S3" ${edu.jenjang === 'S3' ? 'selected' : ''}>S3</option>
+                        <option value="Profesi" ${edu.jenjang === 'Profesi' ? 'selected' : ''}>Profesi</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <label class="form-label small">Institusi *</label>
+                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${edu.institusi || ''}" required>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <label class="form-label small">Jurusan</label>
+                    <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika..." value="${edu.jurusan || ''}">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label small">Tahun</label>
+                    <div class="d-flex gap-1">
+                        <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020" value="${edu.tahun || ''}">
+                        <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)" style="${pendidikanData.length > 1 ? '' : 'display: none;'}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.appendChild(newItem);
+    });
     
     new bootstrap.Modal(document.getElementById('anggotaModal')).show();
 }
