@@ -15,22 +15,12 @@ $current_page = "anggota.php";
 if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
     try {
-        // Get foto path before deleting
-        $stmt_old = $pdo->prepare("SELECT nama, status, foto FROM anggota_lab WHERE id_anggota = ?");
+        $stmt_old = $pdo->prepare("SELECT nama, status FROM anggota_lab WHERE id_anggota = ?");
         $stmt_old->execute([$id]);
         $old_data = $stmt_old->fetch();
         
-        // Delete from database
         $stmt = $pdo->prepare("DELETE FROM anggota_lab WHERE id_anggota = ?");
         $stmt->execute([$id]);
-        
-        // Delete foto file if exists
-        if ($old_data['foto']) {
-            $foto_path = "../../uploads/anggota/" . $old_data['foto'];
-            if (file_exists($foto_path)) {
-                unlink($foto_path);
-            }
-        }
         
         $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt_riwayat->execute(['anggota_lab', $id, $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus anggota: ' . $old_data['nama']]);
@@ -44,14 +34,15 @@ if (isset($_GET['delete'])) {
 // Handle Add/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $nama = $_POST['nama'];
-    $nip = $_POST['nip'];
+    $tipe_anggota = $_POST['tipe_anggota']; // dosen atau mahasiswa
+    $nip_nim = $_POST['nip_nim'];
     $email = $_POST['email'];
     $kontak = $_POST['kontak'];
     $biodata_teks = $_POST['biodata_teks'];
     
-    // Process pendidikan array
+    // Process pendidikan array (hanya untuk dosen)
     $pendidikan_array = [];
-    if (isset($_POST['pendidikan_jenjang']) && is_array($_POST['pendidikan_jenjang'])) {
+    if ($tipe_anggota == 'dosen' && isset($_POST['pendidikan_jenjang']) && is_array($_POST['pendidikan_jenjang'])) {
         foreach ($_POST['pendidikan_jenjang'] as $index => $jenjang) {
             if (!empty($jenjang) && !empty($_POST['pendidikan_institusi'][$index])) {
                 $pendidikan_array[] = [
@@ -65,9 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     $pendidikan = json_encode($pendidikan_array);
     
-    // Process mata kuliah array (bidang_keahlian as JSON)
+    // Process mata kuliah array (hanya untuk dosen)
     $matakuliah_array = [];
-    if (isset($_POST['matakuliah_nama']) && is_array($_POST['matakuliah_nama'])) {
+    if ($tipe_anggota == 'dosen' && isset($_POST['matakuliah_nama']) && is_array($_POST['matakuliah_nama'])) {
         foreach ($_POST['matakuliah_nama'] as $index => $nama_mk) {
             if (!empty($nama_mk)) {
                 $matakuliah_array[] = [
@@ -97,27 +88,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (isset($_POST['id_anggota']) && !empty($_POST['id_anggota'])) {
             $id = $_POST['id_anggota'];
             
-            // Get old foto for deletion if new foto uploaded
-            $stmt_old = $pdo->prepare("SELECT status, foto FROM anggota_lab WHERE id_anggota = ?");
+            $stmt_old = $pdo->prepare("SELECT status FROM anggota_lab WHERE id_anggota = ?");
             $stmt_old->execute([$id]);
             $old_data = $stmt_old->fetch();
             $status_lama = $old_data['status'];
-            $old_foto = $old_data['foto'];
             
             if ($foto) {
-                // Delete old foto if exists and new foto uploaded
-                if ($old_foto) {
-                    $old_foto_path = "../../uploads/anggota/" . $old_foto;
-                    if (file_exists($old_foto_path)) {
-                        unlink($old_foto_path);
-                    }
-                }
-                
                 $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, foto=?, status=? WHERE id_anggota=?");
-                $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $id]);
+                $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $id]);
             } else {
                 $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, status=? WHERE id_anggota=?");
-                $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $status, $id]);
+                $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $status, $id]);
             }
             
             if ($status_lama != $status) {
@@ -128,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $success = "Anggota berhasil diupdate!";
         } else {
             $stmt = $pdo->prepare("INSERT INTO anggota_lab (nama, nip, email, kontak, biodata_teks, pendidikan, bidang_keahlian, tanggal_bergabung, foto, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user']]);
+            $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
@@ -150,7 +131,6 @@ include "sidebar.php";
 include "navbar.php";
 ?>
 
-<!-- UI tetap sama, hanya tambahkan info foto saat edit -->
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Manajemen Anggota Lab</h1>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#anggotaModal" onclick="resetForm()">
@@ -181,7 +161,7 @@ include "navbar.php";
                         <th>No</th>
                         <th>Foto</th>
                         <th>Nama</th>
-                        <th>NIP</th>
+                        <th>NIP/NIM</th>
                         <th>Email</th>
                         <th>Kontak</th>
                         <th>Pendidikan</th>
@@ -189,74 +169,74 @@ include "navbar.php";
                         <th>Aksi</th>
                     </tr>
                 </thead>
-                    <tbody>
-                        <?php $no = 1; foreach ($anggota_list as $anggota): ?>
-                        <tr>
-                            <td><?php echo $no++; ?></td>
-                            <td>
-                                <?php if ($anggota['foto']): ?>
-                                    <img src="../../uploads/anggota/<?php echo $anggota['foto']; ?>" width="50" height="50" class="rounded-circle">
-                                <?php else: ?>
-                                    <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($anggota['nama']); ?>" width="50" height="50" class="rounded-circle">
-                                <?php endif; ?>
-                            </td>
-                            <td><?php echo htmlspecialchars($anggota['nama']); ?></td>
-                            <td><?php echo htmlspecialchars($anggota['nip'] ?? '-'); ?></td>
-                            <td><?php echo htmlspecialchars($anggota['email'] ?? '-'); ?></td>
-                            <td><?php echo htmlspecialchars($anggota['kontak'] ?? '-'); ?></td>
-                            <td>
-                                <?php 
-                                if ($anggota['pendidikan']) {
-                                    $pendidikan_data = json_decode($anggota['pendidikan'], true);
-                                    if (is_array($pendidikan_data) && count($pendidikan_data) > 0) {
-                                        echo '<small>';
-                                        foreach ($pendidikan_data as $edu) {
-                                            echo '<strong>' . htmlspecialchars($edu['jenjang']) . '</strong><br>';
-                                        }
-                                        echo '</small>';
-                                    } else {
-                                        echo '-';
+                <tbody>
+                    <?php $no = 1; foreach ($anggota_list as $anggota): ?>
+                    <tr>
+                        <td><?php echo $no++; ?></td>
+                        <td>
+                            <?php if ($anggota['foto']): ?>
+                                <img src="../../uploads/anggota/<?php echo $anggota['foto']; ?>" width="50" height="50" class="rounded-circle">
+                            <?php else: ?>
+                                <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($anggota['nama']); ?>" width="50" height="50" class="rounded-circle">
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo htmlspecialchars($anggota['nama']); ?></td>
+                        <td><?php echo htmlspecialchars($anggota['nip'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($anggota['email'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($anggota['kontak'] ?? '-'); ?></td>
+                        <td>
+                            <?php 
+                            if ($anggota['pendidikan']) {
+                                $pendidikan_data = json_decode($anggota['pendidikan'], true);
+                                if (is_array($pendidikan_data) && count($pendidikan_data) > 0) {
+                                    echo '<small>';
+                                    foreach ($pendidikan_data as $edu) {
+                                        echo '<strong>' . htmlspecialchars($edu['jenjang']) . '</strong><br>';
                                     }
+                                    echo '</small>';
                                 } else {
                                     echo '-';
                                 }
-                                ?>
-                            </td>
-                            <td>
-                                <?php 
-                                if ($anggota['bidang_keahlian']) {
-                                    $mk_data = json_decode($anggota['bidang_keahlian'], true);
-                                    if (is_array($mk_data) && count($mk_data) > 0) {
-                                        echo '<small>';
-                                        $count = 0;
-                                        foreach ($mk_data as $mk) {
-                                            if ($count >= 2) {
-                                                echo '+ ' . (count($mk_data) - 2) . ' lainnya';
-                                                break;
-                                            }
-                                            echo htmlspecialchars($mk['nama']) . '<br>';
-                                            $count++;
+                            } else {
+                                echo '-';
+                            }
+                            ?>
+                        </td>
+                        <td>
+                            <?php 
+                            if ($anggota['bidang_keahlian']) {
+                                $mk_data = json_decode($anggota['bidang_keahlian'], true);
+                                if (is_array($mk_data) && count($mk_data) > 0) {
+                                    echo '<small>';
+                                    $count = 0;
+                                    foreach ($mk_data as $mk) {
+                                        if ($count >= 2) {
+                                            echo '+ ' . (count($mk_data) - 2) . ' lainnya';
+                                            break;
                                         }
-                                        echo '</small>';
-                                    } else {
-                                        echo '-';
+                                        echo htmlspecialchars($mk['nama']) . '<br>';
+                                        $count++;
                                     }
+                                    echo '</small>';
                                 } else {
                                     echo '-';
                                 }
-                                ?>
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-warning" onclick="editAnggota(<?php echo htmlspecialchars(json_encode($anggota)); ?>)">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <a href="?delete=<?php echo $anggota['id_anggota']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
-                                    <i class="bi bi-trash"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
+                            } else {
+                                echo '-';
+                            }
+                            ?>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" onclick="editAnggota(<?php echo htmlspecialchars(json_encode($anggota)); ?>)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <a href="?delete=<?php echo $anggota['id_anggota']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
             </table>
         </div>
     </div>
@@ -284,12 +264,20 @@ include "navbar.php";
                             <input type="text" class="form-control" name="nama" id="nama" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">NIP</label>
-                            <input type="text" class="form-control" name="nip" id="nip">
+                            <label class="form-label">Tipe Anggota *</label>
+                            <select class="form-select" name="tipe_anggota" id="tipe_anggota" required onchange="toggleAnggotaFields()">
+                                <option value="">-- Pilih Tipe --</option>
+                                <option value="dosen">Dosen</option>
+                                <option value="mahasiswa">Mahasiswa</option>
+                            </select>
                         </div>
                     </div>
                     
                     <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">NIP/NIM *</label>
+                            <input type="text" class="form-control" name="nip_nim" id="nip_nim" required>
+                        </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Email</label>
                             <input type="email" class="form-control" name="email" id="email">
@@ -298,7 +286,10 @@ include "navbar.php";
                             <label class="form-label">Kontak</label>
                             <input type="text" class="form-control" name="kontak" id="kontak">
                         </div>
-                        <div class="col-md-4 mb-3">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
                             <label class="form-label">Tanggal Bergabung</label>
                             <input type="date" class="form-control" name="tanggal_bergabung" id="tanggal_bergabung">
                         </div>
@@ -306,11 +297,7 @@ include "navbar.php";
                     
                     <div class="mb-3">
                         <label class="form-label">Foto</label>
-                        <div id="currentFotoPreview" style="display: none;" class="mb-2">
-                            <img id="currentFotoImg" src="" width="100" height="100" class="rounded-circle">
-                            <p class="small text-muted mb-0">Foto saat ini (pilih file baru untuk menggantinya)</p>
-                        </div>
-                        <input type="file" class="form-control" name="foto" id="foto" accept="image/*">
+                        <input type="file" class="form-control" name="foto" accept="image/*">
                     </div>
                     
                     <div class="mb-3">
@@ -318,27 +305,75 @@ include "navbar.php";
                         <textarea class="form-control" name="biodata_teks" id="biodata_teks" rows="3"></textarea>
                     </div>
                     
-                    <hr class="my-4">
-                    <h6 class="mb-3">Riwayat Pendidikan</h6>
-                    
-                    <div id="pendidikanContainer">
-                        <!-- Will be populated by JS -->
-                    </div>
-                    
-                    <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addPendidikan()">
-                        <i class="bi bi-plus-circle"></i> Tambah Pendidikan
-                    </button>
-                    
-                    <hr class="my-4">
-                    <h6 class="mb-3">Mata Kuliah yang Diampu</h6>
+                    <!-- Section Dosen Only -->
+                    <div id="dosenSection" style="display: none;">
+                        <hr class="my-4">
+                        <h6 class="mb-3">Riwayat Pendidikan</h6>
+                        
+                        <div id="pendidikanContainer">
+                            <div class="pendidikan-item border rounded p-3 mb-3 bg-light">
+                                <div class="row">
+                                    <div class="col-md-3 mb-2">
+                                        <label class="form-label small">Jenjang *</label>
+                                        <select class="form-select form-select-sm" name="pendidikan_jenjang[]">
+                                            <option value="">Pilih Jenjang</option>
+                                            <option value="D3">D3</option>
+                                            <option value="D4">D4</option>
+                                            <option value="S1">S1</option>
+                                            <option value="S2">S2</option>
+                                            <option value="S3">S3</option>
+                                            <option value="Profesi">Profesi</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label class="form-label small">Institusi *</label>
+                                        <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas...">
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <label class="form-label small">Jurusan</label>
+                                        <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika...">
+                                    </div>
+                                    <div class="col-md-2 mb-2">
+                                        <label class="form-label small">Tahun</label>
+                                        <div class="d-flex gap-1">
+                                            <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020">
+                                            <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)" style="display: none;">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addPendidikan()">
+                            <i class="bi bi-plus-circle"></i> Tambah Pendidikan
+                        </button>
+                        
+                        <hr class="my-4">
+                        <h6 class="mb-3">Mata Kuliah yang Diampu</h6>
 
-                    <div id="matakuliahContainer">
-                        <!-- Will be populated by JS -->
+                        <div id="matakuliahContainer">
+                            <div class="matakuliah-item border rounded p-3 mb-3 bg-light">
+                                <div class="row align-items-end">
+                                    <div class="col-auto mb-2">
+                                        <label class="form-label small d-block">&nbsp;</label>
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)" style="display: none;">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                    <div class="col mb-2">
+                                        <label class="form-label small">Nama Mata Kuliah *</label>
+                                        <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addMatakuliah()">
+                            <i class="bi bi-plus-circle"></i> Tambah Mata Kuliah
+                        </button>
                     </div>
-
-                    <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addMatakuliah()">
-                        <i class="bi bi-plus-circle"></i> Tambah Mata Kuliah
-                    </button>                          
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -350,6 +385,17 @@ include "navbar.php";
 </div>
 
 <script>
+function toggleAnggotaFields() {
+    const tipeAnggota = document.getElementById('tipe_anggota').value;
+    const dosenSection = document.getElementById('dosenSection');
+    
+    if (tipeAnggota === 'dosen') {
+        dosenSection.style.display = 'block';
+    } else {
+        dosenSection.style.display = 'none';
+    }
+}
+
 // PENDIDIKAN FUNCTIONS
 function addPendidikan() {
     const container = document.getElementById('pendidikanContainer');
@@ -359,7 +405,7 @@ function addPendidikan() {
         <div class="row">
             <div class="col-md-3 mb-2">
                 <label class="form-label small">Jenjang *</label>
-                <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                <select class="form-select form-select-sm" name="pendidikan_jenjang[]">
                     <option value="">Pilih Jenjang</option>
                     <option value="D3">D3</option>
                     <option value="D4">D4</option>
@@ -371,7 +417,7 @@ function addPendidikan() {
             </div>
             <div class="col-md-4 mb-2">
                 <label class="form-label small">Institusi *</label>
-                <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
+                <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas...">
             </div>
             <div class="col-md-3 mb-2">
                 <label class="form-label small">Jurusan</label>
@@ -412,7 +458,7 @@ function addMatakuliah() {
             </div>
             <div class="col mb-2">
                 <label class="form-label small">Nama Mata Kuliah *</label>
-                <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
+                <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web">
             </div>
         </div>
     `;
@@ -441,7 +487,8 @@ function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Anggota Lab';
     document.querySelector('form').reset();
     document.getElementById('id_anggota').value = '';
-    document.getElementById('currentFotoPreview').style.display = 'none';
+    document.getElementById('tipe_anggota').value = '';
+    toggleAnggotaFields();
     
     // Reset pendidikan
     const pendidikanContainer = document.getElementById('pendidikanContainer');
@@ -450,7 +497,7 @@ function resetForm() {
             <div class="row">
                 <div class="col-md-3 mb-2">
                     <label class="form-label small">Jenjang *</label>
-                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]">
                         <option value="">Pilih Jenjang</option>
                         <option value="D3">D3</option>
                         <option value="D4">D4</option>
@@ -462,7 +509,7 @@ function resetForm() {
                 </div>
                 <div class="col-md-4 mb-2">
                     <label class="form-label small">Institusi *</label>
-                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
+                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas...">
                 </div>
                 <div class="col-md-3 mb-2">
                     <label class="form-label small">Jurusan</label>
@@ -494,7 +541,7 @@ function resetForm() {
                 </div>
                 <div class="col mb-2">
                     <label class="form-label small">Nama Mata Kuliah *</label>
-                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
+                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web">
                 </div>
             </div>
         </div>
@@ -505,19 +552,11 @@ function editAnggota(data) {
     document.getElementById('modalTitle').textContent = 'Edit Anggota Lab';
     document.getElementById('id_anggota').value = data.id_anggota;
     document.getElementById('nama').value = data.nama;
-    document.getElementById('nip').value = data.nip || '';
+    document.getElementById('nip_nim').value = data.nip || '';
     document.getElementById('email').value = data.email || '';
     document.getElementById('kontak').value = data.kontak || '';
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
-    
-    // Show current foto preview
-    if (data.foto) {
-        document.getElementById('currentFotoPreview').style.display = 'block';
-        document.getElementById('currentFotoImg').src = '../../uploads/anggota/' + data.foto;
-    } else {
-        document.getElementById('currentFotoPreview').style.display = 'none';
-    }
     
     // Parse and populate pendidikan
     const pendidikanContainer = document.getElementById('pendidikanContainer');
@@ -543,7 +582,7 @@ function editAnggota(data) {
             <div class="row">
                 <div class="col-md-3 mb-2">
                     <label class="form-label small">Jenjang *</label>
-                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]">
                         <option value="">Pilih Jenjang</option>
                         <option value="D3" ${edu.jenjang === 'D3' ? 'selected' : ''}>D3</option>
                         <option value="D4" ${edu.jenjang === 'D4' ? 'selected' : ''}>D4</option>
@@ -555,7 +594,7 @@ function editAnggota(data) {
                 </div>
                 <div class="col-md-4 mb-2">
                     <label class="form-label small">Institusi *</label>
-                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${edu.institusi || ''}" required>
+                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${edu.institusi || ''}">
                 </div>
                 <div class="col-md-3 mb-2">
                     <label class="form-label small">Jurusan</label>
@@ -605,12 +644,16 @@ function editAnggota(data) {
                 </div>
                 <div class="col mb-2">
                     <label class="form-label small">Nama Mata Kuliah *</label>
-                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${mk.nama || ''}" required>
+                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${mk.nama || ''}">
                 </div>
             </div>
         `;
         matakuliahContainer.appendChild(newItem);
     });
+    
+    // Set tipe anggota dan toggle fields
+    document.getElementById('tipe_anggota').value = 'dosen'; // Set sebagai dosen untuk edit
+    toggleAnggotaFields();
     
     new bootstrap.Modal(document.getElementById('anggotaModal')).show();
 }
