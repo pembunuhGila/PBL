@@ -323,28 +323,6 @@
   gap: 24px;
   border-top: 3px solid var(--primary-blue);
 }
-
-.direction-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--primary-blue);
-  color: #fff;
-  padding: 12px 24px;
-  border-radius: 10px;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 14px;
-  white-space: nowrap;
-  transition: all 0.3s;
-}
-
-.direction-btn:hover {
-  background: #2563a8;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(30, 74, 122, 0.3);
-}
-
 /* ============================================
    RESPONSIVE
 ============================================ */

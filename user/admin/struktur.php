@@ -15,7 +15,6 @@ $current_page = "struktur.php";
 if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
     try {
-        // Get data untuk riwayat
         $stmt_old = $pdo->prepare("SELECT jabatan, status FROM struktur_lab WHERE id_struktur = ?");
         $stmt_old->execute([$id]);
         $old_data = $stmt_old->fetch();
@@ -23,7 +22,6 @@ if (isset($_GET['delete'])) {
         $stmt = $pdo->prepare("DELETE FROM struktur_lab WHERE id_struktur = ?");
         $stmt->execute([$id]);
         
-        // Catat riwayat
         $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt_riwayat->execute(['struktur_lab', $id, $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus struktur: ' . $old_data['jabatan']]);
         
@@ -42,10 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     try {
         if (isset($_POST['id_struktur']) && !empty($_POST['id_struktur'])) {
-            // Update
             $id = $_POST['id_struktur'];
             
-            // Get status lama
             $stmt_old = $pdo->prepare("SELECT status FROM struktur_lab WHERE id_struktur = ?");
             $stmt_old->execute([$id]);
             $old_data = $stmt_old->fetch();
@@ -54,7 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt = $pdo->prepare("UPDATE struktur_lab SET id_anggota=?, jabatan=?, urutan=?, status=? WHERE id_struktur=?");
             $stmt->execute([$id_anggota, $jabatan, $urutan, $status, $id]);
             
-            // Catat riwayat jika status berubah
             if ($status_lama != $status) {
                 $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt_riwayat->execute(['struktur_lab', $id, $_SESSION['id_user'], $status_lama, $status, 'Update struktur: ' . $jabatan]);
@@ -62,13 +57,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             $success = "Struktur berhasil diupdate!";
         } else {
-            // Insert
             $stmt = $pdo->prepare("INSERT INTO struktur_lab (id_anggota, jabatan, urutan, status, id_user) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$id_anggota, $jabatan, $urutan, $status, $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
-            // Catat riwayat
             $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_riwayat->execute(['struktur_lab', $new_id, $_SESSION['id_user'], null, $status, 'Tambah struktur: ' . $jabatan]);
             
@@ -79,7 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Get all struktur with anggota info, ordered by urutan
 $stmt = $pdo->query("
     SELECT s.*, a.nama, a.foto, a.email 
     FROM struktur_lab s
@@ -88,7 +80,6 @@ $stmt = $pdo->query("
 ");
 $struktur_list = $stmt->fetchAll();
 
-// Get anggota for dropdown
 $stmt_anggota = $pdo->query("SELECT id_anggota, nama, foto FROM anggota_lab WHERE status = 'active' ORDER BY nama");
 $anggota_options = $stmt_anggota->fetchAll();
 
@@ -125,7 +116,6 @@ include "navbar.php";
     foreach ($struktur_list as $struktur): 
         if ($struktur['status'] != 'active') continue;
         
-        // New row for each urutan level
         if ($current_urutan != $struktur['urutan']) {
             if ($current_urutan != 0) echo '</div><div class="row mb-4 justify-content-center">';
             $current_urutan = $struktur['urutan'];
@@ -166,7 +156,6 @@ include "navbar.php";
                         <th>Nama</th>
                         <th>Jabatan</th>
                         <th>Email</th>
-                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -191,17 +180,11 @@ include "navbar.php";
                         <td><?php echo htmlspecialchars($struktur['jabatan']); ?></td>
                         <td><small><?php echo htmlspecialchars($struktur['email'] ?? '-'); ?></small></td>
                         <td>
-                            <?php 
-                            $badge_class = $struktur['status'] == 'active' ? 'bg-success' : ($struktur['status'] == 'pending' ? 'bg-warning' : 'bg-danger');
-                            ?>
-                            <span class="badge <?php echo $badge_class; ?>"><?php echo ucfirst($struktur['status']); ?></span>
-                        </td>
-                        <td>
                             <button class="btn btn-sm btn-warning" onclick='editStruktur(<?php echo json_encode($struktur); ?>)'>
-                                <i class="bi bi-pencil"></i>
+                                <i class="bi bi-pencil"></i> Edit
                             </button>
                             <a href="?delete=<?php echo $struktur['id_struktur']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
-                                <i class="bi bi-trash"></i>
+                                <i class="bi bi-trash"></i> Hapus
                             </a>
                         </td>
                     </tr>

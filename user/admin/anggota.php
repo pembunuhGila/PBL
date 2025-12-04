@@ -186,81 +186,77 @@ include "navbar.php";
                         <th>Kontak</th>
                         <th>Pendidikan</th>
                         <th>Mata Kuliah</th>
-                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <?php $no = 1; foreach ($anggota_list as $anggota): ?>
-                    <tr>
-                        <td><?php echo $no++; ?></td>
-                        <td>
-                            <?php if ($anggota['foto']): ?>
-                                <img src="../../uploads/anggota/<?php echo $anggota['foto']; ?>" width="50" height="50" class="rounded-circle">
-                            <?php else: ?>
-                                <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($anggota['nama']); ?>" width="50" height="50" class="rounded-circle">
-                            <?php endif; ?>
-                        </td>
-                        <td><?php echo htmlspecialchars($anggota['nama']); ?></td>
-                        <td><?php echo htmlspecialchars($anggota['nip'] ?? '-'); ?></td>
-                        <td><?php echo htmlspecialchars($anggota['email'] ?? '-'); ?></td>
-                        <td><?php echo htmlspecialchars($anggota['kontak'] ?? '-'); ?></td>
-                        <td>
-                            <?php 
-                            if ($anggota['pendidikan']) {
-                                $pendidikan_data = json_decode($anggota['pendidikan'], true);
-                                if (is_array($pendidikan_data) && count($pendidikan_data) > 0) {
-                                    echo '<small>';
-                                    foreach ($pendidikan_data as $edu) {
-                                        echo '<strong>' . htmlspecialchars($edu['jenjang']) . '</strong><br>';
-                                    }
-                                    echo '</small>';
-                                } else {
-                                    echo '-';
-                                }
-                            } else {
-                                echo '-';
-                            }
-                            ?>
-                        </td>
-                        <td>
-                            <?php 
-                            if ($anggota['bidang_keahlian']) {
-                                $mk_data = json_decode($anggota['bidang_keahlian'], true);
-                                if (is_array($mk_data) && count($mk_data) > 0) {
-                                    echo '<small>';
-                                    $count = 0;
-                                    foreach ($mk_data as $mk) {
-                                        if ($count >= 2) {
-                                            echo '+ ' . (count($mk_data) - 2) . ' lainnya';
-                                            break;
+                    <tbody>
+                        <?php $no = 1; foreach ($anggota_list as $anggota): ?>
+                        <tr>
+                            <td><?php echo $no++; ?></td>
+                            <td>
+                                <?php if ($anggota['foto']): ?>
+                                    <img src="../../uploads/anggota/<?php echo $anggota['foto']; ?>" width="50" height="50" class="rounded-circle">
+                                <?php else: ?>
+                                    <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($anggota['nama']); ?>" width="50" height="50" class="rounded-circle">
+                                <?php endif; ?>
+                            </td>
+                            <td><?php echo htmlspecialchars($anggota['nama']); ?></td>
+                            <td><?php echo htmlspecialchars($anggota['nip'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($anggota['email'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($anggota['kontak'] ?? '-'); ?></td>
+                            <td>
+                                <?php 
+                                if ($anggota['pendidikan']) {
+                                    $pendidikan_data = json_decode($anggota['pendidikan'], true);
+                                    if (is_array($pendidikan_data) && count($pendidikan_data) > 0) {
+                                        echo '<small>';
+                                        foreach ($pendidikan_data as $edu) {
+                                            echo '<strong>' . htmlspecialchars($edu['jenjang']) . '</strong><br>';
                                         }
-                                        echo htmlspecialchars($mk['nama']) . '<br>';
-                                        $count++;
+                                        echo '</small>';
+                                    } else {
+                                        echo '-';
                                     }
-                                    echo '</small>';
                                 } else {
                                     echo '-';
                                 }
-                            } else {
-                                echo '-';
-                            }
-                            ?>
-                        </td>
-                        <td>
-                            <span class="badge bg-success">Active</span>
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-warning" onclick="editAnggota(<?php echo htmlspecialchars(json_encode($anggota)); ?>)">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <a href="?delete=<?php echo $anggota['id_anggota']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
-                                <i class="bi bi-trash"></i>
-                            </a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
+                                ?>
+                            </td>
+                            <td>
+                                <?php 
+                                if ($anggota['bidang_keahlian']) {
+                                    $mk_data = json_decode($anggota['bidang_keahlian'], true);
+                                    if (is_array($mk_data) && count($mk_data) > 0) {
+                                        echo '<small>';
+                                        $count = 0;
+                                        foreach ($mk_data as $mk) {
+                                            if ($count >= 2) {
+                                                echo '+ ' . (count($mk_data) - 2) . ' lainnya';
+                                                break;
+                                            }
+                                            echo htmlspecialchars($mk['nama']) . '<br>';
+                                            $count++;
+                                        }
+                                        echo '</small>';
+                                    } else {
+                                        echo '-';
+                                    }
+                                } else {
+                                    echo '-';
+                                }
+                                ?>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-warning" onclick="editAnggota(<?php echo htmlspecialchars(json_encode($anggota)); ?>)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <a href="?delete=<?php echo $anggota['id_anggota']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
             </table>
         </div>
     </div>
