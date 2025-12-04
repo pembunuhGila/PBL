@@ -16,7 +16,7 @@ if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
     try {
         // Cek kepemilikan data
-        $stmt_check = $pdo->prepare("SELECT id_user FROM anggota_lab WHERE id_anggota = ?");
+        $stmt_check = $pdo->prepare("SELECT id_user, foto FROM anggota_lab WHERE id_anggota = ?");
         $stmt_check->execute([$id]);
         $data_owner = $stmt_check->fetch();
         
@@ -25,8 +25,17 @@ if (isset($_GET['delete'])) {
             $stmt_old->execute([$id]);
             $old_data = $stmt_old->fetch();
             
+            // Delete from database
             $stmt = $pdo->prepare("DELETE FROM anggota_lab WHERE id_anggota = ?");
             $stmt->execute([$id]);
+            
+            // Delete foto file if exists
+            if ($data_owner['foto']) {
+                $foto_path = "../../uploads/anggota/" . $data_owner['foto'];
+                if (file_exists($foto_path)) {
+                    unlink($foto_path);
+                }
+            }
             
             $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_riwayat->execute(['anggota_lab', $id, $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus anggota: ' . $old_data['nama']]);
@@ -97,14 +106,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $id = $_POST['id_anggota'];
             
             // Cek kepemilikan data
-            $stmt_check = $pdo->prepare("SELECT id_user, status FROM anggota_lab WHERE id_anggota = ?");
+            $stmt_check = $pdo->prepare("SELECT id_user, status, foto FROM anggota_lab WHERE id_anggota = ?");
             $stmt_check->execute([$id]);
             $data_owner = $stmt_check->fetch();
             
             if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user']) {
                 $status_lama = $data_owner['status'];
+                $old_foto = $data_owner['foto'];
                 
                 if ($foto) {
+                    // Delete old foto if exists and new foto uploaded
+                    if ($old_foto) {
+                        $old_foto_path = "../../uploads/anggota/" . $old_foto;
+                        if (file_exists($old_foto_path)) {
+                            unlink($old_foto_path);
+                        }
+                    }
+                    
                     $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, foto=?, status=? WHERE id_anggota=?");
                     $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $id]);
                 } else {
@@ -187,6 +205,7 @@ include "navbar.php";
                         <th>Pendidikan</th>
                         <th>Mata Kuliah</th>
                         <th>Status</th>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -275,7 +294,7 @@ include "navbar.php";
     </div>
 </div>
 
-<!-- Modal Form -->
+<!-- Modal Form - Same structure as admin but with foto preview -->
 <div class="modal fade" id="anggotaModal" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -319,6 +338,10 @@ include "navbar.php";
                     
                     <div class="mb-3">
                         <label class="form-label">Foto</label>
+                        <div id="currentFotoPreview" style="display: none;" class="mb-2">
+                            <img id="currentFotoImg" src="" width="100" height="100" class="rounded-circle">
+                            <p class="small text-muted mb-0">Foto saat ini (pilih file baru untuk menggantinya)</p>
+                        </div>
                         <input type="file" class="form-control" name="foto" accept="image/*">
                     </div>
                     
@@ -331,39 +354,7 @@ include "navbar.php";
                     <h6 class="mb-3">Riwayat Pendidikan</h6>
                     
                     <div id="pendidikanContainer">
-                        <div class="pendidikan-item border rounded p-3 mb-3 bg-light">
-                            <div class="row">
-                                <div class="col-md-3 mb-2">
-                                    <label class="form-label small">Jenjang *</label>
-                                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
-                                        <option value="">Pilih Jenjang</option>
-                                        <option value="D3">D3</option>
-                                        <option value="D4">D4</option>
-                                        <option value="S1">S1</option>
-                                        <option value="S2">S2</option>
-                                        <option value="S3">S3</option>
-                                        <option value="Profesi">Profesi</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4 mb-2">
-                                    <label class="form-label small">Institusi *</label>
-                                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
-                                </div>
-                                <div class="col-md-3 mb-2">
-                                    <label class="form-label small">Jurusan</label>
-                                    <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika...">
-                                </div>
-                                <div class="col-md-2 mb-2">
-                                    <label class="form-label small">Tahun</label>
-                                    <div class="d-flex gap-1">
-                                        <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020">
-                                        <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)" style="display: none;">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- Will be filled by JS -->
                     </div>
                     
                     <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addPendidikan()">
@@ -374,26 +365,12 @@ include "navbar.php";
                     <h6 class="mb-3">Mata Kuliah yang Diampu</h6>
 
                     <div id="matakuliahContainer">
-                        <div class="matakuliah-item border rounded p-3 mb-3 bg-light">
-                            <div class="row align-items-end">
-                                <div class="col-auto mb-2">
-                                    <label class="form-label small d-block">&nbsp;</label>
-                                    <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)" style="display: none;">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                                <div class="col mb-2">
-                                    <label class="form-label small">Nama Mata Kuliah *</label>
-                                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- Will be filled by JS -->
                     </div>
 
                     <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addMatakuliah()">
                         <i class="bi bi-plus-circle"></i> Tambah Mata Kuliah
-                    </button>
-                    
+                    </button>                    
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
@@ -405,6 +382,7 @@ include "navbar.php";
 </div>
 
 <script>
+// Same JavaScript as admin version with foto preview support
 function addPendidikan() {
     const container = document.getElementById('pendidikanContainer');
     const newItem = document.createElement('div');
@@ -451,9 +429,6 @@ function removePendidikan(button) {
     updateDeleteButtons('pendidikan');
 }
 
-// ========================================
-// MATA KULIAH FUNCTIONS
-// ========================================
 function addMatakuliah() {
     const container = document.getElementById('matakuliahContainer');
     const newItem = document.createElement('div');
@@ -481,9 +456,6 @@ function removeMatakuliah(button) {
     updateDeleteButtons('matakuliah');
 }
 
-// ========================================
-// UPDATE DELETE BUTTONS
-// ========================================
 function updateDeleteButtons(type) {
     const items = document.querySelectorAll(`.${type}-item`);
     items.forEach((item, index) => {
@@ -496,15 +468,13 @@ function updateDeleteButtons(type) {
     });
 }
 
-// ========================================
-// RESET FORM FUNCTION
-// ========================================
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Anggota Lab';
     document.querySelector('form').reset();
     document.getElementById('id_anggota').value = '';
+    document.getElementById('currentFotoPreview').style.display = 'none';
     
-    // Reset pendidikan (tetap sama seperti sebelumnya)
+    // Reset pendidikan
     const pendidikanContainer = document.getElementById('pendidikanContainer');
     pendidikanContainer.innerHTML = `
         <div class="pendidikan-item border rounded p-3 mb-3 bg-light">
@@ -542,7 +512,7 @@ function resetForm() {
         </div>
     `;
     
-    // Reset mata kuliah to one empty item
+    // Reset mata kuliah
     const matakuliahContainer = document.getElementById('matakuliahContainer');
     matakuliahContainer.innerHTML = `
         <div class="matakuliah-item border rounded p-3 mb-3 bg-light">
@@ -562,12 +532,14 @@ function resetForm() {
     `;
 }
 
-// ========================================
-// EDIT ANGGOTA FUNCTION
-// ========================================
 function editAnggota(data) {
+    // 1. UBAH JUDUL MODAL
     document.getElementById('modalTitle').textContent = 'Edit Anggota Lab';
+    
+    // 2. ISI HIDDEN ID
     document.getElementById('id_anggota').value = data.id_anggota;
+    
+    // 3. ISI FORM BASIC INFO
     document.getElementById('nama').value = data.nama;
     document.getElementById('nip').value = data.nip || '';
     document.getElementById('email').value = data.email || '';
@@ -575,9 +547,17 @@ function editAnggota(data) {
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
     
-    // Parse and populate pendidikan
+    // 4. TAMPILKAN PREVIEW FOTO YANG ADA
+    if (data.foto) {
+        document.getElementById('currentFotoPreview').style.display = 'block';
+        document.getElementById('currentFotoImg').src = '../../uploads/anggota/' + data.foto;
+    } else {
+        document.getElementById('currentFotoPreview').style.display = 'none';
+    }
+    
+    // 5. POPULATE PENDIDIKAN
     const pendidikanContainer = document.getElementById('pendidikanContainer');
-    pendidikanContainer.innerHTML = '';
+    pendidikanContainer.innerHTML = ''; // Kosongkan dulu
     
     let pendidikanData = [];
     try {
@@ -588,10 +568,12 @@ function editAnggota(data) {
         console.error('Error parsing pendidikan:', e);
     }
     
+    // Jika tidak ada data, buat 1 form kosong
     if (pendidikanData.length === 0) {
         pendidikanData = [{jenjang: '', institusi: '', jurusan: '', tahun: ''}];
     }
     
+    // Loop setiap pendidikan dan buat form-nya
     pendidikanData.forEach((edu, index) => {
         const newItem = document.createElement('div');
         newItem.className = 'pendidikan-item border rounded p-3 mb-3 bg-light';
@@ -631,9 +613,9 @@ function editAnggota(data) {
         pendidikanContainer.appendChild(newItem);
     });
     
-    // Parse and populate mata kuliah
+    // 6. POPULATE MATA KULIAH
     const matakuliahContainer = document.getElementById('matakuliahContainer');
-    matakuliahContainer.innerHTML = '';
+    matakuliahContainer.innerHTML = ''; // Kosongkan dulu
     
     let matakuliahData = [];
     try {
@@ -644,10 +626,12 @@ function editAnggota(data) {
         console.error('Error parsing mata kuliah:', e);
     }
     
+    // Jika tidak ada data, buat 1 form kosong
     if (matakuliahData.length === 0) {
         matakuliahData = [{nama: ''}];
     }
     
+    // Loop setiap mata kuliah dan buat form-nya
     matakuliahData.forEach((mk, index) => {
         const newItem = document.createElement('div');
         newItem.className = 'matakuliah-item border rounded p-3 mb-3 bg-light';

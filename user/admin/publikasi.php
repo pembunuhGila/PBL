@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $abstrak = $_POST['abstrak'];
     $tahun = $_POST['tahun'];
     $jurnal = $_POST['jurnal'];
-    $doi = $_POST['doi'];
+    $link_shinta = $_POST['link_shinta'];
     $tanggal_publikasi = $_POST['tanggal_publikasi'];
     $status = 'active'; 
     $penulis_ids = $_POST['penulis'] ?? [];
@@ -81,8 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $old_data = $stmt_old->fetch();
             $status_lama = $old_data['status'];
             
-            $sql = "UPDATE publikasi SET judul=?, abstrak=?, tahun=?, jurnal=?, doi=?, tanggal_publikasi=?, status=?";
-            $params = [$judul, $abstrak, $tahun, $jurnal, $doi, $tanggal_publikasi, $status];
+            $sql = "UPDATE publikasi SET judul=?, abstrak=?, tahun=?, jurnal=?, link_shinta=?, tanggal_publikasi=?, status=?";
+            $params = [$judul, $abstrak, $tahun, $jurnal, $link_shinta, $tanggal_publikasi, $status];
             
             if ($cover) {
                 $sql .= ", cover=?";
@@ -109,8 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         } else {
             // Insert
-            $stmt = $pdo->prepare("INSERT INTO publikasi (judul, abstrak, tahun, jurnal, doi, tanggal_publikasi, cover, file_path, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$judul, $abstrak, $tahun, $jurnal, $doi, $tanggal_publikasi, $cover, $file_path, $status, $_SESSION['id_user']]);
+            $stmt = $pdo->prepare("INSERT INTO publikasi (judul, abstrak, tahun, jurnal, link_shinta, tanggal_publikasi, cover, file_path, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$judul, $abstrak, $tahun, $jurnal, $link_shinta, $tanggal_publikasi, $cover, $file_path, $status, $_SESSION['id_user']]);
+            
             $id = $pdo->lastInsertId();
             
             // Catat riwayat
@@ -118,10 +119,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt_riwayat->execute(['publikasi', $id, $_SESSION['id_user'], null, $status, 'Tambah publikasi: ' . $judul]);
         }
         
-        // Insert penulis
-        foreach ($penulis_ids as $index => $id_anggota) {
+        // Insert penulis - filter yang tidak kosong
+        $valid_penulis = array_filter($penulis_ids, function($p) { return $p !== '' && $p !== null; });
+        foreach ($valid_penulis as $index => $id_anggota) {
             $stmt = $pdo->prepare("INSERT INTO publikasi_anggota (id_publikasi, id_anggota, urutan_penulis) VALUES (?, ?, ?)");
-            $stmt->execute([$id, $id_anggota, $index + 1]);
+            $stmt->execute([$id, (int)$id_anggota, $index + 1]);
         }
         
         $pdo->commit();
@@ -202,28 +204,19 @@ include "navbar.php";
                         </td>
                         <td>
                             <strong><?php echo htmlspecialchars($pub['judul']); ?></strong>
-                            <?php if ($pub['doi']): ?>
-                                <br><small class="text-muted">DOI: <?php echo htmlspecialchars($pub['doi']); ?></small>
+                            <?php if ($pub['link_shinta']): ?>
+                                <br><small class="text-muted">SHINTA: <?php echo htmlspecialchars($pub['link_shinta']); ?></small>
                             <?php endif; ?>
                         </td>
                         <td><?php echo htmlspecialchars($pub['penulis'] ?? '-'); ?></td>
                         <td><?php echo htmlspecialchars($pub['jurnal'] ?? '-'); ?></td>
                         <td><?php echo htmlspecialchars($pub['tahun']); ?></td>
                         <td>
-                            <?php 
-                            $badge_class = $pub['status'] == 'active' ? 'bg-success' : ($pub['status'] == 'pending' ? 'bg-warning' : 'bg-danger');
-                            ?>
-                            <span class="badge <?php echo $badge_class; ?>"><?php echo ucfirst($pub['status']); ?></span>
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-info" onclick="viewPublikasi(<?php echo $pub['id_publikasi']; ?>)">
-                                <i class="bi bi-eye"></i>
-                            </button>
                             <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)'>
-                                <i class="bi bi-pencil"></i>
+                                <i class="bi bi-pencil"></i> Edit
                             </button>
                             <a href="?delete=<?php echo $pub['id_publikasi']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
-                                <i class="bi bi-trash"></i>
+                                <i class="bi bi-trash"></i> Hapus
                             </a>
                         </td>
                     </tr>
@@ -278,15 +271,14 @@ include "navbar.php";
                         </div>
                     </div>
                     
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">DOI</label>
-                            <input type="text" class="form-control" name="doi" id="doi" placeholder="10.xxxx/xxxxx">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Tanggal Publikasi</label>
-                            <input type="date" class="form-control" name="tanggal_publikasi" id="tanggal_publikasi">
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Link SHINTA</label>
+                        <input type="text" class="form-control" name="link_shinta" id="link_shinta" placeholder="https://shinta.kemdikbud.go.id/...">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tanggal Publikasi</label>
+                        <input type="date" class="form-control" name="tanggal_publikasi" id="tanggal_publikasi">
                     </div>
                     
                     <div class="mb-3">
@@ -363,15 +355,10 @@ function editPublikasi(data) {
     document.getElementById('abstrak').value = data.abstrak || '';
     document.getElementById('tahun').value = data.tahun;
     document.getElementById('jurnal').value = data.jurnal || '';
-    document.getElementById('doi').value = data.doi || '';
+    document.getElementById('link_shinta').value = data.link_shinta || '';
     document.getElementById('tanggal_publikasi').value = data.tanggal_publikasi || '';
-    document.getElementById('status').value = data.status;
     
     new bootstrap.Modal(document.getElementById('publikasiModal')).show();
-}
-
-function viewPublikasi(id) {
-    window.open(`publikasi_detail.php?id=${id}`, '_blank');
 }
 </script>
 

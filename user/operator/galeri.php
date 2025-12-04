@@ -38,7 +38,6 @@ if (isset($_GET['delete'])) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $deskripsi = $_POST['deskripsi'];
-    $filter_kategori = $_POST['filter_kategori'];
     $status = 'pending'; // AUTO PENDING
     
     $gambar = null;
@@ -59,24 +58,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt_check->execute([$id]);
             $data_owner = $stmt_check->fetch();
             
-            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && $data_owner['status'] == 'pending') {
+            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && ($data_owner['status'] == 'pending' || $data_owner['status'] == 'rejected')) {
+                $status_lama = $data_owner['status'];
+                
                 if ($gambar) {
-                    $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, filter_kategori=?, gambar=?, status=? WHERE id_galeri=?");
-                    $stmt->execute([$judul, $deskripsi, $filter_kategori, $gambar, $status, $id]);
+                    $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, gambar=?, status=?, filter_kategori=NULL WHERE id_galeri=?");
+                    $stmt->execute([$judul, $deskripsi, $gambar, $status, $id]);
                 } else {
-                    $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, filter_kategori=?, status=? WHERE id_galeri=?");
-                    $stmt->execute([$judul, $deskripsi, $filter_kategori, $status, $id]);
+                    $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, status=?, filter_kategori=NULL WHERE id_galeri=?");
+                    $stmt->execute([$judul, $deskripsi, $status, $id]);
                 }
+                
+                // Catat riwayat
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['galeri', $id, $_SESSION['id_user'], $status_lama, $status, 'Update foto: ' . $judul]);
+                
                 $success = "Galeri berhasil diupdate! Menunggu persetujuan admin.";
             } else {
-                $error = "Anda hanya bisa edit data pending milik Anda!";
+                $error = "Anda hanya bisa edit data pending/rejected milik Anda!";
             }
         } else {
             if (!$gambar) {
                 $error = "Gambar wajib diupload!";
             } else {
-                $stmt = $pdo->prepare("INSERT INTO galeri (judul, deskripsi, filter_kategori, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$judul, $deskripsi, $filter_kategori, $gambar, $status, $_SESSION['id_user']]);
+                $stmt = $pdo->prepare("INSERT INTO galeri (judul, deskripsi, gambar, status, filter_kategori, id_user) VALUES (?, ?, ?, ?, NULL, ?)");
+                $stmt->execute([$judul, $deskripsi, $gambar, $status, $_SESSION['id_user']]);
                 
                 $new_id = $pdo->lastInsertId();
                 
@@ -94,10 +100,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 $stmt = $pdo->prepare("SELECT * FROM galeri WHERE id_user = ? ORDER BY created_at DESC");
 $stmt->execute([$_SESSION['id_user']]);
 $galeri_list = $stmt->fetchAll();
-
-// Get unique categories dari semua galeri (untuk filter)
-$stmt_cat = $pdo->query("SELECT DISTINCT filter_kategori FROM galeri WHERE filter_kategori IS NOT NULL ORDER BY filter_kategori");
-$categories = $stmt_cat->fetchAll(PDO::FETCH_COLUMN);
 
 include "header.php";
 include "sidebar.php";
@@ -126,10 +128,9 @@ include "navbar.php";
     <?php foreach ($galeri_list as $gal): ?>
     <div class="col-md-3 mb-4">
         <div class="card shadow">
-            <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover;" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $gal['id_galeri']; ?>">
+            <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $gal['id_galeri']; ?>">
             <div class="card-body p-2">
                 <small class="d-block text-truncate"><strong><?php echo htmlspecialchars($gal['judul']); ?></strong></small>
-                <small class="text-muted d-block"><?php echo htmlspecialchars($gal['filter_kategori'] ?? '-'); ?></small>
                 <?php if ($gal['status'] == 'pending'): ?>
                     <span class="badge bg-warning badge-sm">Pending</span>
                 <?php elseif ($gal['status'] == 'active'): ?>
@@ -190,22 +191,12 @@ include "navbar.php";
                     <div class="mb-3">
                         <label class="form-label">Gambar *</label>
                         <input type="file" class="form-control" name="gambar" id="gambar" accept="image/*">
-                        <small class="text-muted">Wajib upload saat tambah baru</small>
+                        <small class="text-muted">Wajib upload saat tambah baru, opsional saat edit</small>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Judul</label>
                         <input type="text" class="form-control" name="judul" id="judul">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Kategori</label>
-                        <input type="text" class="form-control" name="filter_kategori" id="filter_kategori" list="categoryList" placeholder="Kegiatan, Penelitian, Fasilitas, dll">
-                        <datalist id="categoryList">
-                            <?php foreach ($categories as $cat): ?>
-                                <option value="<?php echo htmlspecialchars($cat); ?>">
-                            <?php endforeach; ?>
-                        </datalist>
                     </div>
                     
                     <div class="mb-3">
@@ -233,7 +224,6 @@ function editGaleri(data) {
     document.getElementById('modalTitle').textContent = 'Edit Foto';
     document.getElementById('id_galeri').value = data.id_galeri;
     document.getElementById('judul').value = data.judul || '';
-    document.getElementById('filter_kategori').value = data.filter_kategori || '';
     document.getElementById('deskripsi').value = data.deskripsi || '';
     new bootstrap.Modal(document.getElementById('galeriModal')).show();
 }

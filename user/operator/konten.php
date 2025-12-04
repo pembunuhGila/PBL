@@ -104,13 +104,8 @@ try {
     $konten_list = [];
 }
 
-// Get kategori
-try {
-    $stmt_kat = $pdo->query("SELECT DISTINCT kategori_konten FROM konten WHERE kategori_konten IS NOT NULL AND kategori_konten != '' ORDER BY kategori_konten");
-    $kategori_list = $stmt_kat->fetchAll(PDO::FETCH_COLUMN);
-} catch (PDOException $e) {
-    $kategori_list = [];
-}
+// Fixed kategori list
+$kategori_list = ['Berita', 'Agenda', 'Pengumuman'];
 
 include "header.php";
 include "sidebar.php";
@@ -182,10 +177,10 @@ include "navbar.php";
                         <td>
                             <?php if ($kon['status'] == 'pending' || $kon['status'] == 'rejected'): ?>
                                 <button class="btn btn-sm btn-warning" onclick='editKonten(<?php echo json_encode($kon); ?>)'>
-                                    <i class="bi bi-pencil"></i>
+                                    <i class="bi bi-pencil"></i> Edit
                                 </button>
                                 <a href="?delete=<?php echo $kon['id_konten']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
-                                    <i class="bi bi-trash"></i>
+                                    <i class="bi bi-trash"></i> Hapus
                                 </a>
                             <?php else: ?>
                                 <span class="text-muted small">Disetujui</span>
@@ -222,13 +217,12 @@ include "navbar.php";
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Kategori *</label>
-                            <input type="text" class="form-control" name="kategori_konten" id="kategori_konten" 
-                                   list="kategoriList" required placeholder="Berita, Artikel, Tutorial, dll">
-                            <datalist id="kategoriList">
-                                <?php foreach ($kategori_list as $kat): ?>
-                                    <option value="<?php echo htmlspecialchars($kat); ?>">
-                                <?php endforeach; ?>
-                            </datalist>
+                            <select class="form-select" name="kategori_konten" id="kategori_konten" required>
+                                <option value="">-- Pilih Kategori --</option>
+                                <option value="Berita">Berita</option>
+                                <option value="Agenda">Agenda</option>
+                                <option value="Pengumuman">Pengumuman</option>
+                            </select>
                         </div>
                     </div>
                     

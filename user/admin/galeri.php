@@ -36,8 +36,7 @@ if (isset($_GET['delete'])) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $deskripsi = $_POST['deskripsi'];
-    $filter_kategori = $_POST['filter_kategori'];
-    $status = 'active';
+    $status = $_POST['status'] ?? 'active';
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -52,20 +51,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     try {
         if (isset($_POST['id_galeri']) && !empty($_POST['id_galeri'])) {
             $id = $_POST['id_galeri'];
+            
+            // Get status lama
+            $stmt_old = $pdo->prepare("SELECT status FROM galeri WHERE id_galeri = ?");
+            $stmt_old->execute([$id]);
+            $old_data = $stmt_old->fetch();
+            $status_lama = $old_data['status'];
+            
             if ($gambar) {
-                $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, filter_kategori=?, gambar=?, status=? WHERE id_galeri=?");
-                $stmt->execute([$judul, $deskripsi, $filter_kategori, $gambar, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, gambar=?, status=?, filter_kategori=NULL WHERE id_galeri=?");
+                $stmt->execute([$judul, $deskripsi, $gambar, $status, $id]);
             } else {
-                $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, filter_kategori=?, status=? WHERE id_galeri=?");
-                $stmt->execute([$judul, $deskripsi, $filter_kategori, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, status=?, filter_kategori=NULL WHERE id_galeri=?");
+                $stmt->execute([$judul, $deskripsi, $status, $id]);
             }
+            
+            // Catat riwayat jika status berubah
+            if ($status_lama != $status) {
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['galeri', $id, $_SESSION['id_user'], $status_lama, $status, 'Update foto: ' . $judul]);
+            }
+            
             $success = "Galeri berhasil diupdate!";
         } else {
             if (!$gambar) {
                 $error = "Gambar wajib diupload!";
             } else {
-                $stmt = $pdo->prepare("INSERT INTO galeri (judul, deskripsi, filter_kategori, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$judul, $deskripsi, $filter_kategori, $gambar, $status, $_SESSION['id_user']]);
+                $stmt = $pdo->prepare("INSERT INTO galeri (judul, deskripsi, gambar, status, filter_kategori, id_user) VALUES (?, ?, ?, ?, NULL, ?)");
+                $stmt->execute([$judul, $deskripsi, $gambar, $status, $_SESSION['id_user']]);
+                
+                $new_id = $pdo->lastInsertId();
+                
+                // Catat riwayat
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['galeri', $new_id, $_SESSION['id_user'], null, $status, 'Tambah foto: ' . $judul]);
+                
                 $success = "Foto berhasil ditambahkan!";
             }
         }
@@ -76,10 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 $stmt = $pdo->query("SELECT * FROM galeri ORDER BY created_at DESC");
 $galeri_list = $stmt->fetchAll();
-
-// Get unique categories
-$stmt_cat = $pdo->query("SELECT DISTINCT filter_kategori FROM galeri WHERE filter_kategori IS NOT NULL ORDER BY filter_kategori");
-$categories = $stmt_cat->fetchAll(PDO::FETCH_COLUMN);
 
 include "header.php";
 include "sidebar.php";
@@ -100,25 +116,13 @@ include "navbar.php";
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
-<!-- Filter -->
-<div class="mb-3">
-    <button class="btn btn-sm btn-outline-primary active filter-btn" data-filter="all">Semua</button>
-    <?php foreach ($categories as $cat): ?>
-        <button class="btn btn-sm btn-outline-primary filter-btn" data-filter="<?php echo htmlspecialchars($cat); ?>">
-            <?php echo htmlspecialchars($cat); ?>
-        </button>
-    <?php endforeach; ?>
-</div>
-
 <div class="row" id="galeriContainer">
     <?php foreach ($galeri_list as $gal): ?>
-    <div class="col-md-3 mb-4 galeri-item" data-category="<?php echo htmlspecialchars($gal['filter_kategori'] ?? ''); ?>">
+    <div class="col-md-3 mb-4">
         <div class="card shadow">
-            <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover;" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $gal['id_galeri']; ?>">
+            <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $gal['id_galeri']; ?>">
             <div class="card-body p-2">
                 <small class="d-block text-truncate"><strong><?php echo htmlspecialchars($gal['judul']); ?></strong></small>
-                <small class="text-muted d-block"><?php echo htmlspecialchars($gal['filter_kategori'] ?? '-'); ?></small>
-                <span class="badge <?php echo $gal['status']=='active' ? 'bg-success' : 'bg-warning'; ?> badge-sm"><?php echo $gal['status']; ?></span>
             </div>
             <div class="card-footer p-2 bg-white">
                 <button class="btn btn-sm btn-warning" onclick='editGaleri(<?php echo json_encode($gal); ?>)'>
@@ -160,26 +164,17 @@ include "navbar.php";
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="id_galeri" id="id_galeri">
+                    <input type="hidden" name="status" value="active">
                     
                     <div class="mb-3">
                         <label class="form-label">Gambar *</label>
                         <input type="file" class="form-control" name="gambar" id="gambar" accept="image/*">
-                        <small class="text-muted">Wajib upload saat tambah baru</small>
+                        <small class="text-muted">Wajib upload saat tambah baru, opsional saat edit</small>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Judul</label>
                         <input type="text" class="form-control" name="judul" id="judul">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Kategori</label>
-                        <input type="text" class="form-control" name="filter_kategori" id="filter_kategori" list="categoryList" placeholder="Kegiatan, Penelitian, Fasilitas, dll">
-                        <datalist id="categoryList">
-                            <?php foreach ($categories as $cat): ?>
-                                <option value="<?php echo htmlspecialchars($cat); ?>">
-                            <?php endforeach; ?>
-                        </datalist>
                     </div>
                     
                     <div class="mb-3">
@@ -207,28 +202,9 @@ function editGaleri(data) {
     document.getElementById('modalTitle').textContent = 'Edit Foto';
     document.getElementById('id_galeri').value = data.id_galeri;
     document.getElementById('judul').value = data.judul || '';
-    document.getElementById('filter_kategori').value = data.filter_kategori || '';
     document.getElementById('deskripsi').value = data.deskripsi || '';
-    document.getElementById('status').value = data.status;
     new bootstrap.Modal(document.getElementById('galeriModal')).show();
 }
-
-// Filter functionality
-document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        
-        const filter = this.dataset.filter;
-        document.querySelectorAll('.galeri-item').forEach(item => {
-            if (filter === 'all' || item.dataset.category === filter) {
-                item.style.display = 'block';
-            } else {
-                item.style.display = 'none';
-            }
-        });
-    });
-});
 </script>
 
 <?php include "footer.php"; ?>

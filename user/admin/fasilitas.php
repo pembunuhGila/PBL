@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $deskripsi = $_POST['deskripsi'];
     $kategori_fasilitas = $_POST['kategori_fasilitas'];
-    $status = 'active';
+    $status = $_POST['status'] ?? 'active'; // Ambil dari form
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -124,7 +124,6 @@ include "navbar.php";
             <?php endif; ?>
             <div class="card-body">
                 <span class="badge bg-info mb-2"><?php echo htmlspecialchars($fas['kategori_fasilitas'] ?? 'Umum'); ?></span>
-                <span class="badge <?php echo $fas['status']=='active' ? 'bg-success' : 'bg-warning'; ?> mb-2"><?php echo ucfirst($fas['status']); ?></span>
                 <h5 class="card-title"><?php echo htmlspecialchars($fas['judul']); ?></h5>
                 <p class="card-text text-muted"><?php echo htmlspecialchars(substr($fas['deskripsi'] ?? '', 0, 100)); ?>...</p>
             </div>
@@ -161,11 +160,17 @@ include "navbar.php";
                     <div class="mb-3">
                         <label class="form-label">Gambar</label>
                         <input type="file" class="form-control" name="gambar" accept="image/*">
+                        <small class="text-muted">Kosongkan jika tidak ingin mengubah gambar</small>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Kategori</label>
-                        <input type="text" class="form-control" name="kategori_fasilitas" id="kategori_fasilitas" placeholder="Hardware, Software, Ruangan, dll">
+                        <label class="form-label">Kategori *</label>
+                        <select class="form-select" name="kategori_fasilitas" id="kategori_fasilitas" required>
+                            <option value="">-- Pilih Kategori --</option>
+                            <option value="Ruang Praktikum & Penelitian">Ruang Praktikum & Penelitian</option>
+                            <option value="Perangkat Lunak">Perangkat Lunak</option>
+                            <option value="Perangkat Komputer">Perangkat Komputer</option>
+                        </select>
                     </div>
                     
                     <div class="mb-3">
@@ -195,7 +200,6 @@ function editFasilitas(data) {
     document.getElementById('judul').value = data.judul;
     document.getElementById('kategori_fasilitas').value = data.kategori_fasilitas || '';
     document.getElementById('deskripsi').value = data.deskripsi || '';
-    document.getElementById('status').value = data.status;
     new bootstrap.Modal(document.getElementById('fasilitasModal')).show();
 }
 </script>

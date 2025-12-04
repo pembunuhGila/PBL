@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt_check->execute([$id]);
             $data_owner = $stmt_check->fetch();
             
-            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && $data_owner['status'] == 'pending') {
+            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && ($data_owner['status'] == 'pending' || $data_owner['status'] == 'rejected')) {
                 $status_lama = $data_owner['status'];
                 
                 if ($gambar) {
@@ -70,9 +70,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $status, $id]);
                 }
                 
+                // Catat riwayat
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['fasilitas', $id, $_SESSION['id_user'], $status_lama, $status, 'Update fasilitas: ' . $judul]);
+                
                 $success = "Fasilitas berhasil diupdate! Menunggu persetujuan admin.";
             } else {
-                $error = "Anda hanya bisa edit data pending milik Anda!";
+                $error = "Anda hanya bisa edit data pending/rejected milik Anda!";
             }
         } else {
             $stmt = $pdo->prepare("INSERT INTO fasilitas (judul, deskripsi, kategori_fasilitas, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?)");
@@ -179,11 +183,17 @@ include "navbar.php";
                     <div class="mb-3">
                         <label class="form-label">Gambar</label>
                         <input type="file" class="form-control" name="gambar" accept="image/*">
+                        <small class="text-muted">Kosongkan jika tidak ingin mengubah gambar</small>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Kategori</label>
-                        <input type="text" class="form-control" name="kategori_fasilitas" id="kategori_fasilitas" placeholder="Hardware, Software, Ruangan, dll">
+                        <label class="form-label">Kategori *</label>
+                        <select class="form-select" name="kategori_fasilitas" id="kategori_fasilitas" required>
+                            <option value="">-- Pilih Kategori --</option>
+                            <option value="Ruang Praktikum & Penelitian">Ruang Praktikum & Penelitian</option>
+                            <option value="Perangkat Lunak">Perangkat Lunak</option>
+                            <option value="Perangkat Komputer">Perangkat Komputer</option>
+                        </select>
                     </div>
                     
                     <div class="mb-3">
