@@ -1,48 +1,48 @@
 <?php
-$auth_required = false; // TAMU boleh masuk
+$auth_required = false;
 include "auth.php";
-?>
 
-<?php
-// anggota_detail.php - Detail Profil Anggota
 $activePage = 'struktur';
 require_once 'conn.php';
 
-// Ambil ID anggota dari URL
 $id_anggota = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 // Ambil data anggota
-$stmt = $pdo->prepare("
-    SELECT * FROM anggota_lab 
-    WHERE id_anggota = ? AND status = 'active'
-");
+$stmt = $pdo->prepare("SELECT * FROM anggota_lab WHERE id_anggota = ? AND status = 'active'");
 $stmt->execute([$id_anggota]);
 $anggota = $stmt->fetch();
 
-// Jika anggota tidak ditemukan, redirect
 if (!$anggota) {
     header("Location: tentang.php");
     exit();
 }
 
-// Ambil social media anggota
-$stmt_social = $pdo->prepare("
-    SELECT * FROM social_media_anggota 
-    WHERE id_anggota = ?
-");
+// Ambil social media
+$stmt_social = $pdo->prepare("SELECT * FROM social_media_anggota WHERE id_anggota = ?");
 $stmt_social->execute([$id_anggota]);
 $social_media = $stmt_social->fetchAll();
 
-// Ambil publikasi anggota (limit 3 untuk preview)
+// Ambil SEMUA publikasi anggota (bukan hanya 3)
 $stmt_publikasi = $pdo->prepare("
     SELECT p.* FROM publikasi p
     JOIN publikasi_anggota pa ON p.id_publikasi = pa.id_publikasi
     WHERE pa.id_anggota = ? AND p.status = 'active'
     ORDER BY p.tahun DESC, p.tanggal_publikasi DESC
-    LIMIT 3
 ");
 $stmt_publikasi->execute([$id_anggota]);
 $publikasi_list = $stmt_publikasi->fetchAll();
+
+// Count publikasi by year
+$stmt_year_count = $pdo->prepare("
+    SELECT p.tahun, COUNT(*) as total 
+    FROM publikasi p
+    JOIN publikasi_anggota pa ON p.id_publikasi = pa.id_publikasi
+    WHERE pa.id_anggota = ? AND p.status = 'active'
+    GROUP BY p.tahun
+    ORDER BY p.tahun DESC
+");
+$stmt_year_count->execute([$id_anggota]);
+$publikasi_by_year = $stmt_year_count->fetchAll();
 
 // Ambil jabatan di struktur lab
 $stmt_jabatan = $pdo->prepare("
@@ -57,6 +57,123 @@ include 'navbar.php';
 ?>
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="stylesheet" href="assets/css/anggota_detail.css">
+
+<style>
+/* Stats Cards */
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, var(--primary-blue), #2563a8);
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(30, 74, 122, 0.3);
+}
+
+.stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+/* Publication Timeline */
+.pub-timeline {
+  position: relative;
+  padding-left: 30px;
+  margin-top: 24px;
+}
+
+.pub-timeline::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #e8ebef;
+}
+
+.timeline-year {
+  position: relative;
+  margin-bottom: 32px;
+}
+
+.timeline-year::before {
+  content: '';
+  position: absolute;
+  left: -26px;
+  top: 6px;
+  width: 16px;
+  height: 16px;
+  background: var(--primary-blue);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(30, 74, 122, 0.1);
+}
+
+.timeline-year-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary-blue);
+  margin-bottom: 16px;
+}
+
+/* Enhanced Publication Card */
+.publication-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.publication-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--primary-blue);
+  transform: scaleY(0);
+  transition: transform 0.3s;
+}
+
+.publication-item:hover::before {
+  transform: scaleY(1);
+}
+
+/* Research Areas Pills */
+.research-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.research-pill {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #e8ebef, #d5dae0);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+@media (max-width: 768px) {
+  .stats-cards {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
 
 <!-- BREADCRUMB -->
 <div class="breadcrumb-section">
@@ -177,6 +294,27 @@ include 'navbar.php';
       <!-- MAIN CONTENT -->
       <main class="profile-main">
         
+        <!-- Statistics Cards -->
+        <div class="stats-cards">
+          <div class="stat-card">
+            <div class="stat-number"><?= count($publikasi_list) ?></div>
+            <div class="stat-label">Total Publikasi</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number"><?= count($publikasi_by_year) ?></div>
+            <div class="stat-label">Tahun Aktif</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">
+              <?php 
+              $latest_year = !empty($publikasi_by_year) ? $publikasi_by_year[0]['total'] : 0;
+              echo $latest_year;
+              ?>
+            </div>
+            <div class="stat-label">Publikasi Terbaru</div>
+          </div>
+        </div>
+        
         <!-- Biodata / About -->
         <div class="content-section">
           <h2 class="section-title">
@@ -215,10 +353,27 @@ include 'navbar.php';
               </div>
               <?php endif; ?>
             </div>
+            
+            <!-- Research Areas -->
+            <?php if ($anggota['bidang_keahlian']): ?>
+            <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e8ebef;">
+              <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text-dark);">
+                🎯 Area Penelitian
+              </h4>
+              <div class="research-pills">
+                <?php 
+                $keahlian = explode(',', $anggota['bidang_keahlian']);
+                foreach ($keahlian as $k) {
+                  echo '<span class="research-pill">' . htmlspecialchars(trim($k)) . '</span>';
+                }
+                ?>
+              </div>
+            </div>
+            <?php endif; ?>
           </div>
         </div>
         
-        <!-- Publikasi -->
+        <!-- Publikasi dengan Timeline -->
         <?php if (count($publikasi_list) > 0): ?>
         <div class="content-section">
           <h2 class="section-title">
@@ -226,21 +381,38 @@ include 'navbar.php';
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
             </svg>
-            Publikasi Terbaru
+            Publikasi (<?= count($publikasi_list) ?>)
           </h2>
           <div class="content-box">
             
-            <div class="publication-list">
-              <?php foreach($publikasi_list as $pub): ?>
+            <div class="pub-timeline">
+              <?php 
+              $current_year = '';
+              foreach($publikasi_list as $pub): 
+                if ($pub['tahun'] != $current_year):
+                  if ($current_year != '') echo '</div>'; // Close previous year group
+                  $current_year = $pub['tahun'];
+              ?>
+              <div class="timeline-year">
+                <div class="timeline-year-label">📅 <?= htmlspecialchars($current_year) ?></div>
+                <div class="publication-list">
+              <?php endif; ?>
+              
               <article class="publication-item">
-                <div class="pub-year"><?= htmlspecialchars($pub['tahun']) ?></div>
                 <div class="pub-content">
                   <h3 class="pub-title">
                     <a href="publikasi_detail.php?id=<?= $pub['id_publikasi'] ?>">
                       <?= htmlspecialchars($pub['judul']) ?>
                     </a>
                   </h3>
-                  <p class="pub-journal"><?= htmlspecialchars($pub['jurnal'] ?? 'Tidak ada informasi jurnal') ?></p>
+                  <p class="pub-journal">
+                    <?= htmlspecialchars($pub['jurnal'] ?? 'Tidak ada informasi jurnal') ?>
+                  </p>
+                  <?php if ($pub['abstrak']): ?>
+                  <p class="pub-authors" style="margin-top: 8px; font-size: 13px; color: #666;">
+                    <?= htmlspecialchars(substr($pub['abstrak'], 0, 150)) ?>...
+                  </p>
+                  <?php endif; ?>
                   <div class="pub-actions">
                     <?php if ($pub['file_path']): ?>
                     <a href="assets/uploads/publikasi/<?= htmlspecialchars($pub['file_path']) ?>" class="pub-action-link" target="_blank">
@@ -259,22 +431,23 @@ include 'navbar.php';
                         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
                       </svg>
-                      Link Shinta
+                      Link
                     </a>
                     <?php endif; ?>
+                    
+                    <a href="publikasi_detail.php?id=<?= $pub['id_publikasi'] ?>" class="pub-action-link" style="background: var(--accent-green);">
+                      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                      Detail
+                    </a>
                   </div>
                 </div>
               </article>
+              
               <?php endforeach; ?>
-            </div>
-            
-            <div class="view-all-container">
-              <a href="publikasi.php" class="view-all-btn">
-                Lihat Semua Publikasi
-                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path d="M5 12h14M12 5l7 7-7 7"/>
-                </svg>
-              </a>
+              </div></div> <!-- Close last year group -->
             </div>
             
           </div>
