@@ -14,7 +14,6 @@ $current_page = "galeri.php";
 // Handle Delete
 if (isset($_GET['delete'])) {
     try {
-        // Get data untuk riwayat
         $stmt_old = $pdo->prepare("SELECT judul, status FROM galeri WHERE id_galeri = ?");
         $stmt_old->execute([$_GET['delete']]);
         $old_data = $stmt_old->fetch();
@@ -22,7 +21,6 @@ if (isset($_GET['delete'])) {
         $stmt = $pdo->prepare("DELETE FROM galeri WHERE id_galeri = ?");
         $stmt->execute([$_GET['delete']]);
         
-        // Catat riwayat
         $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt_riwayat->execute(['galeri', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus foto: ' . ($old_data['judul'] ?? 'Galeri')]);
         
@@ -52,7 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (isset($_POST['id_galeri']) && !empty($_POST['id_galeri'])) {
             $id = $_POST['id_galeri'];
             
-            // Get status lama
             $stmt_old = $pdo->prepare("SELECT status FROM galeri WHERE id_galeri = ?");
             $stmt_old->execute([$id]);
             $old_data = $stmt_old->fetch();
@@ -66,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt->execute([$judul, $deskripsi, $status, $id]);
             }
             
-            // Catat riwayat jika status berubah
             if ($status_lama != $status) {
                 $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt_riwayat->execute(['galeri', $id, $_SESSION['id_user'], $status_lama, $status, 'Update foto: ' . $judul]);
@@ -82,7 +78,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 $new_id = $pdo->lastInsertId();
                 
-                // Catat riwayat
                 $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt_riwayat->execute(['galeri', $new_id, $_SESSION['id_user'], null, $status, 'Tambah foto: ' . $judul]);
                 
@@ -94,7 +89,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$stmt = $pdo->query("SELECT * FROM galeri ORDER BY created_at DESC");
+// Pagination
+$items_per_page = 12; // 4 kolom x 3 baris
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $items_per_page;
+
+// Get total count
+$count_stmt = $pdo->query("SELECT COUNT(*) FROM galeri");
+$total_items = $count_stmt->fetchColumn();
+$total_pages = ceil($total_items / $items_per_page);
+
+// Get paginated data
+$stmt = $pdo->prepare("SELECT * FROM galeri ORDER BY created_at DESC LIMIT ? OFFSET ?");
+$stmt->execute([$items_per_page, $offset]);
 $galeri_list = $stmt->fetchAll();
 
 include "header.php";
@@ -116,46 +123,78 @@ include "navbar.php";
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
-<div class="row" id="galeriContainer">
-    <?php foreach ($galeri_list as $gal): ?>
-    <div class="col-md-3 mb-4">
-        <div class="card shadow">
-            <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $gal['id_galeri']; ?>">
-            <div class="card-body p-2">
-                <small class="d-block text-truncate"><strong><?php echo htmlspecialchars($gal['judul']); ?></strong></small>
-            </div>
-            <div class="card-footer p-2 bg-white">
-                <button class="btn btn-sm btn-warning" onclick='editGaleri(<?php echo json_encode($gal); ?>)'>
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <a href="?delete=<?php echo $gal['id_galeri']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
-                    <i class="bi bi-trash"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-    
-    <!-- View Modal -->
-    <div class="modal fade" id="viewModal<?php echo $gal['id_galeri']; ?>" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><?php echo htmlspecialchars($gal['judul']); ?></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div class="row">
+    <?php if (count($galeri_list) > 0): ?>
+        <?php foreach ($galeri_list as $gal): ?>
+        <div class="col-md-4 mb-4">
+            <div class="card shadow h-100">
+                <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $gal['id_galeri']; ?>">
+                <div class="card-body">
+                    <h5 class="card-title"><?php echo htmlspecialchars($gal['judul']); ?></h5>
+                    <p class="card-text text-muted"><?php echo htmlspecialchars(substr($gal['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($gal['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
                 </div>
-                <div class="modal-body text-center">
-                    <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="img-fluid">
-                    <p class="mt-3"><?php echo htmlspecialchars($gal['deskripsi'] ?? ''); ?></p>
+                <div class="card-footer bg-white">
+                    <button class="btn btn-sm btn-warning" onclick='editGaleri(<?php echo json_encode($gal); ?>)'>
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    <a href="?delete=<?php echo $gal['id_galeri']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                        <i class="bi bi-trash"></i> Hapus
+                    </a>
                 </div>
             </div>
         </div>
-    </div>
-    <?php endforeach; ?>
+        
+        <!-- View Modal -->
+        <div class="modal fade" id="viewModal<?php echo $gal['id_galeri']; ?>" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><?php echo htmlspecialchars($gal['judul']); ?></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="img-fluid">
+                        <?php if ($gal['deskripsi']): ?>
+                            <p class="mt-3"><?php echo nl2br(htmlspecialchars($gal['deskripsi'])); ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i> Belum ada foto di galeri
+            </div>
+        </div>
+    <?php endif; ?>
 </div>
+
+<!-- Pagination -->
+<?php if ($total_pages > 1): ?>
+<nav aria-label="Page navigation">
+    <ul class="pagination justify-content-center">
+        <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+            <a class="page-link" href="?page=<?php echo $page - 1; ?>">Previous</a>
+        </li>
+        
+        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+            <li class="page-item <?php echo $page == $i ? 'active' : ''; ?>">
+                <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+            </li>
+        <?php endfor; ?>
+        
+        <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+            <a class="page-link" href="?page=<?php echo $page + 1; ?>">Next</a>
+        </li>
+    </ul>
+</nav>
+<?php endif; ?>
 
 <!-- Add/Edit Modal -->
 <div class="modal fade" id="galeriModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="POST" enctype="multipart/form-data">
                 <div class="modal-header">
@@ -167,19 +206,19 @@ include "navbar.php";
                     <input type="hidden" name="status" value="active">
                     
                     <div class="mb-3">
+                        <label class="form-label">Judul *</label>
+                        <input type="text" class="form-control" name="judul" id="judul" required>
+                    </div>
+                    
+                    <div class="mb-3">
                         <label class="form-label">Gambar *</label>
                         <input type="file" class="form-control" name="gambar" id="gambar" accept="image/*">
                         <small class="text-muted">Wajib upload saat tambah baru, opsional saat edit</small>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Judul</label>
-                        <input type="text" class="form-control" name="judul" id="judul">
-                    </div>
-                    
-                    <div class="mb-3">
                         <label class="form-label">Deskripsi</label>
-                        <textarea class="form-control" name="deskripsi" id="deskripsi" rows="3"></textarea>
+                        <textarea class="form-control" name="deskripsi" id="deskripsi" rows="4"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">

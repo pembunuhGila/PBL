@@ -16,6 +16,11 @@ $filter_tabel = $_GET['tabel'] ?? '';
 $filter_status = $_GET['status'] ?? '';
 $filter_bulan = $_GET['bulan'] ?? '';
 
+// Pagination
+$limit = 20;
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $limit;
+
 $where_clauses = ["id_operator = ?"];
 $params = [$_SESSION['id_user']];
 
@@ -36,19 +41,29 @@ if ($filter_bulan) {
 
 $where_sql = "WHERE " . implode(" AND ", $where_clauses);
 
-// Query menggunakan VIEW - hanya data operator ini
+// Get total records
+$count_query = "SELECT COUNT(*) FROM v_riwayat_pengajuan_operator $where_sql";
+$count_stmt = $pdo->prepare($count_query);
+$count_stmt->execute($params);
+$total_records = $count_stmt->fetchColumn();
+$total_pages = ceil($total_records / $limit);
+
+// Query menggunakan VIEW dengan pagination
 $query = "
     SELECT * FROM v_riwayat_pengajuan_operator
     $where_sql
     ORDER BY created_at DESC
-    LIMIT 200
+    LIMIT ? OFFSET ?
 ";
+
+$params[] = $limit;
+$params[] = $offset;
 
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $riwayat_list = $stmt->fetchAll();
 
-// Get available months for filter - hanya data operator ini
+// Get available months for filter
 $months_query = $pdo->prepare("
     SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month 
     FROM v_riwayat_pengajuan_operator
@@ -161,12 +176,7 @@ include "navbar.php";
                     <div>
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total</div>
                         <div class="h4 mb-0 font-weight-bold">
-                            <?php 
-                            $total_stmt = $pdo->prepare("SELECT COUNT(*) FROM v_riwayat_pengajuan_operator WHERE id_operator = ?");
-                            $total_stmt->execute([$_SESSION['id_user']]);
-                            $total = $total_stmt->fetchColumn();
-                            echo $total;
-                            ?>
+                            <?php echo $total_records; ?>
                         </div>
                     </div>
                     <div class="text-primary">
@@ -243,33 +253,37 @@ include "navbar.php";
 <!-- Riwayat Table -->
 <div class="card shadow">
     <div class="card-header bg-white">
-        <h5 class="mb-0">
-            <i class="bi bi-file-earmark-text"></i> Daftar Riwayat 
-            <span class="badge bg-primary"><?php echo count($riwayat_list); ?> records</span>
-            <?php if ($filter_tabel || $filter_status || $filter_bulan): ?>
-                <span class="badge bg-info">Filtered</span>
-            <?php endif; ?>
-        </h5>
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-file-earmark-text"></i> Daftar Riwayat 
+                <span class="badge bg-primary"><?php echo $total_records; ?> total</span>
+            </h5>
+            <small class="text-muted">Halaman <?php echo $page; ?> dari <?php echo $total_pages; ?></small>
+        </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover table-sm mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-3">Waktu</th>
+                        <th class="ps-3">No</th>
+                        <th>Waktu</th>
                         <th>Tabel</th>
                         <th>ID Data</th>
                         <th>Perubahan Status</th>
                         <th>Admin Review</th>
                         <th>Catatan</th>
-                        <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (count($riwayat_list) > 0): ?>
-                        <?php foreach ($riwayat_list as $riwayat): ?>
+                        <?php 
+                        $no = $offset + 1;
+                        foreach ($riwayat_list as $riwayat): 
+                        ?>
                         <tr>
-                            <td class="ps-3">
+                            <td class="ps-3"><?php echo $no++; ?></td>
+                            <td>
                                 <small class="d-block"><strong><?php echo date('d M Y', strtotime($riwayat['created_at'])); ?></strong></small>
                                 <small class="text-muted"><?php echo date('H:i', strtotime($riwayat['created_at'])); ?> WIB</small>
                             </td>
@@ -346,94 +360,7 @@ include "navbar.php";
                                     <small class="text-muted">-</small>
                                 <?php endif; ?>
                             </td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-info" 
-                                        data-bs-toggle="modal" 
-                                        data-bs-target="#detailModal<?php echo $riwayat['id_riwayat']; ?>">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                            </td>
                         </tr>
-                        
-                        <!-- Modal Detail -->
-                        <div class="modal fade" id="detailModal<?php echo $riwayat['id_riwayat']; ?>" tabindex="-1">
-                            <div class="modal-dialog modal-lg">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title">
-                                            <i class="bi bi-info-circle"></i> Detail Riwayat #<?php echo $riwayat['id_riwayat']; ?>
-                                        </h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <table class="table table-bordered">
-                                            <tr>
-                                                <th width="200">Waktu Pengajuan</th>
-                                                <td><?php echo date('d F Y, H:i:s', strtotime($riwayat['created_at'])); ?> WIB</td>
-                                            </tr>
-                                            <tr>
-                                                <th>Tabel Sumber</th>
-                                                <td>
-                                                    <span class="badge bg-secondary">
-                                                        <?php echo $all_tables[$riwayat['tabel_sumber']] ?? $riwayat['tabel_sumber']; ?>
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>ID Data</th>
-                                                <td><code>#<?php echo $riwayat['id_data']; ?></code></td>
-                                            </tr>
-                                            <tr>
-                                                <th>Status Lama</th>
-                                                <td>
-                                                    <?php if ($riwayat['status_lama']): ?>
-                                                        <span class="badge <?php echo $status_lama_badge; ?>">
-                                                            <?php echo ucfirst($riwayat['status_lama']); ?>
-                                                        </span>
-                                                    <?php else: ?>
-                                                        <em class="text-muted">Baru (belum ada status sebelumnya)</em>
-                                                    <?php endif; ?>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>Status Baru</th>
-                                                <td>
-                                                    <span class="badge <?php echo $status_baru_badge; ?>">
-                                                        <?php echo ucfirst($riwayat['status_baru']); ?>
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>Admin yang Review</th>
-                                                <td>
-                                                    <?php if ($riwayat['admin_nama']): ?>
-                                                        <i class="bi bi-person-check text-success"></i> 
-                                                        <?php echo htmlspecialchars($riwayat['admin_nama']); ?>
-                                                    <?php else: ?>
-                                                        <em class="text-muted">Belum direview</em>
-                                                    <?php endif; ?>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>Catatan</th>
-                                                <td>
-                                                    <?php if ($riwayat['catatan']): ?>
-                                                        <div class="alert alert-info mb-0">
-                                                            <?php echo nl2br(htmlspecialchars($riwayat['catatan'])); ?>
-                                                        </div>
-                                                    <?php else: ?>
-                                                        <em class="text-muted">Tidak ada catatan</em>
-                                                    <?php endif; ?>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
@@ -457,6 +384,51 @@ include "navbar.php";
             </table>
         </div>
     </div>
+    
+    <!-- Pagination -->
+    <?php if ($total_pages > 1): ?>
+    <div class="card-footer bg-white">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page - 1; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                </li>
+                
+                <?php
+                $start_page = max(1, $page - 2);
+                $end_page = min($total_pages, $page + 2);
+                
+                if ($start_page > 1): ?>
+                    <li class="page-item"><a class="page-link" href="?page=1<?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>">1</a></li>
+                    <?php if ($start_page > 2): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                <?php endif; ?>
+                
+                <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
+                    <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
+                        <a class="page-link" href="?page=<?php echo $i; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>"><?php echo $i; ?></a>
+                    </li>
+                <?php endfor; ?>
+                
+                <?php if ($end_page < $total_pages): ?>
+                    <?php if ($end_page < $total_pages - 1): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                    <li class="page-item"><a class="page-link" href="?page=<?php echo $total_pages; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>"><?php echo $total_pages; ?></a></li>
+                <?php endif; ?>
+                
+                <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    <?php endif; ?>
 </div>
 
 <style>

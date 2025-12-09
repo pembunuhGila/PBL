@@ -72,12 +72,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$stmt = $pdo->query("
+// Pagination
+$limit = 10;
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $limit;
+
+// Get total records
+$count_stmt = $pdo->query("SELECT COUNT(*) FROM struktur_lab");
+$total_records = $count_stmt->fetchColumn();
+$total_pages = ceil($total_records / $limit);
+
+// Get struktur dengan pagination
+$stmt = $pdo->prepare("
     SELECT s.*, a.nama, a.foto, a.email 
     FROM struktur_lab s
     JOIN anggota_lab a ON s.id_anggota = a.id_anggota
     ORDER BY s.urutan ASC, s.created_at DESC
+    LIMIT ? OFFSET ?
 ");
+$stmt->execute([$limit, $offset]);
 $struktur_list = $stmt->fetchAll();
 
 $stmt_anggota = $pdo->query("SELECT id_anggota, nama, foto FROM anggota_lab WHERE status = 'active' ORDER BY nama");
@@ -112,10 +125,19 @@ include "navbar.php";
 <!-- Organizational Chart View -->
 <div class="row mb-4">
     <?php 
+    // Get active struktur for chart display (separate query, no limit)
+    $stmt_chart = $pdo->query("
+        SELECT s.*, a.nama, a.foto, a.email 
+        FROM struktur_lab s
+        JOIN anggota_lab a ON s.id_anggota = a.id_anggota
+        WHERE s.status = 'active'
+        ORDER BY s.urutan ASC
+        LIMIT 12
+    ");
+    $struktur_chart = $stmt_chart->fetchAll();
+    
     $current_urutan = 0;
-    foreach ($struktur_list as $struktur): 
-        if ($struktur['status'] != 'active') continue;
-        
+    foreach ($struktur_chart as $struktur): 
         if ($current_urutan != $struktur['urutan']) {
             if ($current_urutan != 0) echo '</div><div class="row mb-4 justify-content-center">';
             $current_urutan = $struktur['urutan'];
@@ -146,6 +168,11 @@ include "navbar.php";
 <!-- Table View for Admin -->
 <div class="card shadow">
     <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Total: <?php echo $total_records; ?> struktur</h6>
+            <small class="text-muted">Halaman <?php echo $page; ?> dari <?php echo $total_pages; ?></small>
+        </div>
+        
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
@@ -160,7 +187,10 @@ include "navbar.php";
                     </tr>
                 </thead>
                 <tbody>
-                    <?php $no = 1; foreach ($struktur_list as $struktur): ?>
+                    <?php 
+                    $no = $offset + 1;
+                    foreach ($struktur_list as $struktur): 
+                    ?>
                     <tr>
                         <td><?php echo $no++; ?></td>
                         <td>
@@ -183,7 +213,7 @@ include "navbar.php";
                             <button class="btn btn-sm btn-warning" onclick='editStruktur(<?php echo json_encode($struktur); ?>)'>
                                 <i class="bi bi-pencil"></i> Edit
                             </button>
-                            <a href="?delete=<?php echo $struktur['id_struktur']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                            <a href="?delete=<?php echo $struktur['id_struktur']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
                                 <i class="bi bi-trash"></i> Hapus
                             </a>
                         </td>
@@ -192,6 +222,49 @@ include "navbar.php";
                 </tbody>
             </table>
         </div>
+        
+        <!-- Pagination -->
+        <?php if ($total_pages > 1): ?>
+        <nav aria-label="Page navigation" class="mt-3">
+            <ul class="pagination justify-content-center">
+                <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page - 1; ?>">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                </li>
+                
+                <?php
+                $start_page = max(1, $page - 2);
+                $end_page = min($total_pages, $page + 2);
+                
+                if ($start_page > 1): ?>
+                    <li class="page-item"><a class="page-link" href="?page=1">1</a></li>
+                    <?php if ($start_page > 2): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                <?php endif; ?>
+                
+                <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
+                    <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
+                        <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                    </li>
+                <?php endfor; ?>
+                
+                <?php if ($end_page < $total_pages): ?>
+                    <?php if ($end_page < $total_pages - 1): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                    <li class="page-item"><a class="page-link" href="?page=<?php echo $total_pages; ?>"><?php echo $total_pages; ?></a></li>
+                <?php endif; ?>
+                
+                <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page + 1; ?>">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <?php endif; ?>
     </div>
 </div>
 

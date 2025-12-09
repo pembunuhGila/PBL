@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $deskripsi = $_POST['deskripsi'];
     $kategori_fasilitas = $_POST['kategori_fasilitas'];
-    $status = 'pending'; // AUTO PENDING untuk operator
+    $status = 'pending';
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -70,7 +70,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $status, $id]);
                 }
                 
-                // Catat riwayat
                 $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt_riwayat->execute(['fasilitas', $id, $_SESSION['id_user'], $status_lama, $status, 'Update fasilitas: ' . $judul]);
                 
@@ -94,8 +93,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$stmt = $pdo->prepare("SELECT * FROM fasilitas WHERE id_user = ? ORDER BY created_at DESC");
-$stmt->execute([$_SESSION['id_user']]);
+// Pagination
+$items_per_page = 9;
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $items_per_page;
+
+// Get total count
+$count_stmt = $pdo->prepare("SELECT COUNT(*) FROM fasilitas WHERE id_user = ?");
+$count_stmt->execute([$_SESSION['id_user']]);
+$total_items = $count_stmt->fetchColumn();
+$total_pages = ceil($total_items / $items_per_page);
+
+// Get paginated data
+$stmt = $pdo->prepare("SELECT * FROM fasilitas WHERE id_user = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
+$stmt->execute([$_SESSION['id_user'], $items_per_page, $offset]);
 $fasilitas_list = $stmt->fetchAll();
 
 include "header.php";
@@ -122,42 +133,71 @@ include "navbar.php";
 </div>
 
 <div class="row">
-    <?php foreach ($fasilitas_list as $fas): ?>
-    <div class="col-md-4 mb-4">
-        <div class="card shadow h-100">
-            <?php if ($fas['gambar']): ?>
-                <img src="../../uploads/fasilitas/<?php echo $fas['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover;">
-            <?php else: ?>
-                <div class="bg-secondary" style="height: 200px;"></div>
-            <?php endif; ?>
-            <div class="card-body">
-                <span class="badge bg-info mb-2"><?php echo htmlspecialchars($fas['kategori_fasilitas'] ?? 'Umum'); ?></span>
-                <?php if ($fas['status'] == 'pending'): ?>
-                    <span class="badge bg-warning mb-2">Pending</span>
-                <?php elseif ($fas['status'] == 'active'): ?>
-                    <span class="badge bg-success mb-2">Approved</span>
+    <?php if (count($fasilitas_list) > 0): ?>
+        <?php foreach ($fasilitas_list as $fas): ?>
+        <div class="col-md-4 mb-4">
+            <div class="card shadow h-100">
+                <?php if ($fas['gambar']): ?>
+                    <img src="../../uploads/fasilitas/<?php echo $fas['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover;">
                 <?php else: ?>
-                    <span class="badge bg-danger mb-2">Rejected</span>
+                    <div class="bg-secondary" style="height: 200px;"></div>
                 <?php endif; ?>
-                <h5 class="card-title"><?php echo htmlspecialchars($fas['judul']); ?></h5>
-                <p class="card-text text-muted"><?php echo htmlspecialchars(substr($fas['deskripsi'] ?? '', 0, 100)); ?>...</p>
-            </div>
-            <div class="card-footer bg-white">
-                <?php if ($fas['status'] == 'pending' || $fas['status'] == 'rejected'): ?>
-                    <button class="btn btn-sm btn-warning" onclick='editFasilitas(<?php echo json_encode($fas); ?>)'>
-                        <i class="bi bi-pencil"></i> Edit
-                    </button>
-                    <a href="?delete=<?php echo $fas['id_fasilitas']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
-                        <i class="bi bi-trash"></i> Hapus
-                    </a>
-                <?php else: ?>
-                    <span class="text-muted small">Sudah disetujui</span>
-                <?php endif; ?>
+                <div class="card-body">
+                    <span class="badge bg-info mb-2"><?php echo htmlspecialchars($fas['kategori_fasilitas'] ?? 'Umum'); ?></span>
+                    <?php if ($fas['status'] == 'pending'): ?>
+                        <span class="badge bg-warning mb-2">Pending</span>
+                    <?php elseif ($fas['status'] == 'active'): ?>
+                        <span class="badge bg-success mb-2">Approved</span>
+                    <?php else: ?>
+                        <span class="badge bg-danger mb-2">Rejected</span>
+                    <?php endif; ?>
+                    <h5 class="card-title"><?php echo htmlspecialchars($fas['judul']); ?></h5>
+                    <p class="card-text text-muted"><?php echo htmlspecialchars(substr($fas['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($fas['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
+                </div>
+                <div class="card-footer bg-white">
+                    <?php if ($fas['status'] == 'pending' || $fas['status'] == 'rejected'): ?>
+                        <button class="btn btn-sm btn-warning" onclick='editFasilitas(<?php echo json_encode($fas); ?>)'>
+                            <i class="bi bi-pencil"></i> Edit
+                        </button>
+                        <a href="?delete=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                            <i class="bi bi-trash"></i> Hapus
+                        </a>
+                    <?php else: ?>
+                        <span class="text-muted small">Sudah disetujui</span>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
-    </div>
-    <?php endforeach; ?>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i> Belum ada data fasilitas
+            </div>
+        </div>
+    <?php endif; ?>
 </div>
+
+<!-- Pagination -->
+<?php if ($total_pages > 1): ?>
+<nav aria-label="Page navigation">
+    <ul class="pagination justify-content-center">
+        <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+            <a class="page-link" href="?page=<?php echo $page - 1; ?>">Previous</a>
+        </li>
+        
+        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+            <li class="page-item <?php echo $page == $i ? 'active' : ''; ?>">
+                <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+            </li>
+        <?php endfor; ?>
+        
+        <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+            <a class="page-link" href="?page=<?php echo $page + 1; ?>">Next</a>
+        </li>
+    </ul>
+</nav>
+<?php endif; ?>
 
 <!-- Modal -->
 <div class="modal fade" id="fasilitasModal" tabindex="-1">

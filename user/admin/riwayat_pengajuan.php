@@ -16,6 +16,11 @@ $filter_tabel = $_GET['tabel'] ?? '';
 $filter_status = $_GET['status'] ?? '';
 $filter_bulan = $_GET['bulan'] ?? '';
 
+// Pagination
+$limit = 20;
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $limit;
+
 $where_clauses = [];
 $params = [];
 
@@ -36,13 +41,23 @@ if ($filter_bulan) {
 
 $where_sql = $where_clauses ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-// Query menggunakan VIEW
+// Get total records
+$count_query = "SELECT COUNT(*) FROM v_riwayat_pengajuan $where_sql";
+$count_stmt = $pdo->prepare($count_query);
+$count_stmt->execute($params);
+$total_records = $count_stmt->fetchColumn();
+$total_pages = ceil($total_records / $limit);
+
+// Query menggunakan VIEW dengan pagination
 $query = "
     SELECT * FROM v_riwayat_pengajuan
     $where_sql
     ORDER BY created_at DESC
-    LIMIT 200
+    LIMIT ? OFFSET ?
 ";
+
+$params[] = $limit;
+$params[] = $offset;
 
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
@@ -227,13 +242,16 @@ include "navbar.php";
 </div>
 <?php endif; ?>
 
-<!-- Riwayat Table - SIMPLE VERSION -->
+<!-- Riwayat Table -->
 <div class="card shadow">
     <div class="card-header bg-white">
-        <h5 class="mb-0">
-            <i class="bi bi-file-earmark-text"></i> Daftar Riwayat 
-            <span class="badge bg-primary"><?php echo count($riwayat_list); ?> records</span>
-        </h5>
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-file-earmark-text"></i> Daftar Riwayat 
+                <span class="badge bg-primary"><?php echo $total_records; ?> total</span>
+            </h5>
+            <small class="text-muted">Halaman <?php echo $page; ?> dari <?php echo $total_pages; ?></small>
+        </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -253,7 +271,7 @@ include "navbar.php";
                 <tbody>
                     <?php if (count($riwayat_list) > 0): ?>
                         <?php 
-                        $no = 1;
+                        $no = $offset + 1;
                         foreach ($riwayat_list as $riwayat): 
                         ?>
                         <tr>
@@ -270,7 +288,6 @@ include "navbar.php";
                             <td><code>#<?php echo $riwayat['id_data']; ?></code></td>
                             <td>
                                 <?php
-                                // Status badge
                                 if ($riwayat['status_baru'] == 'active') {
                                     echo '<span class="badge bg-success">✅ Active</span>';
                                 } elseif ($riwayat['status_baru'] == 'pending') {
@@ -319,6 +336,51 @@ include "navbar.php";
             </table>
         </div>
     </div>
+    
+    <!-- Pagination -->
+    <?php if ($total_pages > 1): ?>
+    <div class="card-footer bg-white">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page - 1; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                </li>
+                
+                <?php
+                $start_page = max(1, $page - 2);
+                $end_page = min($total_pages, $page + 2);
+                
+                if ($start_page > 1): ?>
+                    <li class="page-item"><a class="page-link" href="?page=1<?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>">1</a></li>
+                    <?php if ($start_page > 2): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                <?php endif; ?>
+                
+                <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
+                    <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
+                        <a class="page-link" href="?page=<?php echo $i; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>"><?php echo $i; ?></a>
+                    </li>
+                <?php endfor; ?>
+                
+                <?php if ($end_page < $total_pages): ?>
+                    <?php if ($end_page < $total_pages - 1): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                    <li class="page-item"><a class="page-link" href="?page=<?php echo $total_pages; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>"><?php echo $total_pages; ?></a></li>
+                <?php endif; ?>
+                
+                <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    <?php endif; ?>
 </div>
 
 <style>

@@ -31,7 +31,7 @@ if (isset($_GET['delete'])) {
 }
 
 // Handle Add/Edit
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
     $kategori_konten = $_POST['kategori_konten'];
     $judul = $_POST['judul'];
     $slug = strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]/', '', $judul)));
@@ -57,7 +57,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $old_data = $stmt_old->fetch();
             $status_lama = $old_data['status'];
             
-            // PostgreSQL FUNCTION call
             $stmt = $pdo->prepare("SELECT * FROM sp_update_konten(?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$id, $kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
             $result = $stmt->fetch();
@@ -73,7 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $error = $message;
             }
         } else {
-            // PostgreSQL FUNCTION call untuk INSERT
             $stmt = $pdo->prepare("SELECT * FROM sp_insert_konten(?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user'], 'admin']);
             $result = $stmt->fetch();
@@ -93,17 +91,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Get konten menggunakan PostgreSQL FUNCTION
+// Search functionality
+$search = $_GET['search'] ?? '';
+$kategori_filter = $_GET['kategori'] ?? '';
+
+// Get konten dengan filter
 try {
+    $where_clauses = [];
+    $params = [$_SESSION['id_user'], 'admin', null, null, 200];
+    
     $stmt = $pdo->prepare("SELECT * FROM sp_get_konten(?, ?, ?, ?, ?)");
-    $stmt->execute([$_SESSION['id_user'], 'admin', null, null, 200]);
-    $konten_list = $stmt->fetchAll();
+    $stmt->execute($params);
+    $all_konten = $stmt->fetchAll();
+    
+    // Filter di PHP karena function PostgreSQL tidak support filter
+    $konten_list = array_filter($all_konten, function($kon) use ($search, $kategori_filter) {
+        $match_search = empty($search) || 
+            stripos($kon['judul'], $search) !== false || 
+            stripos($kon['isi'], $search) !== false;
+        
+        $match_kategori = empty($kategori_filter) || 
+            $kon['kategori_konten'] === $kategori_filter;
+        
+        return $match_search && $match_kategori;
+    });
 } catch (PDOException $e) {
     $error = "Gagal mengambil data: " . $e->getMessage();
     $konten_list = [];
 }
 
-// Fixed kategori list
 $kategori_list = ['Berita', 'Agenda', 'Pengumuman'];
 
 include "header.php";
@@ -125,6 +141,51 @@ include "navbar.php";
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
+<!-- Search & Filter -->
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label"><i class="bi bi-search"></i> Cari Konten</label>
+                <input type="text" class="form-control" name="search" placeholder="Cari berdasarkan judul atau isi..." value="<?php echo htmlspecialchars($search); ?>">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label"><i class="bi bi-funnel"></i> Filter Kategori</label>
+                <select class="form-select" name="kategori">
+                    <option value="">Semua Kategori</option>
+                    <?php foreach ($kategori_list as $kat): ?>
+                        <option value="<?php echo $kat; ?>" <?php echo $kategori_filter === $kat ? 'selected' : ''; ?>>
+                            <?php echo $kat; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1">
+                    <i class="bi bi-search"></i> Cari
+                </button>
+                <a href="konten.php" class="btn btn-secondary">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<?php if ($search || $kategori_filter): ?>
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> 
+    Menampilkan <?php echo count($konten_list); ?> hasil
+    <?php if ($search): ?>
+        untuk pencarian "<strong><?php echo htmlspecialchars($search); ?></strong>"
+    <?php endif; ?>
+    <?php if ($kategori_filter): ?>
+        dengan kategori <strong><?php echo $kategori_filter; ?></strong>
+    <?php endif; ?>
+    <a href="konten.php" class="alert-link ms-2">Reset filter</a>
+</div>
+<?php endif; ?>
+
 <div class="card shadow">
     <div class="card-body">
         <div class="table-responsive">
@@ -141,8 +202,9 @@ include "navbar.php";
                 </thead>
                 <tbody>
                     <?php 
-                    $no = 1; 
-                    foreach ($konten_list as $kon): 
+                    if (count($konten_list) > 0) {
+                        $no = 1; 
+                        foreach ($konten_list as $kon): 
                     ?>
                     <tr>
                         <td><?php echo $no++; ?></td>
@@ -168,7 +230,23 @@ include "navbar.php";
                             </a>
                         </td>
                     </tr>
-                    <?php endforeach; ?>
+                    <?php 
+                        endforeach;
+                    } else {
+                    ?>
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                            <p class="mt-3 text-muted">
+                                <?php if ($search || $kategori_filter): ?>
+                                    Tidak ada konten yang sesuai dengan pencarian
+                                <?php else: ?>
+                                    Belum ada konten
+                                <?php endif; ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <?php } ?>
                 </tbody>
             </table>
         </div>

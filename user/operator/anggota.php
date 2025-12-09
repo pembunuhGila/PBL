@@ -11,11 +11,15 @@ include "../../conn.php";
 $page_title = "Anggota Lab";
 $current_page = "anggota.php";
 
+// Pagination settings
+$items_per_page = 10;
+$current_page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($current_page_num - 1) * $items_per_page;
+
 // Handle Delete - operator hanya bisa hapus data miliknya
 if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
     try {
-        // Cek kepemilikan data
         $stmt_check = $pdo->prepare("SELECT id_user, foto FROM anggota_lab WHERE id_anggota = ?");
         $stmt_check->execute([$id]);
         $data_owner = $stmt_check->fetch();
@@ -25,11 +29,9 @@ if (isset($_GET['delete'])) {
             $stmt_old->execute([$id]);
             $old_data = $stmt_old->fetch();
             
-            // Delete from database
             $stmt = $pdo->prepare("DELETE FROM anggota_lab WHERE id_anggota = ?");
             $stmt->execute([$id]);
             
-            // Delete foto file if exists
             if ($data_owner['foto']) {
                 $foto_path = "../../uploads/anggota/" . $data_owner['foto'];
                 if (file_exists($foto_path)) {
@@ -115,7 +117,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $old_foto = $data_owner['foto'];
                 
                 if ($foto) {
-                    // Delete old foto if exists and new foto uploaded
                     if ($old_foto) {
                         $old_foto_path = "../../uploads/anggota/" . $old_foto;
                         if (file_exists($old_foto_path)) {
@@ -155,9 +156,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
+// Get total count - operator hanya lihat data miliknya sendiri
+$count_stmt = $pdo->prepare("SELECT COUNT(*) FROM anggota_lab WHERE id_user = ?");
+$count_stmt->execute([$_SESSION['id_user']]);
+$total_items = $count_stmt->fetchColumn();
+$total_pages = ceil($total_items / $items_per_page);
+
 // Operator hanya bisa lihat data miliknya sendiri
-$stmt = $pdo->prepare("SELECT * FROM anggota_lab WHERE id_user = ? ORDER BY created_at DESC");
-$stmt->execute([$_SESSION['id_user']]);
+$stmt = $pdo->prepare("SELECT * FROM anggota_lab WHERE id_user = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
+$stmt->execute([$_SESSION['id_user'], $items_per_page, $offset]);
+$anggota_list = $stmt->fetchAll();
+
+$search = $_GET['search'] ?? '';
+$status_filter = $_GET['status_filter'] ?? '';
+
+$where_clauses = ["id_user = ?"];
+$params = [$_SESSION['id_user']];
+
+if ($search) {
+    $where_clauses[] = "(nama ILIKE ? OR nip ILIKE ? OR email ILIKE ?)";
+    $search_param = "%$search%";
+    $params[] = $search_param;
+    $params[] = $search_param;
+    $params[] = $search_param;
+}
+
+if ($status_filter) {
+    $where_clauses[] = "status = ?";
+    $params[] = $status_filter;
+}
+
+$where_sql = "WHERE " . implode(" AND ", $where_clauses);
+
+$query = "SELECT * FROM anggota_lab $where_sql ORDER BY created_at DESC";
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
 $anggota_list = $stmt->fetchAll();
 
 include "header.php";
@@ -192,6 +225,11 @@ include "navbar.php";
 
 <div class="card shadow">
     <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Total: <?php echo $total_items; ?> anggota</h6>
+            <span class="text-muted">Halaman <?php echo $current_page_num; ?> dari <?php echo max(1, $total_pages); ?></span>
+        </div>
+        
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
@@ -201,15 +239,15 @@ include "navbar.php";
                         <th>Nama</th>
                         <th>NIP</th>
                         <th>Email</th>
-                        <th>Kontak</th>
-                        <th>Pendidikan</th>
-                        <th>Mata Kuliah</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php $no = 1; foreach ($anggota_list as $anggota): ?>
+                    <?php 
+                    $no = $offset + 1;
+                    foreach ($anggota_list as $anggota): 
+                    ?>
                     <tr>
                         <td><?php echo $no++; ?></td>
                         <td>
@@ -222,49 +260,6 @@ include "navbar.php";
                         <td><?php echo htmlspecialchars($anggota['nama']); ?></td>
                         <td><?php echo htmlspecialchars($anggota['nip'] ?? '-'); ?></td>
                         <td><?php echo htmlspecialchars($anggota['email'] ?? '-'); ?></td>
-                        <td><?php echo htmlspecialchars($anggota['kontak'] ?? '-'); ?></td>
-                        <td>
-                            <?php 
-                            if ($anggota['pendidikan']) {
-                                $pendidikan_data = json_decode($anggota['pendidikan'], true);
-                                if (is_array($pendidikan_data) && count($pendidikan_data) > 0) {
-                                    echo '<small>';
-                                    foreach ($pendidikan_data as $edu) {
-                                        echo '<strong>' . htmlspecialchars($edu['jenjang']) . '</strong><br>';
-                                    }
-                                    echo '</small>';
-                                } else {
-                                    echo '-';
-                                }
-                            } else {
-                                echo '-';
-                            }
-                            ?>
-                        </td>
-                        <td>
-                            <?php 
-                            if ($anggota['bidang_keahlian']) {
-                                $mk_data = json_decode($anggota['bidang_keahlian'], true);
-                                if (is_array($mk_data) && count($mk_data) > 0) {
-                                    echo '<small>';
-                                    $count = 0;
-                                    foreach ($mk_data as $mk) {
-                                        if ($count >= 2) {
-                                            echo '+ ' . (count($mk_data) - 2) . ' lainnya';
-                                            break;
-                                        }
-                                        echo htmlspecialchars($mk['nama']) . '<br>';
-                                        $count++;
-                                    }
-                                    echo '</small>';
-                                } else {
-                                    echo '-';
-                                }
-                            } else {
-                                echo '-';
-                            }
-                            ?>
-                        </td>
                         <td>
                             <?php if ($anggota['status'] == 'pending'): ?>
                                 <span class="badge bg-warning">Pending</span>
@@ -279,7 +274,7 @@ include "navbar.php";
                                 <button class="btn btn-sm btn-warning" onclick="editAnggota(<?php echo htmlspecialchars(json_encode($anggota)); ?>)">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <a href="?delete=<?php echo $anggota['id_anggota']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                                <a href="?delete=<?php echo $anggota['id_anggota']; ?>&page=<?php echo $current_page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
                                     <i class="bi bi-trash"></i>
                                 </a>
                             <?php else: ?>
@@ -291,10 +286,53 @@ include "navbar.php";
                 </tbody>
             </table>
         </div>
+        
+        <!-- Pagination -->
+        <?php if ($total_pages > 1): ?>
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                <li class="page-item <?php echo ($current_page_num <= 1) ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $current_page_num - 1; ?>">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                </li>
+                
+                <?php
+                $start_page = max(1, $current_page_num - 2);
+                $end_page = min($total_pages, $current_page_num + 2);
+                
+                if ($start_page > 1): ?>
+                    <li class="page-item"><a class="page-link" href="?page=1">1</a></li>
+                    <?php if ($start_page > 2): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                <?php endif; ?>
+                
+                <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
+                    <li class="page-item <?php echo ($i == $current_page_num) ? 'active' : ''; ?>">
+                        <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                    </li>
+                <?php endfor; ?>
+                
+                <?php if ($end_page < $total_pages): ?>
+                    <?php if ($end_page < $total_pages - 1): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                    <li class="page-item"><a class="page-link" href="?page=<?php echo $total_pages; ?>"><?php echo $total_pages; ?></a></li>
+                <?php endif; ?>
+                
+                <li class="page-item <?php echo ($current_page_num >= $total_pages) ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $current_page_num + 1; ?>">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <?php endif; ?>
     </div>
 </div>
 
-<!-- Modal Form - Same structure as admin but with foto preview -->
+<!-- Modal Form (sama seperti sebelumnya dengan form lengkap) -->
 <div class="modal fade" id="anggotaModal" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -382,7 +420,7 @@ include "navbar.php";
 </div>
 
 <script>
-// Same JavaScript as admin version with foto preview support
+// JavaScript functions dari file asli
 function addPendidikan() {
     const container = document.getElementById('pendidikanContainer');
     const newItem = document.createElement('div');
@@ -533,13 +571,8 @@ function resetForm() {
 }
 
 function editAnggota(data) {
-    // 1. UBAH JUDUL MODAL
     document.getElementById('modalTitle').textContent = 'Edit Anggota Lab';
-    
-    // 2. ISI HIDDEN ID
     document.getElementById('id_anggota').value = data.id_anggota;
-    
-    // 3. ISI FORM BASIC INFO
     document.getElementById('nama').value = data.nama;
     document.getElementById('nip').value = data.nip || '';
     document.getElementById('email').value = data.email || '';
@@ -547,7 +580,6 @@ function editAnggota(data) {
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
     
-    // 4. TAMPILKAN PREVIEW FOTO YANG ADA
     if (data.foto) {
         document.getElementById('currentFotoPreview').style.display = 'block';
         document.getElementById('currentFotoImg').src = '../../uploads/anggota/' + data.foto;
@@ -555,105 +587,28 @@ function editAnggota(data) {
         document.getElementById('currentFotoPreview').style.display = 'none';
     }
     
-    // 5. POPULATE PENDIDIKAN
-    const pendidikanContainer = document.getElementById('pendidikanContainer');
-    pendidikanContainer.innerHTML = ''; // Kosongkan dulu
-    
-    let pendidikanData = [];
-    try {
-        if (data.pendidikan) {
-            pendidikanData = JSON.parse(data.pendidikan);
-        }
-    } catch (e) {
-        console.error('Error parsing pendidikan:', e);
-    }
-    
-    // Jika tidak ada data, buat 1 form kosong
-    if (pendidikanData.length === 0) {
-        pendidikanData = [{jenjang: '', institusi: '', jurusan: '', tahun: ''}];
-    }
-    
-    // Loop setiap pendidikan dan buat form-nya
-    pendidikanData.forEach((edu, index) => {
-        const newItem = document.createElement('div');
-        newItem.className = 'pendidikan-item border rounded p-3 mb-3 bg-light';
-        newItem.innerHTML = `
-            <div class="row">
-                <div class="col-md-3 mb-2">
-                    <label class="form-label small">Jenjang *</label>
-                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
-                        <option value="">Pilih Jenjang</option>
-                        <option value="D3" ${edu.jenjang === 'D3' ? 'selected' : ''}>D3</option>
-                        <option value="D4" ${edu.jenjang === 'D4' ? 'selected' : ''}>D4</option>
-                        <option value="S1" ${edu.jenjang === 'S1' ? 'selected' : ''}>S1</option>
-                        <option value="S2" ${edu.jenjang === 'S2' ? 'selected' : ''}>S2</option>
-                        <option value="S3" ${edu.jenjang === 'S3' ? 'selected' : ''}>S3</option>
-                        <option value="Profesi" ${edu.jenjang === 'Profesi' ? 'selected' : ''}>Profesi</option>
-                    </select>
-                </div>
-                <div class="col-md-4 mb-2">
-                    <label class="form-label small">Institusi *</label>
-                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${edu.institusi || ''}" required>
-                </div>
-                <div class="col-md-3 mb-2">
-                    <label class="form-label small">Jurusan</label>
-                    <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika..." value="${edu.jurusan || ''}">
-                </div>
-                <div class="col-md-2 mb-2">
-                    <label class="form-label small">Tahun</label>
-                    <div class="d-flex gap-1">
-                        <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020" value="${edu.tahun || ''}">
-                        <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)" style="${pendidikanData.length > 1 ? '' : 'display: none;'}">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        pendidikanContainer.appendChild(newItem);
-    });
-    
-    // 6. POPULATE MATA KULIAH
-    const matakuliahContainer = document.getElementById('matakuliahContainer');
-    matakuliahContainer.innerHTML = ''; // Kosongkan dulu
-    
-    let matakuliahData = [];
-    try {
-        if (data.bidang_keahlian) {
-            matakuliahData = JSON.parse(data.bidang_keahlian);
-        }
-    } catch (e) {
-        console.error('Error parsing mata kuliah:', e);
-    }
-    
-    // Jika tidak ada data, buat 1 form kosong
-    if (matakuliahData.length === 0) {
-        matakuliahData = [{nama: ''}];
-    }
-    
-    // Loop setiap mata kuliah dan buat form-nya
-    matakuliahData.forEach((mk, index) => {
-        const newItem = document.createElement('div');
-        newItem.className = 'matakuliah-item border rounded p-3 mb-3 bg-light';
-        newItem.innerHTML = `
-            <div class="row align-items-end">
-                <div class="col-auto mb-2">
-                    <label class="form-label small d-block">&nbsp;</label>
-                    <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)" style="${matakuliahData.length > 1 ? '' : 'display: none;'}">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-                <div class="col mb-2">
-                    <label class="form-label small">Nama Mata Kuliah *</label>
-                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${mk.nama || ''}" required>
-                </div>
-            </div>
-        `;
-        matakuliahContainer.appendChild(newItem);
-    });
-    
     new bootstrap.Modal(document.getElementById('anggotaModal')).show();
 }
 </script>
 
-<?php include "footer.php"; ?>
+
+<style>
+.pagination {
+    margin-bottom: 0;
+}
+
+.page-link {
+    color: #1e3c72;
+}
+
+.page-item.active .page-link {
+    background-color: #1e3c72;
+    border-color: #1e3c72;
+}
+
+.page-link:hover {
+    color: #2a5298;
+}
+</style>
+
+<?php include "footer.php"; ?>c

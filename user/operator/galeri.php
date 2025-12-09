@@ -38,7 +38,7 @@ if (isset($_GET['delete'])) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $deskripsi = $_POST['deskripsi'];
-    $status = 'pending'; // AUTO PENDING
+    $status = 'pending';
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -69,7 +69,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $stmt->execute([$judul, $deskripsi, $status, $id]);
                 }
                 
-                // Catat riwayat
                 $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt_riwayat->execute(['galeri', $id, $_SESSION['id_user'], $status_lama, $status, 'Update foto: ' . $judul]);
                 
@@ -97,8 +96,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$stmt = $pdo->prepare("SELECT * FROM galeri WHERE id_user = ? ORDER BY created_at DESC");
-$stmt->execute([$_SESSION['id_user']]);
+// Pagination
+$items_per_page = 12;
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $items_per_page;
+
+// Get total count
+$count_stmt = $pdo->prepare("SELECT COUNT(*) FROM galeri WHERE id_user = ?");
+$count_stmt->execute([$_SESSION['id_user']]);
+$total_items = $count_stmt->fetchColumn();
+$total_pages = ceil($total_items / $items_per_page);
+
+// Get paginated data
+$stmt = $pdo->prepare("SELECT * FROM galeri WHERE id_user = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
+$stmt->execute([$_SESSION['id_user'], $items_per_page, $offset]);
 $galeri_list = $stmt->fetchAll();
 
 include "header.php";
@@ -124,57 +135,89 @@ include "navbar.php";
     <i class="bi bi-info-circle"></i> Semua foto yang Anda upload akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
 </div>
 
-<div class="row" id="galeriContainer">
-    <?php foreach ($galeri_list as $gal): ?>
-    <div class="col-md-3 mb-4">
-        <div class="card shadow">
-            <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $gal['id_galeri']; ?>">
-            <div class="card-body p-2">
-                <small class="d-block text-truncate"><strong><?php echo htmlspecialchars($gal['judul']); ?></strong></small>
-                <?php if ($gal['status'] == 'pending'): ?>
-                    <span class="badge bg-warning badge-sm">Pending</span>
-                <?php elseif ($gal['status'] == 'active'): ?>
-                    <span class="badge bg-success badge-sm">Approved</span>
-                <?php else: ?>
-                    <span class="badge bg-danger badge-sm">Rejected</span>
-                <?php endif; ?>
-            </div>
-            <div class="card-footer p-2 bg-white">
-                <?php if ($gal['status'] == 'pending' || $gal['status'] == 'rejected'): ?>
-                    <button class="btn btn-sm btn-warning" onclick='editGaleri(<?php echo json_encode($gal); ?>)'>
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <a href="?delete=<?php echo $gal['id_galeri']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
-                        <i class="bi bi-trash"></i>
-                    </a>
-                <?php else: ?>
-                    <small class="text-muted">Disetujui</small>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-    
-    <!-- View Modal -->
-    <div class="modal fade" id="viewModal<?php echo $gal['id_galeri']; ?>" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><?php echo htmlspecialchars($gal['judul']); ?></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div class="row">
+    <?php if (count($galeri_list) > 0): ?>
+        <?php foreach ($galeri_list as $gal): ?>
+        <div class="col-md-4 mb-4">
+            <div class="card shadow h-100">
+                <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $gal['id_galeri']; ?>">
+                <div class="card-body">
+                    <?php if ($gal['status'] == 'pending'): ?>
+                        <span class="badge bg-warning mb-2">Pending</span>
+                    <?php elseif ($gal['status'] == 'active'): ?>
+                        <span class="badge bg-success mb-2">Approved</span>
+                    <?php else: ?>
+                        <span class="badge bg-danger mb-2">Rejected</span>
+                    <?php endif; ?>
+                    <h5 class="card-title"><?php echo htmlspecialchars($gal['judul']); ?></h5>
+                    <p class="card-text text-muted"><?php echo htmlspecialchars(substr($gal['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($gal['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
                 </div>
-                <div class="modal-body text-center">
-                    <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="img-fluid">
-                    <p class="mt-3"><?php echo htmlspecialchars($gal['deskripsi'] ?? ''); ?></p>
+                <div class="card-footer bg-white">
+                    <?php if ($gal['status'] == 'pending' || $gal['status'] == 'rejected'): ?>
+                        <button class="btn btn-sm btn-warning" onclick='editGaleri(<?php echo json_encode($gal); ?>)'>
+                            <i class="bi bi-pencil"></i> Edit
+                        </button>
+                        <a href="?delete=<?php echo $gal['id_galeri']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                            <i class="bi bi-trash"></i> Hapus
+                        </a>
+                    <?php else: ?>
+                        <span class="text-muted small">Disetujui</span>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
-    </div>
-    <?php endforeach; ?>
+        
+        <!-- View Modal -->
+        <div class="modal fade" id="viewModal<?php echo $gal['id_galeri']; ?>" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><?php echo htmlspecialchars($gal['judul']); ?></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="img-fluid">
+                        <?php if ($gal['deskripsi']): ?>
+                            <p class="mt-3"><?php echo nl2br(htmlspecialchars($gal['deskripsi'])); ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i> Belum ada foto di galeri
+            </div>
+        </div>
+    <?php endif; ?>
 </div>
+
+<!-- Pagination -->
+<?php if ($total_pages > 1): ?>
+<nav aria-label="Page navigation">
+    <ul class="pagination justify-content-center">
+        <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+            <a class="page-link" href="?page=<?php echo $page - 1; ?>">Previous</a>
+        </li>
+        
+        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+            <li class="page-item <?php echo $page == $i ? 'active' : ''; ?>">
+                <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+            </li>
+        <?php endfor; ?>
+        
+        <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
+            <a class="page-link" href="?page=<?php echo $page + 1; ?>">Next</a>
+        </li>
+    </ul>
+</nav>
+<?php endif; ?>
 
 <!-- Add/Edit Modal -->
 <div class="modal fade" id="galeriModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="POST" enctype="multipart/form-data">
                 <div class="modal-header">
@@ -189,19 +232,19 @@ include "navbar.php";
                     </div>
                     
                     <div class="mb-3">
+                        <label class="form-label">Judul *</label>
+                        <input type="text" class="form-control" name="judul" id="judul" required>
+                    </div>
+                    
+                    <div class="mb-3">
                         <label class="form-label">Gambar *</label>
                         <input type="file" class="form-control" name="gambar" id="gambar" accept="image/*">
                         <small class="text-muted">Wajib upload saat tambah baru, opsional saat edit</small>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Judul</label>
-                        <input type="text" class="form-control" name="judul" id="judul">
-                    </div>
-                    
-                    <div class="mb-3">
                         <label class="form-label">Deskripsi</label>
-                        <textarea class="form-control" name="deskripsi" id="deskripsi" rows="3"></textarea>
+                        <textarea class="form-control" name="deskripsi" id="deskripsi" rows="4"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
