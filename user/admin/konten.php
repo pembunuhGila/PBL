@@ -11,6 +11,11 @@ include "../../conn.php";
 $page_title = "Konten";
 $current_page = "konten.php";
 
+// Pagination setup
+$limit = 10;
+$page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page_num - 1) * $limit;
+
 // Handle Delete
 if (isset($_GET['delete'])) {
     try {
@@ -24,7 +29,8 @@ if (isset($_GET['delete'])) {
         $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt_riwayat->execute(['konten', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus konten: ' . $old_data['judul']]);
         
-        $success = "Konten berhasil dihapus!";
+        header("Location: konten.php?success=deleted&page=" . $page_num);
+        exit;
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
     }
@@ -67,7 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
                     $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
                     $stmt_riwayat->execute(['konten', $id, $_SESSION['id_user'], $status_lama, $status, 'Update konten: ' . $judul]);
                 }
-                $success = "Konten berhasil diupdate!";
+                header("Location: konten.php?success=updated&page=" . $page_num);
+                exit;
             } else {
                 $error = $message;
             }
@@ -81,7 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
             if ($new_id > 0) {
                 $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
-                $success = "Konten berhasil ditambahkan dan langsung aktif!";
+                header("Location: konten.php?success=added");
+                exit;
             } else {
                 $error = $message;
             }
@@ -95,30 +103,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
 $search = $_GET['search'] ?? '';
 $kategori_filter = $_GET['kategori'] ?? '';
 
-// Get konten dengan filter
-try {
-    $where_clauses = [];
-    $params = [$_SESSION['id_user'], 'admin', null, null, 200];
-    
-    $stmt = $pdo->prepare("SELECT * FROM sp_get_konten(?, ?, ?, ?, ?)");
-    $stmt->execute($params);
-    $all_konten = $stmt->fetchAll();
-    
-    // Filter di PHP karena function PostgreSQL tidak support filter
-    $konten_list = array_filter($all_konten, function($kon) use ($search, $kategori_filter) {
-        $match_search = empty($search) || 
-            stripos($kon['judul'], $search) !== false || 
-            stripos($kon['isi'], $search) !== false;
-        
-        $match_kategori = empty($kategori_filter) || 
-            $kon['kategori_konten'] === $kategori_filter;
-        
-        return $match_search && $match_kategori;
-    });
-} catch (PDOException $e) {
-    $error = "Gagal mengambil data: " . $e->getMessage();
-    $konten_list = [];
+// Build WHERE conditions
+$where_clauses = ["id_user = ?"];
+$params = [$_SESSION['id_user']];
+
+if ($search) {
+    $where_clauses[] = "(judul ILIKE ? OR isi ILIKE ?)";
+    $search_param = "%$search%";
+    $params[] = $search_param;
+    $params[] = $search_param;
 }
+
+if ($kategori_filter) {
+    $where_clauses[] = "kategori_konten = ?";
+    $params[] = $kategori_filter;
+}
+
+$where_sql = "WHERE " . implode(" AND ", $where_clauses);
+
+// Get total count
+$count_query = "SELECT COUNT(*) FROM konten $where_sql";
+$count_stmt = $pdo->prepare($count_query);
+$count_stmt->execute($params);
+$total_items = $count_stmt->fetchColumn();
+$total_pages = ceil($total_items / $limit);
+
+// Get data with pagination
+$query = "SELECT * FROM konten $where_sql ORDER BY created_at DESC LIMIT ? OFFSET ?";
+$params_with_limit = array_merge($params, [$limit, $offset]);
+$stmt = $pdo->prepare($query);
+$stmt->execute($params_with_limit);
+$konten_list = $stmt->fetchAll();
 
 $kategori_list = ['Berita', 'Agenda', 'Pengumuman'];
 
@@ -134,9 +149,17 @@ include "navbar.php";
     </button>
 </div>
 
-<?php if (isset($success)): ?>
-    <div class="alert alert-success alert-dismissible fade show"><?php echo $success; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+<?php if (isset($_GET['success'])): ?>
+    <div class="alert alert-success alert-dismissible fade show">
+        <?php 
+        if ($_GET['success'] == 'added') echo "Konten berhasil ditambahkan!";
+        if ($_GET['success'] == 'updated') echo "Konten berhasil diupdate!";
+        if ($_GET['success'] == 'deleted') echo "Konten berhasil dihapus!";
+        ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
 <?php endif; ?>
+
 <?php if (isset($error)): ?>
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
@@ -187,6 +210,15 @@ include "navbar.php";
 <?php endif; ?>
 
 <div class="card shadow">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            Total: <?php echo $total_items; ?> konten
+            <?php if ($search || $kategori_filter): ?>
+                <span class="badge bg-info">Filtered</span>
+            <?php endif; ?>
+        </h6>
+        <span class="text-muted">Halaman <?php echo $page_num; ?> dari <?php echo max(1, $total_pages); ?></span>
+    </div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover">
@@ -203,7 +235,7 @@ include "navbar.php";
                 <tbody>
                     <?php 
                     if (count($konten_list) > 0) {
-                        $no = 1; 
+                        $no = $offset + 1; 
                         foreach ($konten_list as $kon): 
                     ?>
                     <tr>
@@ -222,10 +254,10 @@ include "navbar.php";
                         <td><span class="badge bg-info"><?php echo htmlspecialchars($kon['kategori_konten'] ?? '-'); ?></span></td>
                         <td><?php echo date('d M Y', strtotime($kon['tanggal_posting'])); ?></td>
                         <td>
-                            <button class="btn btn-sm btn-warning" onclick='editKonten(<?php echo json_encode($kon); ?>)'>
+                            <button class="btn btn-sm btn-warning" onclick='editKonten(<?php echo htmlspecialchars(json_encode($kon)); ?>)'>
                                 <i class="bi bi-pencil"></i> Edit
                             </button>
-                            <a href="?delete=<?php echo $kon['id_konten']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                            <a href="?delete=<?php echo $kon['id_konten']; ?>&page=<?php echo $page_num; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $kategori_filter ? '&kategori=' . urlencode($kategori_filter) : ''; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
                                 <i class="bi bi-trash"></i> Hapus
                             </a>
                         </td>
@@ -251,6 +283,50 @@ include "navbar.php";
             </table>
         </div>
     </div>
+    
+    <?php if ($total_pages > 1): ?>
+    <div class="card-footer bg-white">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item <?php echo $page_num <= 1 ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page_num - 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $kategori_filter ? '&kategori=' . urlencode($kategori_filter) : ''; ?>">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                </li>
+                
+                <?php
+                $start_page = max(1, $page_num - 2);
+                $end_page = min($total_pages, $page_num + 2);
+                
+                if ($start_page > 1) {
+                    echo '<li class="page-item"><a class="page-link" href="?page=1' . ($search ? '&search=' . urlencode($search) : '') . ($kategori_filter ? '&kategori=' . urlencode($kategori_filter) : '') . '">1</a></li>';
+                    if ($start_page > 2) {
+                        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                    }
+                }
+                
+                for ($i = $start_page; $i <= $end_page; $i++) {
+                    $active = $i == $page_num ? 'active' : '';
+                    echo "<li class='page-item $active'><a class='page-link' href='?page=$i" . ($search ? '&search=' . urlencode($search) : '') . ($kategori_filter ? '&kategori=' . urlencode($kategori_filter) : '') . "'>$i</a></li>";
+                }
+                
+                if ($end_page < $total_pages) {
+                    if ($end_page < $total_pages - 1) {
+                        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                    }
+                    echo "<li class='page-item'><a class='page-link' href='?page=$total_pages" . ($search ? '&search=' . urlencode($search) : '') . ($kategori_filter ? '&kategori=' . urlencode($kategori_filter) : '') . "'>$total_pages</a></li>";
+                }
+                ?>
+                
+                <li class="page-item <?php echo $page_num >= $total_pages ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page_num + 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $kategori_filter ? '&kategori=' . urlencode($kategori_filter) : ''; ?>">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    <?php endif; ?>
 </div>
 
 <!-- Modal -->
@@ -305,6 +381,7 @@ include "navbar.php";
 </div>
 
 <script>
+// SEMUA JAVASCRIPT DIGABUNG DI SINI
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Konten';
     document.querySelector('form').reset();
@@ -320,5 +397,15 @@ function editKonten(data) {
     new bootstrap.Modal(document.getElementById('kontenModal')).show();
 }
 </script>
+
+<style>
+.pagination .page-link {
+    color: #4e73df;
+}
+.pagination .page-item.active .page-link {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+</style>
 
 <?php include "footer.php"; ?>

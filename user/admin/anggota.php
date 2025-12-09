@@ -11,6 +11,11 @@ include "../../conn.php";
 $page_title = "Anggota Lab";
 $current_page = "anggota.php";
 
+// Pagination setup
+$limit = 10;
+$page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page_num - 1) * $limit;
+
 // Handle Delete
 if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
@@ -25,7 +30,8 @@ if (isset($_GET['delete'])) {
         $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt_riwayat->execute(['anggota_lab', $id, $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus anggota: ' . $old_data['nama']]);
         
-        $success = "Anggota berhasil dihapus!";
+        header("Location: anggota.php?success=deleted&page=" . $page_num);
+        exit;
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
     }
@@ -101,7 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
                 $stmt_riwayat->execute(['anggota_lab', $id, $_SESSION['id_user'], $status_lama, $status, 'Update anggota: ' . $nama]);
             }
             
-            $success = "Anggota berhasil diupdate!";
+            header("Location: anggota.php?success=updated&page=" . $page_num);
+            exit;
         } else {
             $stmt = $pdo->prepare("INSERT INTO anggota_lab (nama, nip, email, kontak, biodata_teks, pendidikan, bidang_keahlian, tanggal_bergabung, foto, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user']]);
@@ -111,7 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
             $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_riwayat->execute(['anggota_lab', $new_id, $_SESSION['id_user'], null, $status, 'Tambah anggota: ' . $nama]);
             
-            $success = "Anggota berhasil ditambahkan dan langsung aktif!";
+            header("Location: anggota.php?success=added");
+            exit;
         }
     } catch (PDOException $e) {
         $error = "Gagal menyimpan: " . $e->getMessage();
@@ -139,10 +147,20 @@ if ($status_filter) {
 
 $where_sql = "WHERE " . implode(" AND ", $where_clauses);
 
-$query = "SELECT * FROM anggota_lab $where_sql ORDER BY created_at DESC";
+// Get total count
+$count_query = "SELECT COUNT(*) FROM anggota_lab $where_sql";
+$count_stmt = $pdo->prepare($count_query);
+$count_stmt->execute($params);
+$total_items = $count_stmt->fetchColumn();
+$total_pages = ceil($total_items / $limit);
+
+// Get data with pagination
+$query = "SELECT * FROM anggota_lab $where_sql ORDER BY created_at DESC LIMIT ? OFFSET ?";
+$params_with_limit = array_merge($params, [$limit, $offset]);
 $stmt = $pdo->prepare($query);
-$stmt->execute($params);
+$stmt->execute($params_with_limit);
 $anggota_list = $stmt->fetchAll();
+
 include "header.php";
 include "sidebar.php";
 include "navbar.php";
@@ -155,9 +173,13 @@ include "navbar.php";
     </button>
 </div>
 
-<?php if (isset($success)): ?>
+<?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success alert-dismissible fade show">
-        <?php echo $success; ?>
+        <?php 
+        if ($_GET['success'] == 'added') echo "Anggota berhasil ditambahkan!";
+        if ($_GET['success'] == 'updated') echo "Anggota berhasil diupdate!";
+        if ($_GET['success'] == 'deleted') echo "Anggota berhasil dihapus!";
+        ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
@@ -173,9 +195,17 @@ include "navbar.php";
 <div class="card shadow mb-4">
     <div class="card-body">
         <form method="GET" class="row g-3">
-            <div class="col-md-10">
+            <div class="col-md-8">
                 <label class="form-label"><i class="bi bi-search"></i> Cari Anggota</label>
                 <input type="text" class="form-control" name="search" placeholder="Cari berdasarkan nama, NIP/NIM, atau email..." value="<?php echo htmlspecialchars($search); ?>">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label"><i class="bi bi-flag"></i> Status</label>
+                <select class="form-select" name="status_filter">
+                    <option value="">Semua</option>
+                    <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
+                    <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                </select>
             </div>
             <div class="col-md-2 d-flex align-items-end gap-2">
                 <button type="submit" class="btn btn-primary flex-grow-1">
@@ -189,15 +219,30 @@ include "navbar.php";
     </div>
 </div>
 
-<?php if ($search): ?>
+<?php if ($search || $status_filter): ?>
 <div class="alert alert-info">
     <i class="bi bi-info-circle"></i> 
-    Menampilkan <?php echo count($anggota_list); ?> hasil untuk pencarian "<strong><?php echo htmlspecialchars($search); ?></strong>"
+    Menampilkan <?php echo count($anggota_list); ?> hasil
+    <?php if ($search): ?>
+        untuk pencarian "<strong><?php echo htmlspecialchars($search); ?></strong>"
+    <?php endif; ?>
+    <?php if ($status_filter): ?>
+        dengan status <strong><?php echo $status_filter; ?></strong>
+    <?php endif; ?>
     <a href="anggota.php" class="alert-link ms-2">Reset pencarian</a>
 </div>
 <?php endif; ?>
 
 <div class="card shadow">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            Total: <?php echo $total_items; ?> anggota
+            <?php if ($search || $status_filter): ?>
+                <span class="badge bg-info">Filtered</span>
+            <?php endif; ?>
+        </h6>
+        <span class="text-muted">Halaman <?php echo $page_num; ?> dari <?php echo max(1, $total_pages); ?></span>
+    </div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover">
@@ -217,7 +262,7 @@ include "navbar.php";
                 <tbody>
                     <?php 
                     if (count($anggota_list) > 0) {
-                        $no = 1; 
+                        $no = $offset + 1; 
                         foreach ($anggota_list as $anggota): 
                     ?>
                     <tr>
@@ -276,10 +321,10 @@ include "navbar.php";
                             ?>
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-warning" onclick="editAnggota(<?php echo htmlspecialchars(json_encode($anggota)); ?>)">
+                            <button class="btn btn-sm btn-warning" onclick='editAnggota(<?php echo htmlspecialchars(json_encode($anggota)); ?>)'>
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <a href="?delete=<?php echo $anggota['id_anggota']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                            <a href="?delete=<?php echo $anggota['id_anggota']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
                                 <i class="bi bi-trash"></i>
                             </a>
                         </td>
@@ -292,7 +337,7 @@ include "navbar.php";
                         <td colspan="9" class="text-center py-5">
                             <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
                             <p class="mt-3 text-muted">
-                                <?php if ($search): ?>
+                                <?php if ($search || $status_filter): ?>
                                     Tidak ada anggota yang sesuai dengan pencarian
                                 <?php else: ?>
                                     Belum ada anggota
@@ -305,9 +350,53 @@ include "navbar.php";
             </table>
         </div>
     </div>
+    
+    <?php if ($total_pages > 1): ?>
+    <div class="card-footer bg-white">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item <?php echo $page_num <= 1 ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page_num - 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $status_filter ? '&status_filter=' . urlencode($status_filter) : ''; ?>">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                </li>
+                
+                <?php
+                $start_page = max(1, $page_num - 2);
+                $end_page = min($total_pages, $page_num + 2);
+                
+                if ($start_page > 1) {
+                    echo '<li class="page-item"><a class="page-link" href="?page=1' . ($search ? '&search=' . urlencode($search) : '') . ($status_filter ? '&status_filter=' . urlencode($status_filter) : '') . '">1</a></li>';
+                    if ($start_page > 2) {
+                        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                    }
+                }
+                
+                for ($i = $start_page; $i <= $end_page; $i++) {
+                    $active = $i == $page_num ? 'active' : '';
+                    echo "<li class='page-item $active'><a class='page-link' href='?page=$i" . ($search ? '&search=' . urlencode($search) : '') . ($status_filter ? '&status_filter=' . urlencode($status_filter) : '') . "'>$i</a></li>";
+                }
+                
+                if ($end_page < $total_pages) {
+                    if ($end_page < $total_pages - 1) {
+                        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                    }
+                    echo "<li class='page-item'><a class='page-link' href='?page=$total_pages" . ($search ? '&search=' . urlencode($search) : '') . ($status_filter ? '&status_filter=' . urlencode($status_filter) : '') . "'>$total_pages</a></li>";
+                }
+                ?>
+                
+                <li class="page-item <?php echo $page_num >= $total_pages ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page_num + 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $status_filter ? '&status_filter=' . urlencode($status_filter) : ''; ?>">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    <?php endif; ?>
 </div>
 
-<!-- Modal Form (sama seperti sebelumnya, tidak ada perubahan) -->
+<!-- Modal Form -->
 <div class="modal fade" id="anggotaModal" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -400,7 +489,6 @@ include "navbar.php";
 </div>
 
 <script>
-// JavaScript functions sama seperti sebelumnya
 function toggleAnggotaFields() {
     const tipeAnggota = document.getElementById('tipe_anggota').value;
     const dosenSection = document.getElementById('dosenSection');
@@ -413,7 +501,44 @@ function toggleAnggotaFields() {
 }
 
 function addPendidikan() {
-    // Implementation sama seperti sebelumnya
+    const container = document.getElementById('pendidikanContainer');
+    const newItem = document.createElement('div');
+    newItem.className = 'pendidikan-item border rounded p-3 mb-3 bg-light';
+    newItem.innerHTML = `
+        <div class="row">
+            <div class="col-md-3 mb-2">
+                <label class="form-label small">Jenjang *</label>
+                <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                    <option value="">Pilih Jenjang</option>
+                    <option value="D3">D3</option>
+                    <option value="D4">D4</option>
+                    <option value="S1">S1</option>
+                    <option value="S2">S2</option>
+                    <option value="S3">S3</option>
+                    <option value="Profesi">Profesi</option>
+                </select>
+            </div>
+            <div class="col-md-4 mb-2">
+                <label class="form-label small">Institusi *</label>
+                <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
+            </div>
+            <div class="col-md-3 mb-2">
+                <label class="form-label small">Jurusan</label>
+                <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika...">
+            </div>
+            <div class="col-md-2 mb-2">
+                <label class="form-label small">Tahun</label>
+                <div class="d-flex gap-1">
+                    <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020">
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(newItem);
+    updateDeleteButtons('pendidikan');
 }
 
 function removePendidikan(button) {
@@ -422,7 +547,25 @@ function removePendidikan(button) {
 }
 
 function addMatakuliah() {
-    // Implementation sama seperti sebelumnya
+    const container = document.getElementById('matakuliahContainer');
+    const newItem = document.createElement('div');
+    newItem.className = 'matakuliah-item border rounded p-3 mb-3 bg-light';
+    newItem.innerHTML = `
+        <div class="row align-items-end">
+            <div class="col-auto mb-2">
+                <label class="form-label small d-block">&nbsp;</label>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+            <div class="col mb-2">
+                <label class="form-label small">Nama Mata Kuliah *</label>
+                <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
+            </div>
+        </div>
+    `;
+    container.appendChild(newItem);
+    updateDeleteButtons('matakuliah');
 }
 
 function removeMatakuliah(button) {
@@ -448,43 +591,158 @@ function resetForm() {
     document.getElementById('id_anggota').value = '';
     document.getElementById('tipe_anggota').value = '';
     toggleAnggotaFields();
+    
+    // Reset current foto preview (jika ada)
+    const fotoPreview = document.getElementById('currentFotoPreview');
+    if (fotoPreview) {
+        fotoPreview.style.display = 'none';
+    }
+
+    // Reset pendidikan
+    const pendidikanContainer = document.getElementById('pendidikanContainer');
+    pendidikanContainer.innerHTML = '';
+    addPendidikan(); // Tambah 1 form kosong
+    
+    // Reset mata kuliah
+    const matakuliahContainer = document.getElementById('matakuliahContainer');
+    matakuliahContainer.innerHTML = '';
+    addMatakuliah(); // Tambah 1 form kosong
 }
 
 function editAnggota(data) {
-    // Implementation sama seperti sebelumnya
     document.getElementById('modalTitle').textContent = 'Edit Anggota Lab';
     document.getElementById('id_anggota').value = data.id_anggota;
     document.getElementById('nama').value = data.nama;
-    document.getElementById('nip_nim').value = data.nip || '';
+    document.getElementById('nip_nim').value = data.nip || ''; // Gunakan nip_nim (konsisten)
     document.getElementById('email').value = data.email || '';
     document.getElementById('kontak').value = data.kontak || '';
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
     
+    // Show current foto preview (jika ada)
+    const fotoPreview = document.getElementById('currentFotoPreview');
+    if (fotoPreview) {
+        if (data.foto) {
+            fotoPreview.style.display = 'block';
+            document.getElementById('currentFotoImg').src = '../../uploads/anggota/' + data.foto;
+        } else {
+            fotoPreview.style.display = 'none';
+        }
+    }
+    
+    // Set tipe anggota
     document.getElementById('tipe_anggota').value = 'dosen';
     toggleAnggotaFields();
     
+    // Parse dan populate pendidikan
+    const pendidikanContainer = document.getElementById('pendidikanContainer');
+    pendidikanContainer.innerHTML = '';
+    
+    let pendidikanData = [];
+    if (data.pendidikan) {
+        try {
+            pendidikanData = typeof data.pendidikan === 'string' 
+                ? JSON.parse(data.pendidikan) 
+                : data.pendidikan;
+        } catch (e) {
+            console.error('Error parsing pendidikan:', e);
+        }
+    }
+    
+    // Jika tidak ada data, buat 1 form kosong
+    if (!Array.isArray(pendidikanData) || pendidikanData.length === 0) {
+        addPendidikan();
+    } else {
+        pendidikanData.forEach(edu => {
+            const newItem = document.createElement('div');
+            newItem.className = 'pendidikan-item border rounded p-3 mb-3 bg-light';
+            newItem.innerHTML = `
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <label class="form-label small">Jenjang *</label>
+                        <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                            <option value="">Pilih Jenjang</option>
+                            <option value="D3" ${edu.jenjang === 'D3' ? 'selected' : ''}>D3</option>
+                            <option value="D4" ${edu.jenjang === 'D4' ? 'selected' : ''}>D4</option>
+                            <option value="S1" ${edu.jenjang === 'S1' ? 'selected' : ''}>S1</option>
+                            <option value="S2" ${edu.jenjang === 'S2' ? 'selected' : ''}>S2</option>
+                            <option value="S3" ${edu.jenjang === 'S3' ? 'selected' : ''}>S3</option>
+                            <option value="Profesi" ${edu.jenjang === 'Profesi' ? 'selected' : ''}>Profesi</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <label class="form-label small">Institusi *</label>
+                        <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${edu.institusi || ''}" required>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label class="form-label small">Jurusan</label>
+                        <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika..." value="${edu.jurusan || ''}">
+                    </div>
+                    <div class="col-md-2 mb-2">
+                        <label class="form-label small">Tahun</label>
+                        <div class="d-flex gap-1">
+                            <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020" value="${edu.tahun || ''}">
+                            <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            pendidikanContainer.appendChild(newItem);
+        });
+        updateDeleteButtons('pendidikan');
+    }
+    
+    // Parse dan populate mata kuliah
+    const matakuliahContainer = document.getElementById('matakuliahContainer');
+    matakuliahContainer.innerHTML = '';
+    
+    let matakuliahData = [];
+    if (data.bidang_keahlian) {
+        try {
+            matakuliahData = typeof data.bidang_keahlian === 'string' 
+                ? JSON.parse(data.bidang_keahlian) 
+                : data.bidang_keahlian;
+        } catch (e) {
+            console.error('Error parsing mata kuliah:', e);
+        }
+    }
+    
+    // Jika tidak ada data, buat 1 form kosong
+    if (!Array.isArray(matakuliahData) || matakuliahData.length === 0) {
+        addMatakuliah();
+    } else {
+        matakuliahData.forEach(mk => {
+            const newItem = document.createElement('div');
+            newItem.className = 'matakuliah-item border rounded p-3 mb-3 bg-light';
+            newItem.innerHTML = `
+                <div class="row align-items-end">
+                    <div class="col-auto mb-2">
+                        <label class="form-label small d-block">&nbsp;</label>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                    <div class="col mb-2">
+                        <label class="form-label small">Nama Mata Kuliah *</label>
+                        <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${mk.nama || ''}" required>
+                    </div>
+                </div>
+            `;
+            matakuliahContainer.appendChild(newItem);
+        });
+        updateDeleteButtons('matakuliah');
+    }
+    
+    // Show modal
     new bootstrap.Modal(document.getElementById('anggotaModal')).show();
 }
+
+// Initialize saat halaman dimuat
+document.addEventListener('DOMContentLoaded', function() {
+    // Tambahkan 1 form pendidikan dan mata kuliah default
+    addPendidikan();
+    addMatakuliah();
+});
 </script>
-
-<style>
-.pagination {
-    margin-bottom: 0;
-}
-
-.page-link {
-    color: #1e3c72;
-}
-
-.page-item.active .page-link {
-    background-color: #1e3c72;
-    border-color: #1e3c72;
-}
-
-.page-link:hover {
-    color: #2a5298;
-}
-</style>
-
-<?php include "footer.php"; ?>
