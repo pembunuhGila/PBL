@@ -124,6 +124,7 @@ try {
       <?php
       if (count($kontenList) > 0) {
         foreach ($kontenList as $item) {
+          $id = (int)$item['id_konten'];
           $gambar = htmlspecialchars($item['gambar']);
           $judul = htmlspecialchars($item['judul']);
           $excerpt = htmlspecialchars(substr($item['isi'], 0, 150));
@@ -149,12 +150,14 @@ try {
         </div>
         
         <div class="konten-body">
-          <h3 class="konten-title"><a href="#"><?php echo $judul; ?></a></h3>
+          <h3 class="konten-title">
+            <a href="konten_detail.php?id=<?php echo $id; ?>"><?php echo $judul; ?></a>
+          </h3>
           <p class="konten-excerpt"><?php echo $excerpt; ?>...</p>
           
           <div class="konten-meta">
             <span class="meta-date">📅 <?php echo $tanggal; ?></span>
-            <a href="#" class="read-more">Baca Selengkapnya →</a>
+            <a href="konten_detail.php?id=<?php echo $id; ?>" class="read-more">Baca Selengkapnya →</a>
           </div>
         </div>
       </article>

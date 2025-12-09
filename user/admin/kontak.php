@@ -1,8 +1,8 @@
 <?php
 /**
- * @var PDO $pdo
- * @var string $current_page
- * @var int $current_id_user
+ * Admin Kontak - Global System
+ * Admin bisa edit data yang sudah active
+ * Admin bisa approve/reject pending dari operator
  */
 $required_role = "admin";
 include "../auth.php";
@@ -11,9 +11,44 @@ include "../../conn.php";
 $page_title = "Kontak";
 $current_page = "kontak.php";
 
-// Handle form submission
+// Handle Approve/Reject
+if (isset($_GET['action']) && isset($_GET['id'])) {
+    $id = $_GET['id'];
+    $action = $_GET['action'];
+    
+    try {
+        $stmt_old = $pdo->prepare("SELECT * FROM kontak WHERE id_kontak = ?");
+        $stmt_old->execute([$id]);
+        $old_data = $stmt_old->fetch();
+        
+        if ($action == 'approve') {
+            // Set semua kontak lain jadi inactive
+            $pdo->query("UPDATE kontak SET status = 'inactive'");
+            
+            // Approve yang dipilih
+            $stmt = $pdo->prepare("UPDATE kontak SET status = 'active' WHERE id_kontak = ?");
+            $stmt->execute([$id]);
+            
+            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_riwayat->execute(['kontak', $id, $_SESSION['id_user'], $old_data['status'], 'active', 'Approve kontak']);
+            
+            $success = "Kontak berhasil disetujui dan diaktifkan!";
+        } elseif ($action == 'reject') {
+            $stmt = $pdo->prepare("UPDATE kontak SET status = 'rejected' WHERE id_kontak = ?");
+            $stmt->execute([$id]);
+            
+            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_riwayat->execute(['kontak', $id, $_SESSION['id_user'], $old_data['status'], 'rejected', 'Reject kontak']);
+            
+            $success = "Kontak berhasil ditolak!";
+        }
+    } catch (PDOException $e) {
+        $error = "Gagal: " . $e->getMessage();
+    }
+}
+
+// Handle form submission (Edit kontak active)
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Ambil semua data dari form
     $whatsapp = $_POST['whatsapp'] ?? '';
     $email = $_POST['email'] ?? '';
     $alamat = $_POST['alamat'] ?? '';
@@ -23,34 +58,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $youtube = $_POST['youtube'] ?? '';
     $facebook = $_POST['facebook'] ?? '';
     $maps = $_POST['maps'] ?? '';
-    $status = 'active';
     
     try {
-        // Check if kontak exists
-        $check = $pdo->query("SELECT id_kontak, status FROM kontak LIMIT 1")->fetch();
+        // Get active kontak
+        $active = $pdo->query("SELECT id_kontak, status FROM kontak WHERE status = 'active' LIMIT 1")->fetch();
         
-        if ($check) {
-            // UPDATE - Get status lama
-            $status_lama = $check['status'];
+        if ($active) {
+            // UPDATE active kontak
+            $stmt = $pdo->prepare("UPDATE kontak SET whatsapp=?, email=?, alamat=?, linkedin=?, jam_operasional=?, instagram=?, youtube=?, facebook=?, maps=?, updated_at=CURRENT_TIMESTAMP WHERE id_kontak=?");
+            $stmt->execute([$whatsapp, $email, $alamat, $linkedin, $jam_operasional, $instagram, $youtube, $facebook, $maps, $active['id_kontak']]);
             
-            $stmt = $pdo->prepare("UPDATE kontak SET whatsapp=?, email=?, alamat=?, linkedin=?, jam_operasional=?, instagram=?, youtube=?, facebook=?, maps=?, status=?, updated_at=CURRENT_TIMESTAMP WHERE id_kontak=?");
-            $stmt->execute([$whatsapp, $email, $alamat, $linkedin, $jam_operasional, $instagram, $youtube, $facebook, $maps, $status, $check['id_kontak']]);
-            
-            // Catat riwayat JIKA status berubah
-            if ($status_lama != $status) {
-                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_riwayat->execute(['kontak', $check['id_kontak'], $_SESSION['id_user'], $status_lama, $status, 'Update info kontak']);
-            }
+            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_riwayat->execute(['kontak', $active['id_kontak'], $_SESSION['id_user'], 'active', 'active', 'Update info kontak']);
         } else {
-            // INSERT
-            $stmt = $pdo->prepare("INSERT INTO kontak (whatsapp, email, alamat, linkedin, jam_operasional, instagram, youtube, facebook, maps, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$whatsapp, $email, $alamat, $linkedin, $jam_operasional, $instagram, $youtube, $facebook, $maps, $status, $_SESSION['id_user']]);
+            // INSERT baru langsung active
+            $stmt = $pdo->prepare("INSERT INTO kontak (whatsapp, email, alamat, linkedin, jam_operasional, instagram, youtube, facebook, maps, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)");
+            $stmt->execute([$whatsapp, $email, $alamat, $linkedin, $jam_operasional, $instagram, $youtube, $facebook, $maps, $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
-            // Catat riwayat
             $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['kontak', $new_id, $_SESSION['id_user'], null, $status, 'Tambah info kontak']);
+            $stmt_riwayat->execute(['kontak', $new_id, $_SESSION['id_user'], null, 'active', 'Tambah info kontak']);
         }
         
         $success = "Informasi kontak berhasil disimpan!";
@@ -59,8 +87,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Get existing data
-$kontak = $pdo->query("SELECT * FROM kontak LIMIT 1")->fetch();
+// Get active kontak
+$kontak = $pdo->query("SELECT * FROM kontak WHERE status = 'active' LIMIT 1")->fetch();
+
+// Get pending submissions
+$pending_list = $pdo->query("
+    SELECT k.*, u.nama as operator_nama 
+    FROM kontak k
+    LEFT JOIN users u ON k.id_user = u.id_user
+    WHERE k.status = 'pending'
+    ORDER BY k.created_at DESC
+")->fetchAll();
 
 include "header.php";
 include "sidebar.php";
@@ -85,11 +122,56 @@ include "navbar.php";
     </div>
 <?php endif; ?>
 
+<!-- Pending Submissions -->
+<?php if (count($pending_list) > 0): ?>
+<div class="card shadow mb-4 border-warning">
+    <div class="card-header bg-warning">
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Pengajuan Pending (<?php echo count($pending_list); ?>)</h5>
+    </div>
+    <div class="card-body">
+        <?php foreach ($pending_list as $pending): ?>
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h6>Diajukan oleh: <?php echo htmlspecialchars($pending['operator_nama'] ?? 'Unknown'); ?></h6>
+                        <small class="text-muted">Tanggal: <?php echo date('d M Y H:i', strtotime($pending['created_at'])); ?></small>
+                    </div>
+                    <div>
+                        <a href="?action=approve&id=<?php echo $pending['id_kontak']; ?>" class="btn btn-success" onclick="return confirm('Setujui dan aktifkan kontak ini?')">
+                            <i class="bi bi-check-circle"></i> Approve
+                        </a>
+                        <a href="?action=reject&id=<?php echo $pending['id_kontak']; ?>" class="btn btn-danger" onclick="return confirm('Tolak pengajuan ini?')">
+                            <i class="bi bi-x-circle"></i> Reject
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>WhatsApp:</strong> <?php echo htmlspecialchars($pending['whatsapp'] ?? '-'); ?></p>
+                        <p><strong>Email:</strong> <?php echo htmlspecialchars($pending['email'] ?? '-'); ?></p>
+                        <p><strong>Jam Operasional:</strong> <?php echo htmlspecialchars($pending['jam_operasional'] ?? '-'); ?></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Alamat:</strong> <?php echo htmlspecialchars($pending['alamat'] ?? '-'); ?></p>
+                        <p><strong>LinkedIn:</strong> <?php echo htmlspecialchars($pending['linkedin'] ?? '-'); ?></p>
+                        <p><strong>Instagram:</strong> <?php echo htmlspecialchars($pending['instagram'] ?? '-'); ?></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Active Kontak Form -->
 <div class="row">
     <div class="col-md-8">
         <div class="card shadow">
-            <div class="card-header">
-                <h5 class="mb-0">Form Kontak</h5>
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Form Kontak Aktif</h5>
             </div>
             <div class="card-body">
                 <form method="POST">
@@ -219,7 +301,7 @@ include "navbar.php";
                     
                     <hr>
                     
-                    <div class="d-flex gap-2">
+                    <div class="d-flex gap-2 flex-wrap">
                         <?php if ($kontak['linkedin']): ?>
                             <a href="<?php echo htmlspecialchars($kontak['linkedin']); ?>" target="_blank" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-linkedin"></i>

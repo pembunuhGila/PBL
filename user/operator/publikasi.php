@@ -21,7 +21,7 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $year_filter = isset($_GET['year']) ? trim($_GET['year']) : '';
 $status_filter = isset($_GET['status']) ? trim($_GET['status']) : '';
 
-// Handle Delete
+// Handle Delete - HANYA BISA HAPUS YANG PENDING MILIK SENDIRI
 if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
     try {
@@ -46,17 +46,7 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Get user info untuk penulis otomatis
-$stmt_user = $pdo->prepare("SELECT id_user, nama FROM users WHERE id_user = ?");
-$stmt_user->execute([$_SESSION['id_user']]);
-$user_info = $stmt_user->fetch();
-
-// Cek apakah user adalah anggota lab
-$stmt_anggota_check = $pdo->prepare("SELECT id_anggota FROM anggota_lab WHERE nama = ? LIMIT 1");
-$stmt_anggota_check->execute([$user_info['nama']]);
-$user_as_anggota = $stmt_anggota_check->fetch();
-
-// Handle Add/Edit
+// Handle Add/Edit - BISA EDIT SEMUA DATA (AKAN JADI PENDING)
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $abstrak = $_POST['abstrak'];
@@ -64,7 +54,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $jurnal = $_POST['jurnal'];
     $link_shinta = $_POST['link_shinta'] ?? '';
     $tanggal_publikasi = $_POST['tanggal_publikasi'];
-    $status = 'pending';
     $penulis_ids = $_POST['penulis'] ?? [];
     
     // Handle cover upload
@@ -91,40 +80,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $pdo->beginTransaction();
         
         if (isset($_POST['id_publikasi']) && !empty($_POST['id_publikasi'])) {
+            // EDIT - SEMUA DATA BISA DIEDIT, AKAN JADI PENDING
             $id = $_POST['id_publikasi'];
             
-            $stmt_check = $pdo->prepare("SELECT id_user, status FROM publikasi WHERE id_publikasi = ?");
+            $stmt_check = $pdo->prepare("SELECT status FROM publikasi WHERE id_publikasi = ?");
             $stmt_check->execute([$id]);
-            $data_owner = $stmt_check->fetch();
+            $old_data = $stmt_check->fetch();
+            $status_lama = $old_data['status'];
             
-            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && $data_owner['status'] == 'pending') {
-                $status_lama = $data_owner['status'];
-                
-                $sql = "UPDATE publikasi SET judul=?, abstrak=?, tahun=?, jurnal=?, link_shinta=?, tanggal_publikasi=?, status=?";
-                $params = [$judul, $abstrak, $tahun, $jurnal, $link_shinta, $tanggal_publikasi, $status];
-                
-                if ($cover) {
-                    $sql .= ", cover=?";
-                    $params[] = $cover;
-                }
-                if ($file_path) {
-                    $sql .= ", file_path=?";
-                    $params[] = $file_path;
-                }
-                
-                $sql .= " WHERE id_publikasi=?";
-                $params[] = $id;
-                
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute($params);
-                
-                $pdo->prepare("DELETE FROM publikasi_anggota WHERE id_publikasi=?")->execute([$id]);
-                
-                $message = "Publikasi berhasil diupdate! Menunggu persetujuan admin.";
-            } else {
-                throw new Exception("Anda hanya bisa edit data pending milik Anda!");
+            // Set status jadi pending untuk review admin
+            $status = 'pending';
+            
+            $sql = "UPDATE publikasi SET judul=?, abstrak=?, tahun=?, jurnal=?, link_shinta=?, tanggal_publikasi=?, status=?, id_user=?";
+            $params = [$judul, $abstrak, $tahun, $jurnal, $link_shinta, $tanggal_publikasi, $status, $_SESSION['id_user']];
+            
+            if ($cover) {
+                $sql .= ", cover=?";
+                $params[] = $cover;
             }
+            if ($file_path) {
+                $sql .= ", file_path=?";
+                $params[] = $file_path;
+            }
+            
+            $sql .= " WHERE id_publikasi=?";
+            $params[] = $id;
+            
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            
+            $pdo->prepare("DELETE FROM publikasi_anggota WHERE id_publikasi=?")->execute([$id]);
+            
+            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_riwayat->execute(['publikasi', $id, $_SESSION['id_user'], $status_lama, $status, 'Edit publikasi: ' . $judul]);
+            
+            $message = "Publikasi berhasil diupdate! Menunggu persetujuan admin.";
         } else {
+            // ADD - LANGSUNG PENDING
+            $status = 'pending';
+            
             $stmt = $pdo->prepare("INSERT INTO publikasi (judul, abstrak, tahun, jurnal, link_shinta, tanggal_publikasi, cover, file_path, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$judul, $abstrak, $tahun, $jurnal, $link_shinta, $tanggal_publikasi, $cover, $file_path, $status, $_SESSION['id_user']]);
             $id = $pdo->lastInsertId();
@@ -151,9 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Build WHERE clause
-$where_conditions = ["p.id_user = ?"];
-$where_params = [$_SESSION['id_user']];
+// Build WHERE clause - TAMPILKAN SEMUA DATA
+$where_conditions = [];
+$where_params = [];
 
 if (!empty($search)) {
     $where_conditions[] = "(p.judul ILIKE ? OR p.jurnal ILIKE ?)";
@@ -172,7 +166,7 @@ if (!empty($status_filter)) {
     $where_params[] = $status_filter;
 }
 
-$where_sql = "WHERE " . implode(" AND ", $where_conditions);
+$where_sql = count($where_conditions) > 0 ? "WHERE " . implode(" AND ", $where_conditions) : "";
 
 // Get total count
 $count_query = "SELECT COUNT(DISTINCT p.id_publikasi) FROM publikasi p $where_sql";
@@ -181,7 +175,7 @@ $count_stmt->execute($where_params);
 $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
-// Get data with pagination
+// Get data with pagination - SEMUA DATA
 $query = "
     SELECT p.*, 
            STRING_AGG(a.nama, ', ' ORDER BY pa.urutan_penulis) as penulis
@@ -203,8 +197,7 @@ $stmt_anggota = $pdo->query("SELECT id_anggota, nama FROM anggota_lab WHERE stat
 $anggota_options = $stmt_anggota->fetchAll();
 
 // Get available years
-$years_stmt = $pdo->prepare("SELECT DISTINCT tahun FROM publikasi WHERE id_user = ? ORDER BY tahun DESC");
-$years_stmt->execute([$_SESSION['id_user']]);
+$years_stmt = $pdo->query("SELECT DISTINCT tahun FROM publikasi ORDER BY tahun DESC");
 $available_years = $years_stmt->fetchAll(PDO::FETCH_COLUMN);
 
 include "header.php";
@@ -235,7 +228,8 @@ include "navbar.php";
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Semua publikasi yang Anda tambahkan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> 
+    <strong>Sebagai Operator:</strong> Anda bisa mengedit semua publikasi. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <!-- Search & Filter -->
@@ -331,7 +325,7 @@ include "navbar.php";
                             <td><?php echo htmlspecialchars($pub['tahun']); ?></td>
                             <td>
                                 <?php if ($pub['status'] == 'pending'): ?>
-                                    <span class="badge bg-warning">Pending</span>
+                                    <span class="badge bg-warning text-dark">Pending</span>
                                 <?php elseif ($pub['status'] == 'active'): ?>
                                     <span class="badge bg-success">Approved</span>
                                 <?php else: ?>
@@ -339,15 +333,13 @@ include "navbar.php";
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ($pub['status'] == 'pending' || $pub['status'] == 'rejected'): ?>
-                                    <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)'>
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
+                                <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)' title="Edit (akan jadi pending)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <?php if ($pub['id_user'] == $_SESSION['id_user'] && $pub['status'] == 'pending'): ?>
                                     <a href="?delete=<?php echo $pub['id_publikasi']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
                                         <i class="bi bi-trash"></i>
                                     </a>
-                                <?php else: ?>
-                                    <span class="text-muted small">Sudah disetujui</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -474,14 +466,11 @@ include "navbar.php";
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Penulis Lainnya (opsional)</label>
-                        <small class="d-block text-muted mb-2">
-                            <i class="bi bi-info-circle"></i> Nama Anda: <strong><?php echo htmlspecialchars($user_info['nama']); ?></strong> akan otomatis ditambahkan sebagai penulis pertama
-                        </small>
+                        <label class="form-label">Penulis (urut sesuai publikasi)</label>
                         <div id="penulisContainer">
                             <div class="input-group mb-2">
                                 <select class="form-select" name="penulis[]">
-                                    <option value="">-- Pilih Penulis Tambahan --</option>
+                                    <option value="">-- Pilih Penulis --</option>
                                     <?php foreach ($anggota_options as $anggota): ?>
                                         <option value="<?php echo $anggota['id_anggota']; ?>">
                                             <?php echo htmlspecialchars($anggota['nama']); ?>
@@ -494,7 +483,7 @@ include "navbar.php";
                             </div>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="addPenulis()">
-                            <i class="bi bi-plus"></i> Tambah Penulis Lainnya
+                            <i class="bi bi-plus"></i> Tambah Penulis
                         </button>
                     </div>
                 </div>
@@ -517,7 +506,7 @@ function resetForm() {
     document.getElementById('penulisContainer').innerHTML = `
         <div class="input-group mb-2">
             <select class="form-select" name="penulis[]">
-                <option value="">-- Pilih Penulis Tambahan --</option>
+                <option value="">-- Pilih Penulis --</option>
                 ${anggotaOptions.map(a => `<option value="${a.id_anggota}">${a.nama}</option>`).join('')}
             </select>
             <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
@@ -533,7 +522,7 @@ function addPenulis() {
     div.className = 'input-group mb-2';
     div.innerHTML = `
         <select class="form-select" name="penulis[]">
-            <option value="">-- Pilih Penulis Tambahan --</option>
+            <option value="">-- Pilih Penulis --</option>
             ${anggotaOptions.map(a => `<option value="${a.id_anggota}">${a.nama}</option>`).join('')}
         </select>
         <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
@@ -544,7 +533,7 @@ function addPenulis() {
 }
 
 function editPublikasi(data) {
-    document.getElementById('modalTitle').textContent = 'Edit Publikasi';
+    document.getElementById('modalTitle').textContent = 'Edit Publikasi (akan jadi Pending)';
     document.getElementById('id_publikasi').value = data.id_publikasi;
     document.getElementById('judul').value = data.judul;
     document.getElementById('abstrak').value = data.abstrak || '';

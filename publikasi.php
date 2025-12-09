@@ -142,6 +142,7 @@ try {
       <?php
       if (count($publikasiList) > 0) {
         foreach ($publikasiList as $pub) {
+          $id = (int)$pub['id_publikasi'];
           $cover = htmlspecialchars($pub['cover']);
           $judul = htmlspecialchars($pub['judul']);
           $penulis = htmlspecialchars($pub['penulis'] ?? 'Tidak ada penulis');
@@ -162,13 +163,13 @@ try {
         
         <div class="publikasi-body">
           <h3 class="publikasi-title">
-            <a href="#"><?php echo $judul; ?></a>
+            <a href="publikasi_detail.php?id=<?php echo $id; ?>"><?php echo $judul; ?></a>
           </h3>
           <p class="publikasi-meta">
             <strong><?php echo $penulis; ?></strong><br>
             <span style="color: #888; font-size: 13px;">📅 <?php echo $tahun; ?></span>
           </p>
-          <a href="#" class="publikasi-link">
+          <a href="publikasi_detail.php?id=<?php echo $id; ?>" class="publikasi-link">
             Baca Selengkapnya >>>
           </a>
         </div>
