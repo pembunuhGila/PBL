@@ -254,8 +254,6 @@ include "navbar.php";
                         <th>NIP/NIM</th>
                         <th>Email</th>
                         <th>Kontak</th>
-                        <th>Pendidikan</th>
-                        <th>Mata Kuliah</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -279,49 +277,7 @@ include "navbar.php";
                         <td><?php echo htmlspecialchars($anggota['email'] ?? '-'); ?></td>
                         <td><?php echo htmlspecialchars($anggota['kontak'] ?? '-'); ?></td>
                         <td>
-                            <?php 
-                            if ($anggota['pendidikan']) {
-                                $pendidikan_data = json_decode($anggota['pendidikan'], true);
-                                if (is_array($pendidikan_data) && count($pendidikan_data) > 0) {
-                                    echo '<small>';
-                                    foreach ($pendidikan_data as $edu) {
-                                        echo '<strong>' . htmlspecialchars($edu['jenjang']) . '</strong><br>';
-                                    }
-                                    echo '</small>';
-                                } else {
-                                    echo '-';
-                                }
-                            } else {
-                                echo '-';
-                            }
-                            ?>
-                        </td>
-                        <td>
-                            <?php 
-                            if ($anggota['bidang_keahlian']) {
-                                $mk_data = json_decode($anggota['bidang_keahlian'], true);
-                                if (is_array($mk_data) && count($mk_data) > 0) {
-                                    echo '<small>';
-                                    $count = 0;
-                                    foreach ($mk_data as $mk) {
-                                        if ($count >= 2) {
-                                            echo '+ ' . (count($mk_data) - 2) . ' lainnya';
-                                            break;
-                                        }
-                                        echo htmlspecialchars($mk['nama']) . '<br>';
-                                        $count++;
-                                    }
-                                    echo '</small>';
-                                } else {
-                                    echo '-';
-                                }
-                            } else {
-                                echo '-';
-                            }
-                            ?>
-                        </td>
-                        <td>
-                            <button class="btn btn-sm btn-warning" onclick='editAnggota(<?php echo htmlspecialchars(json_encode($anggota)); ?>)'>
+                            <button class="btn btn-sm btn-warning" onclick='editAnggota(<?php echo htmlspecialchars(json_encode($anggota), ENT_QUOTES, 'UTF-8'); ?>)'>
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <a href="?delete=<?php echo $anggota['id_anggota']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
@@ -334,7 +290,7 @@ include "navbar.php";
                     } else {
                     ?>
                     <tr>
-                        <td colspan="9" class="text-center py-5">
+                        <td colspan="7" class="text-center py-5">
                             <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
                             <p class="mt-3 text-muted">
                                 <?php if ($search || $status_filter): ?>
@@ -500,6 +456,8 @@ function toggleAnggotaFields() {
     }
 }
 
+// JavaScript functions untuk operator anggota.php
+
 function addPendidikan() {
     const container = document.getElementById('pendidikanContainer');
     const newItem = document.createElement('div');
@@ -589,52 +547,49 @@ function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Anggota Lab';
     document.querySelector('form').reset();
     document.getElementById('id_anggota').value = '';
-    document.getElementById('tipe_anggota').value = '';
-    toggleAnggotaFields();
+    document.getElementById('currentFotoPreview').style.display = 'none';
     
-    // Reset current foto preview (jika ada)
-    const fotoPreview = document.getElementById('currentFotoPreview');
-    if (fotoPreview) {
-        fotoPreview.style.display = 'none';
-    }
-
-    // Reset pendidikan
+    // Reset pendidikan - add one default item
     const pendidikanContainer = document.getElementById('pendidikanContainer');
     pendidikanContainer.innerHTML = '';
-    addPendidikan(); // Tambah 1 form kosong
+    addPendidikan();
     
-    // Reset mata kuliah
+    // Reset mata kuliah - add one default item
     const matakuliahContainer = document.getElementById('matakuliahContainer');
     matakuliahContainer.innerHTML = '';
-    addMatakuliah(); // Tambah 1 form kosong
+    addMatakuliah();
 }
+
+// GANTI FUNCTION editAnggota() YANG LAMA DENGAN INI
 
 function editAnggota(data) {
     document.getElementById('modalTitle').textContent = 'Edit Anggota Lab';
     document.getElementById('id_anggota').value = data.id_anggota;
     document.getElementById('nama').value = data.nama;
-    document.getElementById('nip_nim').value = data.nip || ''; // Gunakan nip_nim (konsisten)
+    document.getElementById('nip_nim').value = data.nip || ''; // ← INI YANG SALAH! Harus nip_nim
     document.getElementById('email').value = data.email || '';
     document.getElementById('kontak').value = data.kontak || '';
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
     
-    // Show current foto preview (jika ada)
-    const fotoPreview = document.getElementById('currentFotoPreview');
-    if (fotoPreview) {
-        if (data.foto) {
-            fotoPreview.style.display = 'block';
-            document.getElementById('currentFotoImg').src = '../../uploads/anggota/' + data.foto;
-        } else {
-            fotoPreview.style.display = 'none';
-        }
-    }
-    
-    // Set tipe anggota
-    document.getElementById('tipe_anggota').value = 'dosen';
+    // Set tipe anggota dan toggle fields
+    document.getElementById('tipe_anggota').value = 'dosen'; // Default dosen
     toggleAnggotaFields();
     
-    // Parse dan populate pendidikan
+    // Show current photo preview if exists
+    const fotoPreview = document.querySelector('input[name="foto"]').parentElement;
+    if (data.foto && !document.getElementById('currentFotoPreview')) {
+        const previewDiv = document.createElement('div');
+        previewDiv.id = 'currentFotoPreview';
+        previewDiv.className = 'mb-2';
+        previewDiv.innerHTML = `
+            <img src="../../uploads/anggota/${data.foto}" width="100" height="100" class="rounded-circle">
+            <p class="small text-muted mb-0">Foto saat ini (pilih file baru untuk menggantinya)</p>
+        `;
+        fotoPreview.insertBefore(previewDiv, fotoPreview.querySelector('input'));
+    }
+    
+    // Load pendidikan data
     const pendidikanContainer = document.getElementById('pendidikanContainer');
     pendidikanContainer.innerHTML = '';
     
@@ -649,11 +604,8 @@ function editAnggota(data) {
         }
     }
     
-    // Jika tidak ada data, buat 1 form kosong
-    if (!Array.isArray(pendidikanData) || pendidikanData.length === 0) {
-        addPendidikan();
-    } else {
-        pendidikanData.forEach(edu => {
+    if (pendidikanData.length > 0) {
+        pendidikanData.forEach(item => {
             const newItem = document.createElement('div');
             newItem.className = 'pendidikan-item border rounded p-3 mb-3 bg-light';
             newItem.innerHTML = `
@@ -662,26 +614,26 @@ function editAnggota(data) {
                         <label class="form-label small">Jenjang *</label>
                         <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
                             <option value="">Pilih Jenjang</option>
-                            <option value="D3" ${edu.jenjang === 'D3' ? 'selected' : ''}>D3</option>
-                            <option value="D4" ${edu.jenjang === 'D4' ? 'selected' : ''}>D4</option>
-                            <option value="S1" ${edu.jenjang === 'S1' ? 'selected' : ''}>S1</option>
-                            <option value="S2" ${edu.jenjang === 'S2' ? 'selected' : ''}>S2</option>
-                            <option value="S3" ${edu.jenjang === 'S3' ? 'selected' : ''}>S3</option>
-                            <option value="Profesi" ${edu.jenjang === 'Profesi' ? 'selected' : ''}>Profesi</option>
+                            <option value="D3" ${item.jenjang === 'D3' ? 'selected' : ''}>D3</option>
+                            <option value="D4" ${item.jenjang === 'D4' ? 'selected' : ''}>D4</option>
+                            <option value="S1" ${item.jenjang === 'S1' ? 'selected' : ''}>S1</option>
+                            <option value="S2" ${item.jenjang === 'S2' ? 'selected' : ''}>S2</option>
+                            <option value="S3" ${item.jenjang === 'S3' ? 'selected' : ''}>S3</option>
+                            <option value="Profesi" ${item.jenjang === 'Profesi' ? 'selected' : ''}>Profesi</option>
                         </select>
                     </div>
                     <div class="col-md-4 mb-2">
                         <label class="form-label small">Institusi *</label>
-                        <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${edu.institusi || ''}" required>
+                        <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${item.institusi || ''}" required>
                     </div>
                     <div class="col-md-3 mb-2">
                         <label class="form-label small">Jurusan</label>
-                        <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika..." value="${edu.jurusan || ''}">
+                        <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika..." value="${item.jurusan || ''}">
                     </div>
                     <div class="col-md-2 mb-2">
                         <label class="form-label small">Tahun</label>
                         <div class="d-flex gap-1">
-                            <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020" value="${edu.tahun || ''}">
+                            <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020" value="${item.tahun || ''}">
                             <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -691,10 +643,12 @@ function editAnggota(data) {
             `;
             pendidikanContainer.appendChild(newItem);
         });
-        updateDeleteButtons('pendidikan');
+    } else {
+        addPendidikan();
     }
+    updateDeleteButtons('pendidikan');
     
-    // Parse dan populate mata kuliah
+    // Load mata kuliah data
     const matakuliahContainer = document.getElementById('matakuliahContainer');
     matakuliahContainer.innerHTML = '';
     
@@ -705,15 +659,12 @@ function editAnggota(data) {
                 ? JSON.parse(data.bidang_keahlian) 
                 : data.bidang_keahlian;
         } catch (e) {
-            console.error('Error parsing mata kuliah:', e);
+            console.error('Error parsing bidang_keahlian:', e);
         }
     }
     
-    // Jika tidak ada data, buat 1 form kosong
-    if (!Array.isArray(matakuliahData) || matakuliahData.length === 0) {
-        addMatakuliah();
-    } else {
-        matakuliahData.forEach(mk => {
+    if (matakuliahData.length > 0) {
+        matakuliahData.forEach(item => {
             const newItem = document.createElement('div');
             newItem.className = 'matakuliah-item border rounded p-3 mb-3 bg-light';
             newItem.innerHTML = `
@@ -726,23 +677,30 @@ function editAnggota(data) {
                     </div>
                     <div class="col mb-2">
                         <label class="form-label small">Nama Mata Kuliah *</label>
-                        <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${mk.nama || ''}" required>
+                        <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${item.nama || ''}" required>
                     </div>
                 </div>
             `;
             matakuliahContainer.appendChild(newItem);
         });
-        updateDeleteButtons('matakuliah');
+    } else {
+        addMatakuliah();
     }
+    updateDeleteButtons('matakuliah');
     
     // Show modal
     new bootstrap.Modal(document.getElementById('anggotaModal')).show();
 }
-
-// Initialize saat halaman dimuat
-document.addEventListener('DOMContentLoaded', function() {
-    // Tambahkan 1 form pendidikan dan mata kuliah default
-    addPendidikan();
-    addMatakuliah();
-});
 </script>
+
+<style>
+.pagination .page-link {
+    color: #4e73df;
+}
+.pagination .page-item.active .page-link {
+    background-color: #4e73df;
+    border-color: #4e73df;
+}
+</style>
+
+<?php include "footer.php"; ?>

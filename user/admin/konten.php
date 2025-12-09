@@ -129,7 +129,7 @@ $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
 // Get data with pagination
-$query = "SELECT * FROM konten $where_sql ORDER BY created_at DESC LIMIT ? OFFSET ?";
+$query = "SELECT * FROM konten $where_sql ORDER BY tanggal_posting DESC LIMIT ? OFFSET ?";
 $params_with_limit = array_merge($params, [$limit, $offset]);
 $stmt = $pdo->prepare($query);
 $stmt->execute($params_with_limit);
