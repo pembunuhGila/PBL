@@ -247,26 +247,7 @@ include "navbar.php";
     </div>
 </div>
 
-<!-- Alert untuk Pending -->
-<?php if ($total_pending > 0): ?>
-<div class="alert alert-warning alert-dismissible fade show mb-4">
-    <i class="bi bi-exclamation-triangle"></i> 
-    <strong>Perhatian!</strong> Ada <strong><?php echo $total_pending; ?> pengajuan</strong> yang menunggu review Anda:
-    <ul class="mb-0 mt-2">
-        <?php if ($pending_old > 0): ?>
-            <li>Modul Utama: <strong><?php echo $pending_old; ?> pending</strong></li>
-        <?php endif; ?>
-        <?php if ($pending_tentang > 0): ?>
-            <li>Tentang Kami: <strong><?php echo $pending_tentang; ?> pending</strong></li>
-        <?php endif; ?>
-        <?php if ($pending_kontak > 0): ?>
-            <li>Kontak: <strong><?php echo $pending_kontak; ?> pending</strong></li>
-        <?php endif; ?>
-    </ul>
-    <a href="riwayat_pengajuan.php?status=pending" class="alert-link">Lihat semua pending →</a>
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-<?php endif; ?>
+
 
 <!-- Statistics Cards -->
 <div class="row mb-4">
@@ -356,118 +337,6 @@ include "navbar.php";
 <!-- Detail Statistics -->
 <div class="row mb-4">
     <div class="col-lg-8">
-        <div class="card shadow">
-            <div class="card-header bg-white">
-                <h6 class="m-0 font-weight-bold text-primary">Statistik Detail per Modul</h6>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6 class="text-muted small mb-3">Modul Utama</h6>
-                        <ul class="list-unstyled">
-                            <li class="mb-2">
-                                <i class="bi bi-journal-text text-primary"></i> 
-                                <strong>Publikasi:</strong> <?php echo $total_publikasi; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-people text-success"></i> 
-                                <strong>Anggota Lab:</strong> <?php echo $total_anggota; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-building text-info"></i> 
-                                <strong>Fasilitas:</strong> <?php echo $total_fasilitas; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-images text-warning"></i> 
-                                <strong>Galeri:</strong> <?php echo $total_galeri; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-newspaper text-danger"></i> 
-                                <strong>Konten:</strong> <?php echo $total_konten; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-diagram-3 text-secondary"></i> 
-                                <strong>Struktur:</strong> <?php echo $total_struktur; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-sliders text-primary"></i> 
-                                <strong>Slider:</strong> <?php echo $total_slider; ?>
-                            </li>
-                        </ul>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <h6 class="text-muted small mb-3">Profil & Kontak</h6>
-                        <ul class="list-unstyled">
-                            <li class="mb-2">
-                                <i class="bi bi-building text-success"></i> 
-                                <strong>Profil Lab:</strong> <?php echo $total_profil > 0 ? '✓ Aktif' : '✗ Belum ada'; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-eye text-primary"></i> 
-                                <strong>Visi:</strong> <?php echo $total_visi; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-list-check text-info"></i> 
-                                <strong>Misi:</strong> <?php echo $total_misi; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-signpost text-warning"></i> 
-                                <strong>Roadmap:</strong> <?php echo $total_roadmap; ?>
-                            </li>
-                            <li class="mb-2">
-                                <i class="bi bi-telephone text-danger"></i> 
-                                <strong>Kontak:</strong> <?php echo $total_kontak > 0 ? '✓ Aktif' : '✗ Belum ada'; ?>
-                            </li>
-                        </ul>
-                        
-                        <?php if ($total_pending > 0): ?>
-                        <div class="alert alert-warning mt-3 py-2">
-                            <small>
-                                <i class="bi bi-clock-history"></i> 
-                                <strong><?php echo $total_pending; ?> Pending</strong> menunggu review
-                            </small>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-lg-4">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 bg-primary text-white">
-                <h6 class="m-0 font-weight-bold">Quick Actions</h6>
-            </div>
-            <div class="card-body">
-                <div class="list-group">
-                    <?php if ($total_pending > 0): ?>
-                    <a href="riwayat_pengajuan.php?status=pending" class="list-group-item list-group-item-action list-group-item-warning">
-                        <i class="bi bi-clock-history me-2"></i> Review Pending (<?php echo $total_pending; ?>)
-                    </a>
-                    <?php endif; ?>
-                    <a href="anggota.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-plus-circle me-2"></i> Tambah Anggota Baru
-                    </a>
-                    <a href="publikasi.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-plus-circle me-2"></i> Tambah Publikasi
-                    </a>
-                    <a href="konten.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-plus-circle me-2"></i> Tambah Konten
-                    </a>
-                    <a href="tentang.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-building me-2"></i> Kelola Profil Lab
-                    </a>
-                    <a href="kontak.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-telephone me-2"></i> Kelola Kontak
-                    </a>
-                    <a href="riwayat_pengajuan.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-clock-history me-2"></i> Lihat Semua Riwayat
-                    </a>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 

@@ -51,15 +51,15 @@ $union_params[] = $id_user;
 // 2. Data dari kontak milik operator
 $kontak_query = "
     SELECT 
-        updated_at as created_at,
+        k.updated_at as created_at,
         'kontak' as tabel_sumber,
-        id_kontak::text as id_data,
+        k.id_kontak::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        k.status as status_baru,
         NULL as admin_nama,
-        CONCAT('Kontak - ', email) as catatan
-    FROM kontak
-    WHERE id_user = ? AND status IN ('pending', 'rejected')
+        CONCAT('Kontak - ', k.email) as catatan
+    FROM kontak k
+    WHERE k.id_user = ? AND k.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $kontak_query;
 $union_params[] = $id_user;
@@ -67,15 +67,15 @@ $union_params[] = $id_user;
 // 3. Data dari tentang_kami milik operator
 $profil_query = "
     SELECT 
-        updated_at as created_at,
+        t.updated_at as created_at,
         'tentang_kami' as tabel_sumber,
-        id_profil::text as id_data,
+        t.id_profil::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        t.status as status_baru,
         NULL as admin_nama,
         'Profil Lab' as catatan
-    FROM tentang_kami
-    WHERE id_user = ? AND status IN ('pending', 'rejected')
+    FROM tentang_kami t
+    WHERE t.id_user = ? AND t.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $profil_query;
 $union_params[] = $id_user;
@@ -83,15 +83,15 @@ $union_params[] = $id_user;
 // 4. Data dari visi milik operator
 $visi_query = "
     SELECT 
-        created_at,
+        v.created_at,
         'visi' as tabel_sumber,
-        id_visi::text as id_data,
+        v.id_visi::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        v.status as status_baru,
         NULL as admin_nama,
-        CONCAT('Visi: ', LEFT(isi_visi, 40), '...') as catatan
-    FROM visi
-    WHERE id_user = ? AND status IN ('pending', 'rejected')
+        CONCAT('Visi: ', LEFT(v.isi_visi, 40), '...') as catatan
+    FROM visi v
+    WHERE v.id_user = ? AND v.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $visi_query;
 $union_params[] = $id_user;
@@ -99,15 +99,15 @@ $union_params[] = $id_user;
 // 5. Data dari misi milik operator
 $misi_query = "
     SELECT 
-        created_at,
+        m.created_at,
         'misi' as tabel_sumber,
-        id_misi::text as id_data,
+        m.id_misi::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        m.status as status_baru,
         NULL as admin_nama,
-        CONCAT('Misi #', urutan, ': ', LEFT(isi_misi, 40), '...') as catatan
-    FROM misi
-    WHERE id_user = ? AND status IN ('pending', 'rejected')
+        CONCAT('Misi #', m.urutan, ': ', LEFT(m.isi_misi, 40), '...') as catatan
+    FROM misi m
+    WHERE m.id_user = ? AND m.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $misi_query;
 $union_params[] = $id_user;
@@ -115,15 +115,15 @@ $union_params[] = $id_user;
 // 6. Data dari sejarah/roadmap milik operator
 $sejarah_query = "
     SELECT 
-        created_at,
+        s.created_at,
         'sejarah' as tabel_sumber,
-        id_sejarah::text as id_data,
+        s.id_sejarah::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        s.status as status_baru,
         NULL as admin_nama,
-        CONCAT('Roadmap ', tahun, ': ', judul) as catatan
-    FROM sejarah
-    WHERE id_user = ? AND status IN ('pending', 'rejected')
+        CONCAT('Roadmap ', s.tahun, ': ', s.judul) as catatan
+    FROM sejarah s
+    WHERE s.id_user = ? AND s.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $sejarah_query;
 $union_params[] = $id_user;
@@ -173,7 +173,7 @@ $riwayat_list = $stmt->fetchAll();
 // ========================================
 // GET STATISTICS
 // ========================================
-$stats_params = array_fill(0, 6, $id_user); // 6 kali id_user untuk semua UNION
+$stats_params = array_merge($union_params, array_fill(0, 6, $id_user));
 
 $pending_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'pending'";
 $pending_stmt = $pdo->prepare($pending_query);
@@ -198,7 +198,7 @@ $deleted = $deleted_stmt->fetchColumn();
 // Get available months untuk filter
 $months_query = "SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month FROM ($base_query) as riwayat_data ORDER BY month DESC LIMIT 12";
 $months_stmt = $pdo->prepare($months_query);
-$months_stmt->execute($stats_params);
+$months_stmt->execute($union_params);
 $available_months = $months_stmt->fetchAll(PDO::FETCH_COLUMN);
 
 // Daftar tabel

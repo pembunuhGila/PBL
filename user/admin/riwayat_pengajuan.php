@@ -23,16 +23,72 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
 // ========================================
+// HANDLE APPROVE/REJECT
+// ========================================
+if (isset($_POST['action']) && isset($_POST['id_riwayat'])) {
+    $action = $_POST['action'];
+    $id_riwayat = $_POST['id_riwayat'];
+    $new_status = ($action == 'approve') ? 'active' : 'rejected';
+    
+    try {
+        // Get riwayat data
+        $stmt_get = $pdo->prepare("SELECT tabel_sumber, id_data FROM riwayat_pengajuan WHERE id_riwayat = ?");
+        $stmt_get->execute([$id_riwayat]);
+        $riwayat_data = $stmt_get->fetch();
+        
+        if (!$riwayat_data) {
+            throw new Exception("Data riwayat tidak ditemukan");
+        }
+        
+        $tabel = $riwayat_data['tabel_sumber'];
+        $id_data = $riwayat_data['id_data'];
+        
+        // Update riwayat
+        $stmt = $pdo->prepare("UPDATE riwayat_pengajuan SET status_baru = ?, id_admin = ? WHERE id_riwayat = ?");
+        $stmt->execute([$new_status, $_SESSION['id_user'], $id_riwayat]);
+        
+        // Map tabel ke kolom id
+        $id_columns = [
+            'anggota_lab' => 'id_anggota',
+            'publikasi' => 'id_publikasi',
+            'fasilitas' => 'id_fasilitas',
+            'galeri' => 'id_galeri',
+            'konten' => 'id_konten',
+            'slider' => 'id_slider',
+            'struktur_lab' => 'id_struktur',
+            'tentang_kami' => 'id_profil',
+            'visi' => 'id_visi',
+            'misi' => 'id_misi',
+            'sejarah' => 'id_sejarah',
+            'kontak' => 'id_kontak'
+        ];
+        
+        // Update status di tabel sumber
+        if (isset($id_columns[$tabel])) {
+            $id_col = $id_columns[$tabel];
+            $update_query = "UPDATE $tabel SET status = ? WHERE $id_col = ?";
+            $stmt_update = $pdo->prepare($update_query);
+            $stmt_update->execute([$new_status, $id_data]);
+        }
+        
+        header("Location: riwayat_pengajuan.php?success=" . ($new_status == 'active' ? 'approved' : 'rejected') . "&page=" . $page . ($filter_tabel ? "&tabel=" . urlencode($filter_tabel) : "") . ($filter_status ? "&status=" . urlencode($filter_status) : "") . ($filter_bulan ? "&bulan=" . urlencode($filter_bulan) : ""));
+        exit;
+    } catch (Exception $e) {
+        $error = "Gagal: " . $e->getMessage();
+    }
+}
+
+// ========================================
 // BUILD UNIFIED QUERY - GABUNGKAN SEMUA MODUL
 // ========================================
 
 // UNION query untuk gabungkan semua sumber data
 $union_parts = [];
-$union_params = [];
 
 // 1. Data dari riwayat_pengajuan (modul lama dengan operator tracking)
 $riwayat_query = "
     SELECT 
+        r.id_riwayat,
         r.created_at,
         r.tabel_sumber,
         r.id_data::text as id_data,
@@ -50,85 +106,90 @@ $union_parts[] = $riwayat_query;
 // 2. Data dari kontak (gunakan updated_at)
 $kontak_query = "
     SELECT 
-        updated_at as created_at,
+        NULL as id_riwayat,
+        k.updated_at as created_at,
         'kontak' as tabel_sumber,
-        id_kontak::text as id_data,
+        k.id_kontak::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        k.status as status_baru,
         u.nama as operator_nama,
         NULL as admin_nama,
-        CONCAT('Kontak - ', email) as catatan
-    FROM kontak
-    LEFT JOIN users u ON kontak.id_user = u.id_user
-    WHERE status IN ('pending', 'rejected', 'active')
+        CONCAT('Kontak - ', k.email) as catatan
+    FROM kontak k
+    LEFT JOIN users u ON k.id_user = u.id_user
+    WHERE k.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $kontak_query;
 
 // 3. Data dari tentang_kami (gunakan updated_at)
 $profil_query = "
     SELECT 
-        updated_at as created_at,
+        NULL as id_riwayat,
+        t.updated_at as created_at,
         'tentang_kami' as tabel_sumber,
-        id_profil::text as id_data,
+        t.id_profil::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        t.status as status_baru,
         u.nama as operator_nama,
         NULL as admin_nama,
         'Profil Lab' as catatan
-    FROM tentang_kami
-    LEFT JOIN users u ON tentang_kami.id_user = u.id_user
-    WHERE status IN ('pending', 'rejected', 'active')
+    FROM tentang_kami t
+    LEFT JOIN users u ON t.id_user = u.id_user
+    WHERE t.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $profil_query;
 
 // 4. Data dari visi
 $visi_query = "
     SELECT 
-        created_at,
+        NULL as id_riwayat,
+        v.created_at,
         'visi' as tabel_sumber,
-        id_visi::text as id_data,
+        v.id_visi::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        v.status as status_baru,
         u.nama as operator_nama,
         NULL as admin_nama,
-        CONCAT('Visi: ', LEFT(isi_visi, 40), '...') as catatan
-    FROM visi
-    LEFT JOIN users u ON visi.id_user = u.id_user
-    WHERE status IN ('pending', 'rejected', 'active')
+        CONCAT('Visi: ', LEFT(v.isi_visi, 40), '...') as catatan
+    FROM visi v
+    LEFT JOIN users u ON v.id_user = u.id_user
+    WHERE v.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $visi_query;
 
 // 5. Data dari misi
 $misi_query = "
     SELECT 
-        created_at,
+        NULL as id_riwayat,
+        m.created_at,
         'misi' as tabel_sumber,
-        id_misi::text as id_data,
+        m.id_misi::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        m.status as status_baru,
         u.nama as operator_nama,
         NULL as admin_nama,
-        CONCAT('Misi #', urutan, ': ', LEFT(isi_misi, 40), '...') as catatan
-    FROM misi
-    LEFT JOIN users u ON misi.id_user = u.id_user
-    WHERE status IN ('pending', 'rejected', 'active')
+        CONCAT('Misi #', m.urutan, ': ', LEFT(m.isi_misi, 40), '...') as catatan
+    FROM misi m
+    LEFT JOIN users u ON m.id_user = u.id_user
+    WHERE m.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $misi_query;
 
 // 6. Data dari sejarah/roadmap
 $sejarah_query = "
     SELECT 
-        created_at,
+        NULL as id_riwayat,
+        s.created_at,
         'sejarah' as tabel_sumber,
-        id_sejarah::text as id_data,
+        s.id_sejarah::text as id_data,
         NULL as status_lama,
-        status as status_baru,
+        s.status as status_baru,
         u.nama as operator_nama,
         NULL as admin_nama,
-        CONCAT('Roadmap ', tahun, ': ', judul) as catatan
-    FROM sejarah
-    LEFT JOIN users u ON sejarah.id_user = u.id_user
-    WHERE status IN ('pending', 'rejected', 'active')
+        CONCAT('Roadmap ', s.tahun, ': ', s.judul) as catatan
+    FROM sejarah s
+    LEFT JOIN users u ON s.id_user = u.id_user
+    WHERE s.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $sejarah_query;
 
@@ -383,6 +444,7 @@ include "navbar.php";
                         <th>Operator</th>
                         <th>Admin</th>
                         <th>Catatan</th>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -437,11 +499,26 @@ include "navbar.php";
                                     <small class="text-muted">-</small>
                                 <?php endif; ?>
                             </td>
+                            <td>
+                                <?php if ($riwayat['status_baru'] == 'pending'): ?>
+                                    <form method="POST" style="display: inline;">
+                                        <input type="hidden" name="id_riwayat" value="<?php echo htmlspecialchars($riwayat['id_riwayat'] ?? ''); ?>">
+                                        <button type="submit" name="action" value="approve" class="btn btn-sm btn-success" onclick="return confirm('Setujui pengajuan ini?')">
+                                            <i class="bi bi-check"></i> Acc
+                                        </button>
+                                        <button type="submit" name="action" value="reject" class="btn btn-sm btn-danger" onclick="return confirm('Tolak pengajuan ini?')">
+                                            <i class="bi bi-x"></i> Reject
+                                        </button>
+                                    </form>
+                                <?php else: ?>
+                                    <small class="text-muted">-</small>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="8" class="text-center py-5">
+                            <td colspan="9" class="text-center py-5">
                                 <div class="text-muted">
                                     <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
                                     <p class="mt-3 mb-0">
