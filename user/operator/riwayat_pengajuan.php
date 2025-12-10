@@ -1,4 +1,10 @@
 <?php
+/**
+ * Operator Riwayat Pengajuan - Connected to ALL modules
+ * @var PDO $pdo
+ * @var string $current_page
+ * @var int $current_id_user
+ */
 $required_role = "operator";
 include "../auth.php";
 include "../../conn.php";
@@ -16,14 +22,16 @@ $limit = 20;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
-// Build unified query untuk semua riwayat (gabungan riwayat_pengajuan + kontak + tentang kami)
+// ========================================
+// BUILD UNIFIED QUERY - SEMUA DATA MILIK OPERATOR
+// ========================================
 $id_user = $_SESSION['id_user'];
 
-// UNION query untuk gabungkan semua data - PERBAIKAN: cast semua id_data ke TEXT
+// UNION query untuk gabungkan semua data milik operator
 $union_parts = [];
 $union_params = [];
 
-// 1. Data dari riwayat_pengajuan (modul lama) - CAST id_data ke TEXT
+// 1. Data dari riwayat_pengajuan (modul lama)
 $riwayat_query = "
     SELECT 
         r.created_at,
@@ -40,7 +48,7 @@ $riwayat_query = "
 $union_parts[] = $riwayat_query;
 $union_params[] = $id_user;
 
-// 2. Data dari kontak (gunakan updated_at)
+// 2. Data dari kontak milik operator
 $kontak_query = "
     SELECT 
         updated_at as created_at,
@@ -49,14 +57,14 @@ $kontak_query = "
         NULL as status_lama,
         status as status_baru,
         NULL as admin_nama,
-        NULL as catatan
+        CONCAT('Kontak - ', email) as catatan
     FROM kontak
     WHERE id_user = ? AND status IN ('pending', 'rejected')
 ";
 $union_parts[] = $kontak_query;
 $union_params[] = $id_user;
 
-// 3. Data dari tentang_kami (gunakan updated_at)
+// 3. Data dari tentang_kami milik operator
 $profil_query = "
     SELECT 
         updated_at as created_at,
@@ -65,14 +73,14 @@ $profil_query = "
         NULL as status_lama,
         status as status_baru,
         NULL as admin_nama,
-        NULL as catatan
+        'Profil Lab' as catatan
     FROM tentang_kami
     WHERE id_user = ? AND status IN ('pending', 'rejected')
 ";
 $union_parts[] = $profil_query;
 $union_params[] = $id_user;
 
-// 4. Data dari visi (gunakan created_at)
+// 4. Data dari visi milik operator
 $visi_query = "
     SELECT 
         created_at,
@@ -81,14 +89,14 @@ $visi_query = "
         NULL as status_lama,
         status as status_baru,
         NULL as admin_nama,
-        NULL as catatan
+        CONCAT('Visi: ', LEFT(isi_visi, 40), '...') as catatan
     FROM visi
     WHERE id_user = ? AND status IN ('pending', 'rejected')
 ";
 $union_parts[] = $visi_query;
 $union_params[] = $id_user;
 
-// 5. Data dari misi (gunakan created_at)
+// 5. Data dari misi milik operator
 $misi_query = "
     SELECT 
         created_at,
@@ -97,14 +105,14 @@ $misi_query = "
         NULL as status_lama,
         status as status_baru,
         NULL as admin_nama,
-        NULL as catatan
+        CONCAT('Misi #', urutan, ': ', LEFT(isi_misi, 40), '...') as catatan
     FROM misi
     WHERE id_user = ? AND status IN ('pending', 'rejected')
 ";
 $union_parts[] = $misi_query;
 $union_params[] = $id_user;
 
-// 6. Data dari sejarah/roadmap (gunakan created_at)
+// 6. Data dari sejarah/roadmap milik operator
 $sejarah_query = "
     SELECT 
         created_at,
@@ -113,7 +121,7 @@ $sejarah_query = "
         NULL as status_lama,
         status as status_baru,
         NULL as admin_nama,
-        NULL as catatan
+        CONCAT('Roadmap ', tahun, ': ', judul) as catatan
     FROM sejarah
     WHERE id_user = ? AND status IN ('pending', 'rejected')
 ";
@@ -162,8 +170,11 @@ $stmt = $pdo->prepare($final_query);
 $stmt->execute($all_params);
 $riwayat_list = $stmt->fetchAll();
 
-// Get statistics dengan data lengkap
+// ========================================
+// GET STATISTICS
+// ========================================
 $stats_params = array_fill(0, 6, $id_user); // 6 kali id_user untuk semua UNION
+
 $pending_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'pending'";
 $pending_stmt = $pdo->prepare($pending_query);
 $pending_stmt->execute($stats_params);
@@ -179,6 +190,11 @@ $rejected_stmt = $pdo->prepare($rejected_query);
 $rejected_stmt->execute($stats_params);
 $rejected = $rejected_stmt->fetchColumn();
 
+$deleted_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'deleted'";
+$deleted_stmt = $pdo->prepare($deleted_query);
+$deleted_stmt->execute($stats_params);
+$deleted = $deleted_stmt->fetchColumn();
+
 // Get available months untuk filter
 $months_query = "SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month FROM ($base_query) as riwayat_data ORDER BY month DESC LIMIT 12";
 $months_stmt = $pdo->prepare($months_query);
@@ -193,6 +209,7 @@ $all_tables = [
     'fasilitas' => 'Fasilitas',
     'galeri' => 'Galeri',
     'konten' => 'Konten',
+    'slider' => 'Slider',
     'tentang_kami' => 'Profil Lab',
     'visi' => 'Visi',
     'misi' => 'Misi',
@@ -218,6 +235,7 @@ include "navbar.php";
                     <div>
                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending</div>
                         <div class="h4 mb-0 font-weight-bold"><?php echo $pending; ?></div>
+                        <small class="text-muted">Menunggu Review</small>
                     </div>
                     <div class="text-warning">
                         <i class="bi bi-hourglass-split fs-2"></i>
@@ -234,6 +252,7 @@ include "navbar.php";
                     <div>
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Approved</div>
                         <div class="h4 mb-0 font-weight-bold"><?php echo $approved; ?></div>
+                        <small class="text-muted">Disetujui Admin</small>
                     </div>
                     <div class="text-success">
                         <i class="bi bi-check-circle fs-2"></i>
@@ -250,6 +269,7 @@ include "navbar.php";
                     <div>
                         <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Rejected</div>
                         <div class="h4 mb-0 font-weight-bold"><?php echo $rejected; ?></div>
+                        <small class="text-muted">Ditolak Admin</small>
                     </div>
                     <div class="text-danger">
                         <i class="bi bi-x-circle fs-2"></i>
@@ -266,6 +286,7 @@ include "navbar.php";
                     <div>
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total</div>
                         <div class="h4 mb-0 font-weight-bold"><?php echo $total_records; ?></div>
+                        <small class="text-muted">Semua Riwayat</small>
                     </div>
                     <div class="text-primary">
                         <i class="bi bi-list-check fs-2"></i>
@@ -333,11 +354,21 @@ include "navbar.php";
 <!-- Info Alert -->
 <div class="alert alert-info">
     <i class="bi bi-info-circle"></i> 
-    <strong>Informasi:</strong> Menampilkan semua pengajuan Anda termasuk <strong>Kontak</strong> dan <strong>Tentang Kami</strong>. 
+    <strong>Informasi:</strong> Menampilkan semua pengajuan Anda dari <strong>12 modul</strong> (Publikasi, Anggota, Fasilitas, Galeri, Konten, Struktur, Slider, Profil, Visi, Misi, Roadmap, Kontak). 
     Status <span class="badge bg-warning">Pending</span> menunggu review admin, 
     <span class="badge bg-success">Approved</span> sudah disetujui, 
     <span class="badge bg-danger">Rejected</span> ditolak oleh admin.
 </div>
+
+<!-- Alert untuk Pending -->
+<?php if ($pending > 0): ?>
+<div class="alert alert-warning alert-dismissible fade show">
+    <i class="bi bi-hourglass-split"></i> 
+    <strong>Perhatian:</strong> Anda memiliki <strong><?php echo $pending; ?> pengajuan</strong> yang masih menunggu review admin.
+    <a href="?status=pending" class="alert-link">Lihat semua pending</a>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
 
 <!-- Riwayat Table -->
 <div class="card shadow">
@@ -419,14 +450,10 @@ include "navbar.php";
                                             <?php echo $status_lama_icon . ' ' . ucfirst($riwayat['status_lama']); ?>
                                         </span>
                                         <i class="bi bi-arrow-right"></i>
-                                        <span class="badge <?php echo $status_baru_badge; ?>">
-                                            <?php echo $status_baru_icon . ' ' . ucfirst($riwayat['status_baru']); ?>
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="badge <?php echo $status_baru_badge; ?>">
-                                            <?php echo $status_baru_icon . ' ' . ucfirst($riwayat['status_baru']); ?>
-                                        </span>
                                     <?php endif; ?>
+                                    <span class="badge <?php echo $status_baru_badge; ?>">
+                                        <?php echo $status_baru_icon . ' ' . ucfirst($riwayat['status_baru']); ?>
+                                    </span>
                                 </div>
                             </td>
                             <td>
@@ -532,6 +559,10 @@ include "navbar.php";
 
 .badge {
     font-weight: 500;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
 }
 </style>
 

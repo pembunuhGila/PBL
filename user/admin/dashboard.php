@@ -1,5 +1,6 @@
 <?php
 /**
+ * Admin Dashboard - Connected to ALL modules
  * @var PDO $pdo
  * @var string $current_page
  * @var int $current_id_user
@@ -11,7 +12,11 @@ include "../../conn.php";
 $page_title = "Dashboard";
 $current_page = "dashboard.php";
 
-// Query untuk statistik
+// ========================================
+// STATISTIK DARI SEMUA MODUL
+// ========================================
+
+// 1. Modul dengan riwayat_pengajuan (publikasi, anggota, fasilitas, galeri, konten, struktur, slider)
 $query_publikasi = "SELECT COUNT(*) as total FROM publikasi WHERE status = 'active'";
 $stmt = $pdo->query($query_publikasi);
 $total_publikasi = $stmt->fetch()['total'];
@@ -28,27 +33,201 @@ $query_galeri = "SELECT COUNT(*) as total FROM galeri WHERE status = 'active'";
 $stmt = $pdo->query($query_galeri);
 $total_galeri = $stmt->fetch()['total'];
 
-$query_pending = "SELECT COUNT(*) as total FROM riwayat_pengajuan WHERE status_baru = 'pending'";
-$stmt = $pdo->query($query_pending);
-$total_pending = $stmt->fetch()['total'];
+$query_konten = "SELECT COUNT(*) as total FROM konten WHERE status = 'active'";
+$stmt = $pdo->query($query_konten);
+$total_konten = $stmt->fetch()['total'];
 
-// Query untuk data terbaru
+$query_struktur = "SELECT COUNT(*) as total FROM struktur_lab WHERE status = 'active'";
+$stmt = $pdo->query($query_struktur);
+$total_struktur = $stmt->fetch()['total'];
+
+$query_slider = "SELECT COUNT(*) as total FROM slider WHERE status = 'active'";
+$stmt = $pdo->query($query_slider);
+$total_slider = $stmt->fetch()['total'];
+
+// 2. Modul Tentang Kami (profil, visi, misi, sejarah/roadmap)
+$query_profil = "SELECT COUNT(*) as total FROM tentang_kami WHERE status = 'active'";
+$stmt = $pdo->query($query_profil);
+$total_profil = $stmt->fetch()['total'];
+
+$query_visi = "SELECT COUNT(*) as total FROM visi WHERE status = 'active'";
+$stmt = $pdo->query($query_visi);
+$total_visi = $stmt->fetch()['total'];
+
+$query_misi = "SELECT COUNT(*) as total FROM misi WHERE status = 'active'";
+$stmt = $pdo->query($query_misi);
+$total_misi = $stmt->fetch()['total'];
+
+$query_roadmap = "SELECT COUNT(*) as total FROM sejarah WHERE status = 'active'";
+$stmt = $pdo->query($query_roadmap);
+$total_roadmap = $stmt->fetch()['total'];
+
+// 3. Modul Kontak (global)
+$query_kontak = "SELECT COUNT(*) as total FROM kontak WHERE status = 'active'";
+$stmt = $pdo->query($query_kontak);
+$total_kontak = $stmt->fetch()['total'];
+
+// ========================================
+// HITUNG PENDING DARI SEMUA MODUL
+// ========================================
+
+// Pending dari modul lama (dengan riwayat_pengajuan)
+$pending_old_query = "
+    SELECT COUNT(*) as total FROM (
+        SELECT id_publikasi FROM publikasi WHERE status = 'pending'
+        UNION ALL
+        SELECT id_anggota FROM anggota_lab WHERE status = 'pending'
+        UNION ALL
+        SELECT id_fasilitas FROM fasilitas WHERE status = 'pending'
+        UNION ALL
+        SELECT id_galeri FROM galeri WHERE status = 'pending'
+        UNION ALL
+        SELECT id_konten FROM konten WHERE status = 'pending'
+        UNION ALL
+        SELECT id_struktur FROM struktur_lab WHERE status = 'pending'
+        UNION ALL
+        SELECT id_slider FROM slider WHERE status = 'pending'
+    ) as old_pending
+";
+$stmt = $pdo->query($pending_old_query);
+$pending_old = $stmt->fetch()['total'];
+
+// Pending dari modul Tentang Kami
+$pending_tentang_query = "
+    SELECT COUNT(*) as total FROM (
+        SELECT id_profil FROM tentang_kami WHERE status = 'pending'
+        UNION ALL
+        SELECT id_visi FROM visi WHERE status = 'pending'
+        UNION ALL
+        SELECT id_misi FROM misi WHERE status = 'pending'
+        UNION ALL
+        SELECT id_sejarah FROM sejarah WHERE status = 'pending'
+    ) as tentang_pending
+";
+$stmt = $pdo->query($pending_tentang_query);
+$pending_tentang = $stmt->fetch()['total'];
+
+// Pending dari modul Kontak
+$pending_kontak_query = "SELECT COUNT(*) as total FROM kontak WHERE status = 'pending'";
+$stmt = $pdo->query($pending_kontak_query);
+$pending_kontak = $stmt->fetch()['total'];
+
+// Total pending
+$total_pending = $pending_old + $pending_tentang + $pending_kontak;
+
+// ========================================
+// AKTIVITAS TERBARU DARI SEMUA MODUL
+// ========================================
 $query_latest = "
     SELECT 
         'publikasi' as tipe,
         judul as nama,
+        status,
         created_at as tanggal
     FROM publikasi 
     WHERE status = 'active'
+    
     UNION ALL
     SELECT 
         'anggota' as tipe,
         nama,
+        status,
         created_at as tanggal
     FROM anggota_lab 
     WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'fasilitas' as tipe,
+        judul as nama,
+        status,
+        created_at as tanggal
+    FROM fasilitas
+    WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'galeri' as tipe,
+        judul as nama,
+        status,
+        created_at as tanggal
+    FROM galeri
+    WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'konten' as tipe,
+        judul as nama,
+        status,
+        tanggal_posting as tanggal
+    FROM konten
+    WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'struktur' as tipe,
+        jabatan as nama,
+        status,
+        created_at as tanggal
+    FROM struktur_lab
+    WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'slider' as tipe,
+        judul as nama,
+        status,
+        tanggal_dibuat as tanggal
+    FROM slider
+    WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'profil' as tipe,
+        'Profil Lab' as nama,
+        status,
+        updated_at as tanggal
+    FROM tentang_kami
+    WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'visi' as tipe,
+        CONCAT('Visi: ', LEFT(isi_visi, 30), '...') as nama,
+        status,
+        created_at as tanggal
+    FROM visi
+    WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'misi' as tipe,
+        CONCAT('Misi #', urutan) as nama,
+        status,
+        created_at as tanggal
+    FROM misi
+    WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'roadmap' as tipe,
+        CONCAT(tahun, ' - ', judul) as nama,
+        status,
+        created_at as tanggal
+    FROM sejarah
+    WHERE status = 'active'
+    
+    UNION ALL
+    SELECT 
+        'kontak' as tipe,
+        CONCAT('Kontak - ', email) as nama,
+        status,
+        updated_at as tanggal
+    FROM kontak
+    WHERE status = 'active'
+    
     ORDER BY tanggal DESC 
-    LIMIT 5
+    LIMIT 10
 ";
 $stmt_latest = $pdo->query($query_latest);
 
@@ -58,7 +237,7 @@ include "navbar.php";
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Dashboard</h1>
+    <h1 class="h2">Dashboard Admin</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
             <button type="button" class="btn btn-sm btn-outline-secondary">
@@ -68,71 +247,102 @@ include "navbar.php";
     </div>
 </div>
 
+<!-- Alert untuk Pending -->
+<?php if ($total_pending > 0): ?>
+<div class="alert alert-warning alert-dismissible fade show mb-4">
+    <i class="bi bi-exclamation-triangle"></i> 
+    <strong>Perhatian!</strong> Ada <strong><?php echo $total_pending; ?> pengajuan</strong> yang menunggu review Anda:
+    <ul class="mb-0 mt-2">
+        <?php if ($pending_old > 0): ?>
+            <li>Modul Utama: <strong><?php echo $pending_old; ?> pending</strong></li>
+        <?php endif; ?>
+        <?php if ($pending_tentang > 0): ?>
+            <li>Tentang Kami: <strong><?php echo $pending_tentang; ?> pending</strong></li>
+        <?php endif; ?>
+        <?php if ($pending_kontak > 0): ?>
+            <li>Kontak: <strong><?php echo $pending_kontak; ?> pending</strong></li>
+        <?php endif; ?>
+    </ul>
+    <a href="riwayat_pengajuan.php?status=pending" class="alert-link">Lihat semua pending →</a>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
 <!-- Statistics Cards -->
 <div class="row mb-4">
+    <!-- Card 1: Total Konten -->
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-primary shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                            Total Publikasi
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Data Aktif</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            <?php 
+                            $total_all = $total_publikasi + $total_anggota + $total_fasilitas + 
+                                        $total_galeri + $total_konten + $total_struktur + 
+                                        $total_slider + $total_profil + $total_visi + 
+                                        $total_misi + $total_roadmap + $total_kontak;
+                            echo $total_all; 
+                            ?>
                         </div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_publikasi; ?></div>
+                        <small class="text-muted">Semua Modul</small>
                     </div>
                     <div class="col-auto">
-                        <i class="bi bi-journal-text fa-2x text-gray-300" style="font-size: 2rem; color: #4e73df;"></i>
+                        <i class="bi bi-database fa-2x text-gray-300" style="font-size: 2rem; color: #4e73df;"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Card 2: Publikasi -->
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-success shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                            Total Anggota Lab
-                        </div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_anggota; ?></div>
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Publikasi</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_publikasi; ?></div>
+                        <small class="text-muted">+ <?php echo $total_anggota; ?> Anggota</small>
                     </div>
                     <div class="col-auto">
-                        <i class="bi bi-people fa-2x text-gray-300" style="font-size: 2rem; color: #1cc88a;"></i>
+                        <i class="bi bi-journal-text fa-2x text-gray-300" style="font-size: 2rem; color: #1cc88a;"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Card 3: Konten & Media -->
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-info shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                            Total Fasilitas
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Konten & Media</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            <?php echo $total_konten + $total_galeri + $total_slider; ?>
                         </div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_fasilitas; ?></div>
+                        <small class="text-muted"><?php echo $total_konten; ?> konten, <?php echo $total_galeri; ?> foto</small>
                     </div>
                     <div class="col-auto">
-                        <i class="bi bi-building fa-2x text-gray-300" style="font-size: 2rem; color: #36b9cc;"></i>
+                        <i class="bi bi-image fa-2x text-gray-300" style="font-size: 2rem; color: #36b9cc;"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Card 4: Pending Review -->
     <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-warning shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                            Pengajuan Pending
-                        </div>
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending Review</div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_pending; ?></div>
+                        <small class="text-muted">Menunggu Approval</small>
                     </div>
                     <div class="col-auto">
                         <i class="bi bi-clock-history fa-2x text-gray-300" style="font-size: 2rem; color: #f6c23e;"></i>
@@ -143,78 +353,193 @@ include "navbar.php";
     </div>
 </div>
 
-<!-- Recent Activity & Quick Links -->
-<div class="row">
-    <div class="col-lg-8 mb-4">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">Aktivitas Terbaru</h6>
+<!-- Detail Statistics -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card shadow">
+            <div class="card-header bg-white">
+                <h6 class="m-0 font-weight-bold text-primary">Statistik Detail per Modul</h6>
             </div>
             <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Tipe</th>
-                                <th>Nama</th>
-                                <th>Tanggal</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($row = $stmt_latest->fetch()): ?>
-                            <tr>
-                                <td>
-                                    <?php if ($row['tipe'] == 'publikasi'): ?>
-                                        <span class="badge bg-primary">Publikasi</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-success">Anggota</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo htmlspecialchars($row['nama']); ?></td>
-                                <td><?php echo date('d M Y', strtotime($row['tanggal'])); ?></td>
-                            </tr>
-                            <?php endwhile; ?>
-                        </tbody>
-                    </table>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted small mb-3">Modul Utama</h6>
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <i class="bi bi-journal-text text-primary"></i> 
+                                <strong>Publikasi:</strong> <?php echo $total_publikasi; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-people text-success"></i> 
+                                <strong>Anggota Lab:</strong> <?php echo $total_anggota; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-building text-info"></i> 
+                                <strong>Fasilitas:</strong> <?php echo $total_fasilitas; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-images text-warning"></i> 
+                                <strong>Galeri:</strong> <?php echo $total_galeri; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-newspaper text-danger"></i> 
+                                <strong>Konten:</strong> <?php echo $total_konten; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-diagram-3 text-secondary"></i> 
+                                <strong>Struktur:</strong> <?php echo $total_struktur; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-sliders text-primary"></i> 
+                                <strong>Slider:</strong> <?php echo $total_slider; ?>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6 class="text-muted small mb-3">Profil & Kontak</h6>
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <i class="bi bi-building text-success"></i> 
+                                <strong>Profil Lab:</strong> <?php echo $total_profil > 0 ? '✓ Aktif' : '✗ Belum ada'; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-eye text-primary"></i> 
+                                <strong>Visi:</strong> <?php echo $total_visi; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-list-check text-info"></i> 
+                                <strong>Misi:</strong> <?php echo $total_misi; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-signpost text-warning"></i> 
+                                <strong>Roadmap:</strong> <?php echo $total_roadmap; ?>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-telephone text-danger"></i> 
+                                <strong>Kontak:</strong> <?php echo $total_kontak > 0 ? '✓ Aktif' : '✗ Belum ada'; ?>
+                            </li>
+                        </ul>
+                        
+                        <?php if ($total_pending > 0): ?>
+                        <div class="alert alert-warning mt-3 py-2">
+                            <small>
+                                <i class="bi bi-clock-history"></i> 
+                                <strong><?php echo $total_pending; ?> Pending</strong> menunggu review
+                            </small>
+                        </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <div class="col-lg-4 mb-4">
+    
+    <div class="col-lg-4">
         <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+            <div class="card-header py-3 bg-primary text-white">
+                <h6 class="m-0 font-weight-bold">Quick Actions</h6>
             </div>
             <div class="card-body">
                 <div class="list-group">
+                    <?php if ($total_pending > 0): ?>
+                    <a href="riwayat_pengajuan.php?status=pending" class="list-group-item list-group-item-action list-group-item-warning">
+                        <i class="bi bi-clock-history me-2"></i> Review Pending (<?php echo $total_pending; ?>)
+                    </a>
+                    <?php endif; ?>
                     <a href="anggota.php" class="list-group-item list-group-item-action">
                         <i class="bi bi-plus-circle me-2"></i> Tambah Anggota Baru
                     </a>
                     <a href="publikasi.php" class="list-group-item list-group-item-action">
                         <i class="bi bi-plus-circle me-2"></i> Tambah Publikasi
                     </a>
-                    <a href="fasilitas.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-plus-circle me-2"></i> Tambah Fasilitas
+                    <a href="konten.php" class="list-group-item list-group-item-action">
+                        <i class="bi bi-plus-circle me-2"></i> Tambah Konten
                     </a>
-                    <a href="galeri.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-plus-circle me-2"></i> Upload Galeri
+                    <a href="tentang.php" class="list-group-item list-group-item-action">
+                        <i class="bi bi-building me-2"></i> Kelola Profil Lab
+                    </a>
+                    <a href="kontak.php" class="list-group-item list-group-item-action">
+                        <i class="bi bi-telephone me-2"></i> Kelola Kontak
                     </a>
                     <a href="riwayat_pengajuan.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-clock-history me-2"></i> Lihat Pengajuan
+                        <i class="bi bi-clock-history me-2"></i> Lihat Semua Riwayat
                     </a>
                 </div>
             </div>
         </div>
+    </div>
+</div>
 
-        <div class="card shadow">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Informasi</h6>
+<!-- Recent Activity -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Aktivitas Terbaru</h6>
+                <a href="riwayat_pengajuan.php" class="btn btn-sm btn-primary">Lihat Semua</a>
             </div>
             <div class="card-body">
-                <p class="mb-2"><strong>Total Foto Galeri:</strong> <?php echo $total_galeri; ?></p>
-                <p class="mb-2"><strong>Sistem:</strong> Lab Management v1.0</p>
-                <p class="mb-0"><strong>Role:</strong> <?php echo ucfirst($_SESSION['role']); ?></p>
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>Tipe</th>
+                                <th>Nama</th>
+                                <th>Status</th>
+                                <th>Tanggal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $row_count = 0;
+                            while ($row = $stmt_latest->fetch()): 
+                                $row_count++;
+                            ?>
+                            <tr>
+                                <td>
+                                    <?php
+                                    $badge_colors = [
+                                        'publikasi' => 'primary',
+                                        'anggota' => 'success',
+                                        'fasilitas' => 'info',
+                                        'galeri' => 'warning',
+                                        'konten' => 'danger',
+                                        'struktur' => 'secondary',
+                                        'slider' => 'dark',
+                                        'profil' => 'success',
+                                        'visi' => 'primary',
+                                        'misi' => 'info',
+                                        'roadmap' => 'warning',
+                                        'kontak' => 'danger'
+                                    ];
+                                    $color = $badge_colors[$row['tipe']] ?? 'secondary';
+                                    ?>
+                                    <span class="badge bg-<?php echo $color; ?>">
+                                        <?php echo ucfirst($row['tipe']); ?>
+                                    </span>
+                                </td>
+                                <td><small><?php echo htmlspecialchars($row['nama']); ?></small></td>
+                                <td>
+                                    <span class="badge bg-success">Active</span>
+                                </td>
+                                <td>
+                                    <small><?php echo date('d M Y', strtotime($row['tanggal'])); ?></small>
+                                </td>
+                            </tr>
+                            <?php endwhile; ?>
+                            
+                            <?php if ($row_count == 0): ?>
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox" style="font-size: 2rem; opacity: 0.3;"></i>
+                                    <p class="mt-2 mb-0">Belum ada aktivitas</p>
+                                </td>
+                            </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

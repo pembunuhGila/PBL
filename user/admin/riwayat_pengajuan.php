@@ -1,5 +1,6 @@
 <?php
 /**
+ * Admin Riwayat Pengajuan - Connected to ALL modules
  * @var PDO $pdo
  * @var string $current_page
  * @var int $current_id_user
@@ -21,51 +22,186 @@ $limit = 20;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
+// ========================================
+// BUILD UNIFIED QUERY - GABUNGKAN SEMUA MODUL
+// ========================================
+
+// UNION query untuk gabungkan semua sumber data
+$union_parts = [];
+$union_params = [];
+
+// 1. Data dari riwayat_pengajuan (modul lama dengan operator tracking)
+$riwayat_query = "
+    SELECT 
+        r.created_at,
+        r.tabel_sumber,
+        r.id_data::text as id_data,
+        r.status_lama,
+        r.status_baru,
+        uo.nama as operator_nama,
+        ua.nama as admin_nama,
+        r.catatan
+    FROM riwayat_pengajuan r
+    LEFT JOIN users uo ON r.id_operator = uo.id_user
+    LEFT JOIN users ua ON r.id_admin = ua.id_user
+";
+$union_parts[] = $riwayat_query;
+
+// 2. Data dari kontak (gunakan updated_at)
+$kontak_query = "
+    SELECT 
+        updated_at as created_at,
+        'kontak' as tabel_sumber,
+        id_kontak::text as id_data,
+        NULL as status_lama,
+        status as status_baru,
+        u.nama as operator_nama,
+        NULL as admin_nama,
+        CONCAT('Kontak - ', email) as catatan
+    FROM kontak
+    LEFT JOIN users u ON kontak.id_user = u.id_user
+    WHERE status IN ('pending', 'rejected', 'active')
+";
+$union_parts[] = $kontak_query;
+
+// 3. Data dari tentang_kami (gunakan updated_at)
+$profil_query = "
+    SELECT 
+        updated_at as created_at,
+        'tentang_kami' as tabel_sumber,
+        id_profil::text as id_data,
+        NULL as status_lama,
+        status as status_baru,
+        u.nama as operator_nama,
+        NULL as admin_nama,
+        'Profil Lab' as catatan
+    FROM tentang_kami
+    LEFT JOIN users u ON tentang_kami.id_user = u.id_user
+    WHERE status IN ('pending', 'rejected', 'active')
+";
+$union_parts[] = $profil_query;
+
+// 4. Data dari visi
+$visi_query = "
+    SELECT 
+        created_at,
+        'visi' as tabel_sumber,
+        id_visi::text as id_data,
+        NULL as status_lama,
+        status as status_baru,
+        u.nama as operator_nama,
+        NULL as admin_nama,
+        CONCAT('Visi: ', LEFT(isi_visi, 40), '...') as catatan
+    FROM visi
+    LEFT JOIN users u ON visi.id_user = u.id_user
+    WHERE status IN ('pending', 'rejected', 'active')
+";
+$union_parts[] = $visi_query;
+
+// 5. Data dari misi
+$misi_query = "
+    SELECT 
+        created_at,
+        'misi' as tabel_sumber,
+        id_misi::text as id_data,
+        NULL as status_lama,
+        status as status_baru,
+        u.nama as operator_nama,
+        NULL as admin_nama,
+        CONCAT('Misi #', urutan, ': ', LEFT(isi_misi, 40), '...') as catatan
+    FROM misi
+    LEFT JOIN users u ON misi.id_user = u.id_user
+    WHERE status IN ('pending', 'rejected', 'active')
+";
+$union_parts[] = $misi_query;
+
+// 6. Data dari sejarah/roadmap
+$sejarah_query = "
+    SELECT 
+        created_at,
+        'sejarah' as tabel_sumber,
+        id_sejarah::text as id_data,
+        NULL as status_lama,
+        status as status_baru,
+        u.nama as operator_nama,
+        NULL as admin_nama,
+        CONCAT('Roadmap ', tahun, ': ', judul) as catatan
+    FROM sejarah
+    LEFT JOIN users u ON sejarah.id_user = u.id_user
+    WHERE status IN ('pending', 'rejected', 'active')
+";
+$union_parts[] = $sejarah_query;
+
+// Gabungkan semua query dengan UNION ALL
+$base_query = "SELECT * FROM (" . implode(" UNION ALL ", $union_parts) . ") as all_riwayat";
+
+// Apply filters
 $where_clauses = [];
-$params = [];
+$filter_params = [];
 
 if ($filter_tabel) {
     $where_clauses[] = "tabel_sumber = ?";
-    $params[] = $filter_tabel;
+    $filter_params[] = $filter_tabel;
 }
 
 if ($filter_status) {
     $where_clauses[] = "status_baru = ?";
-    $params[] = $filter_status;
+    $filter_params[] = $filter_status;
 }
 
 if ($filter_bulan) {
     $where_clauses[] = "TO_CHAR(created_at, 'YYYY-MM') = ?";
-    $params[] = $filter_bulan;
+    $filter_params[] = $filter_bulan;
 }
 
-$where_sql = $where_clauses ? "WHERE " . implode(" AND ", $where_clauses) : "";
+$where_sql = "";
+if (count($where_clauses) > 0) {
+    $where_sql = " WHERE " . implode(" AND ", $where_clauses);
+}
 
-// Get total records
-$count_query = "SELECT COUNT(*) FROM v_riwayat_pengajuan $where_sql";
+// Count total records
+$count_query = "SELECT COUNT(*) FROM ($base_query $where_sql) as count_table";
 $count_stmt = $pdo->prepare($count_query);
-$count_stmt->execute($params);
+$count_stmt->execute($filter_params);
 $total_records = $count_stmt->fetchColumn();
 $total_pages = ceil($total_records / $limit);
 
-// Query menggunakan VIEW dengan pagination
-$query = "
-    SELECT * FROM v_riwayat_pengajuan
-    $where_sql
-    ORDER BY created_at DESC
-    LIMIT ? OFFSET ?
-";
+// Get paginated data
+$final_query = "$base_query $where_sql ORDER BY created_at DESC LIMIT ? OFFSET ?";
+$all_params = array_merge($filter_params, [$limit, $offset]);
 
-$params[] = $limit;
-$params[] = $offset;
-
-$stmt = $pdo->prepare($query);
-$stmt->execute($params);
+$stmt = $pdo->prepare($final_query);
+$stmt->execute($all_params);
 $riwayat_list = $stmt->fetchAll();
 
+// ========================================
+// GET STATISTICS
+// ========================================
+$stats_pending_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'pending'";
+$stats_pending_stmt = $pdo->prepare($stats_pending_query);
+$stats_pending_stmt->execute();
+$pending = $stats_pending_stmt->fetchColumn();
+
+$stats_approved_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'active'";
+$stats_approved_stmt = $pdo->prepare($stats_approved_query);
+$stats_approved_stmt->execute();
+$approved = $stats_approved_stmt->fetchColumn();
+
+$stats_rejected_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'rejected'";
+$stats_rejected_stmt = $pdo->prepare($stats_rejected_query);
+$stats_rejected_stmt->execute();
+$rejected = $stats_rejected_stmt->fetchColumn();
+
+$stats_deleted_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'deleted'";
+$stats_deleted_stmt = $pdo->prepare($stats_deleted_query);
+$stats_deleted_stmt->execute();
+$deleted = $stats_deleted_stmt->fetchColumn();
+
 // Get available months for filter
-$months_query = $pdo->query("SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month FROM v_riwayat_pengajuan ORDER BY month DESC LIMIT 12");
-$available_months = $months_query->fetchAll(PDO::FETCH_COLUMN);
+$months_query = "SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month FROM ($base_query) as riwayat_data ORDER BY month DESC LIMIT 12";
+$months_stmt = $pdo->prepare($months_query);
+$months_stmt->execute();
+$available_months = $months_stmt->fetchAll(PDO::FETCH_COLUMN);
 
 // Daftar tabel
 $all_tables = [
@@ -75,10 +211,11 @@ $all_tables = [
     'fasilitas' => 'Fasilitas',
     'galeri' => 'Galeri',
     'konten' => 'Konten',
+    'slider' => 'Slider',
     'tentang_kami' => 'Profil Lab',
     'visi' => 'Visi',
     'misi' => 'Misi',
-    'sejarah' => 'Sejarah',
+    'sejarah' => 'Roadmap',
     'kontak' => 'Kontak'
 ];
 
@@ -99,12 +236,7 @@ include "navbar.php";
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Pending Review</div>
-                        <div class="h4 mb-0 font-weight-bold">
-                            <?php 
-                            $pending = $pdo->query("SELECT COUNT(*) FROM v_riwayat_pengajuan WHERE status_baru = 'pending'")->fetchColumn();
-                            echo $pending;
-                            ?>
-                        </div>
+                        <div class="h4 mb-0 font-weight-bold"><?php echo $pending; ?></div>
                     </div>
                     <div class="text-warning">
                         <i class="bi bi-hourglass-split fs-2"></i>
@@ -120,12 +252,7 @@ include "navbar.php";
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Approved</div>
-                        <div class="h4 mb-0 font-weight-bold">
-                            <?php 
-                            $approved = $pdo->query("SELECT COUNT(*) FROM v_riwayat_pengajuan WHERE status_baru = 'active'")->fetchColumn();
-                            echo $approved;
-                            ?>
-                        </div>
+                        <div class="h4 mb-0 font-weight-bold"><?php echo $approved; ?></div>
                     </div>
                     <div class="text-success">
                         <i class="bi bi-check-circle fs-2"></i>
@@ -141,12 +268,7 @@ include "navbar.php";
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Rejected</div>
-                        <div class="h4 mb-0 font-weight-bold">
-                            <?php 
-                            $rejected = $pdo->query("SELECT COUNT(*) FROM v_riwayat_pengajuan WHERE status_baru = 'rejected'")->fetchColumn();
-                            echo $rejected;
-                            ?>
-                        </div>
+                        <div class="h4 mb-0 font-weight-bold"><?php echo $rejected; ?></div>
                     </div>
                     <div class="text-danger">
                         <i class="bi bi-x-circle fs-2"></i>
@@ -162,12 +284,7 @@ include "navbar.php";
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Activity</div>
-                        <div class="h4 mb-0 font-weight-bold">
-                            <?php 
-                            $total = $pdo->query("SELECT COUNT(*) FROM v_riwayat_pengajuan")->fetchColumn();
-                            echo $total;
-                            ?>
-                        </div>
+                        <div class="h4 mb-0 font-weight-bold"><?php echo $total_records; ?></div>
                     </div>
                     <div class="text-primary">
                         <i class="bi bi-list-check fs-2"></i>
@@ -250,7 +367,7 @@ include "navbar.php";
                 <i class="bi bi-file-earmark-text"></i> Daftar Riwayat 
                 <span class="badge bg-primary"><?php echo $total_records; ?> total</span>
             </h5>
-            <small class="text-muted">Halaman <?php echo $page; ?> dari <?php echo $total_pages; ?></small>
+            <small class="text-muted">Halaman <?php echo $page; ?> dari <?php echo max(1, $total_pages); ?></small>
         </div>
     </div>
     <div class="card-body p-0">
@@ -258,7 +375,7 @@ include "navbar.php";
             <table class="table table-hover table-sm mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th>No</th>
+                        <th class="ps-3">No</th>
                         <th>Waktu</th>
                         <th>Tabel</th>
                         <th>ID</th>
@@ -275,7 +392,7 @@ include "navbar.php";
                         foreach ($riwayat_list as $riwayat): 
                         ?>
                         <tr>
-                            <td><?php echo $no++; ?></td>
+                            <td class="ps-3"><?php echo $no++; ?></td>
                             <td>
                                 <small><?php echo date('d M Y', strtotime($riwayat['created_at'])); ?></small><br>
                                 <small class="text-muted"><?php echo date('H:i', strtotime($riwayat['created_at'])); ?></small>
@@ -327,7 +444,13 @@ include "navbar.php";
                             <td colspan="8" class="text-center py-5">
                                 <div class="text-muted">
                                     <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
-                                    <p class="mt-3 mb-0">Belum ada riwayat aktivitas</p>
+                                    <p class="mt-3 mb-0">
+                                        <?php if ($filter_tabel || $filter_status || $filter_bulan): ?>
+                                            Tidak ada riwayat yang sesuai dengan filter
+                                        <?php else: ?>
+                                            Belum ada riwayat aktivitas
+                                        <?php endif; ?>
+                                    </p>
                                 </div>
                             </td>
                         </tr>
@@ -389,6 +512,9 @@ include "navbar.php";
 }
 .table td {
     vertical-align: middle;
+}
+.border-start {
+    border-left-width: 4px !important;
 }
 </style>
 
