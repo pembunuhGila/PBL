@@ -55,29 +55,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (isset($_POST['id_fasilitas']) && !empty($_POST['id_fasilitas'])) {
             $id = $_POST['id_fasilitas'];
             
-            $stmt_check = $pdo->prepare("SELECT id_user, status FROM fasilitas WHERE id_fasilitas = ?");
+            // Cek data yang akan diedit
+            $stmt_check = $pdo->prepare("SELECT id_user, status, gambar FROM fasilitas WHERE id_fasilitas = ?");
             $stmt_check->execute([$id]);
-            $data_owner = $stmt_check->fetch();
+            $existing_data = $stmt_check->fetch();
             
-            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && ($data_owner['status'] == 'pending' || $data_owner['status'] == 'rejected')) {
-                $status_lama = $data_owner['status'];
-                
-                if ($gambar) {
-                    $stmt = $pdo->prepare("UPDATE fasilitas SET judul=?, deskripsi=?, kategori_fasilitas=?, gambar=?, status=? WHERE id_fasilitas=?");
-                    $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $gambar, $status, $id]);
-                } else {
-                    $stmt = $pdo->prepare("UPDATE fasilitas SET judul=?, deskripsi=?, kategori_fasilitas=?, status=? WHERE id_fasilitas=?");
-                    $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $status, $id]);
-                }
-                
-                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_riwayat->execute(['fasilitas', $id, $_SESSION['id_user'], $status_lama, $status, 'Update fasilitas: ' . $judul]);
-                
-                $success = "Fasilitas berhasil diupdate! Menunggu persetujuan admin.";
+            if (!$existing_data) {
+                $error = "Data tidak ditemukan!";
             } else {
-                $error = "Anda hanya bisa edit data pending/rejected milik Anda!";
+                // Jika data milik operator sendiri dan masih pending/rejected, langsung update
+                if ($existing_data['id_user'] == $_SESSION['id_user'] && 
+                    ($existing_data['status'] == 'pending' || $existing_data['status'] == 'rejected')) {
+                    
+                    $status_lama = $existing_data['status'];
+                    
+                    // Jika tidak upload gambar baru, pakai gambar lama
+                    if (!$gambar) {
+                        $gambar = $existing_data['gambar'];
+                    }
+                    
+                    $stmt = $pdo->prepare("UPDATE fasilitas SET judul=?, deskripsi=?, kategori_fasilitas=?, gambar=?, status=?, id_user=? WHERE id_fasilitas=?");
+                    $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $gambar, $status, $_SESSION['id_user'], $id]);
+                    
+                    $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt_riwayat->execute(['fasilitas', $id, $_SESSION['id_user'], $status_lama, $status, 'Update fasilitas: ' . $judul]);
+                    
+                    $success = "Fasilitas berhasil diupdate! Menunggu persetujuan admin.";
+                    
+                } else {
+                    // Jika data sudah active (milik siapapun), buat pengajuan edit baru
+                    // Simpan gambar lama jika tidak upload baru
+                    if (!$gambar) {
+                        $gambar = $existing_data['gambar'];
+                    }
+                    
+                    // Insert data baru dengan status pending
+                    $stmt = $pdo->prepare("INSERT INTO fasilitas (judul, deskripsi, kategori_fasilitas, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $gambar, $status, $_SESSION['id_user']]);
+                    
+                    $new_id = $pdo->lastInsertId();
+                    
+                    $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt_riwayat->execute(['fasilitas', $new_id, $_SESSION['id_user'], null, $status, 'Pengajuan edit fasilitas (dari ID: ' . $id . '): ' . $judul]);
+                    
+                    $success = "Pengajuan edit fasilitas berhasil dibuat! Menunggu persetujuan admin. Data baru akan menggantikan data lama setelah disetujui.";
+                }
             }
         } else {
+            // Tambah baru
             $stmt = $pdo->prepare("INSERT INTO fasilitas (judul, deskripsi, kategori_fasilitas, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $gambar, $status, $_SESSION['id_user']]);
             
@@ -93,21 +118,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
+// Filter untuk menampilkan data
+$filter = $_GET['filter'] ?? 'all';
+
 // Pagination
 $items_per_page = 9;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $items_per_page;
 
-// Get total count
-$count_stmt = $pdo->prepare("SELECT COUNT(*) FROM fasilitas WHERE id_user = ?");
-$count_stmt->execute([$_SESSION['id_user']]);
-$total_items = $count_stmt->fetchColumn();
-$total_pages = ceil($total_items / $items_per_page);
+// Build query berdasarkan filter
+if ($filter == 'my') {
+    // Hanya data milik operator
+    $count_stmt = $pdo->prepare("SELECT COUNT(*) FROM fasilitas WHERE id_user = ?");
+    $count_stmt->execute([$_SESSION['id_user']]);
+    $total_items = $count_stmt->fetchColumn();
+    
+    $stmt = $pdo->prepare("SELECT * FROM fasilitas WHERE id_user = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
+    $stmt->execute([$_SESSION['id_user'], $items_per_page, $offset]);
+} else {
+    // Semua data (all)
+    $count_stmt = $pdo->query("SELECT COUNT(*) FROM fasilitas");
+    $total_items = $count_stmt->fetchColumn();
+    
+    $stmt = $pdo->prepare("SELECT * FROM fasilitas ORDER BY created_at DESC LIMIT ? OFFSET ?");
+    $stmt->execute([$items_per_page, $offset]);
+}
 
-// Get paginated data
-$stmt = $pdo->prepare("SELECT * FROM fasilitas WHERE id_user = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
-$stmt->execute([$_SESSION['id_user'], $items_per_page, $offset]);
 $fasilitas_list = $stmt->fetchAll();
+$total_pages = ceil($total_items / $items_per_page);
 
 include "header.php";
 include "sidebar.php";
@@ -129,8 +167,23 @@ include "navbar.php";
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Semua fasilitas yang Anda tambahkan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> 
+    <strong>Info:</strong> Anda bisa mengedit semua fasilitas. Edit data yang sudah <span class="badge bg-success">Active</span> akan membuat pengajuan baru dengan status <span class="badge bg-warning text-dark">Pending</span>.
 </div>
+
+<!-- Filter Tabs -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link <?php echo $filter == 'all' ? 'active' : ''; ?>" href="?filter=all">
+            <i class="bi bi-list-ul"></i> Semua Fasilitas
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link <?php echo $filter == 'my' ? 'active' : ''; ?>" href="?filter=my">
+            <i class="bi bi-person-circle"></i> Data Saya
+        </a>
+    </li>
+</ul>
 
 <div class="row">
     <?php if (count($fasilitas_list) > 0): ?>
@@ -140,30 +193,39 @@ include "navbar.php";
                 <?php if ($fas['gambar']): ?>
                     <img src="../../uploads/fasilitas/<?php echo $fas['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover;">
                 <?php else: ?>
-                    <div class="bg-secondary" style="height: 200px;"></div>
+                    <div class="bg-secondary d-flex align-items-center justify-content-center text-white" style="height: 200px;">
+                        <i class="bi bi-image" style="font-size: 3rem;"></i>
+                    </div>
                 <?php endif; ?>
                 <div class="card-body">
-                    <span class="badge bg-info mb-2"><?php echo htmlspecialchars($fas['kategori_fasilitas'] ?? 'Umum'); ?></span>
-                    <?php if ($fas['status'] == 'pending'): ?>
-                        <span class="badge bg-warning mb-2">Pending</span>
-                    <?php elseif ($fas['status'] == 'active'): ?>
-                        <span class="badge bg-success mb-2">Approved</span>
-                    <?php else: ?>
-                        <span class="badge bg-danger mb-2">Rejected</span>
-                    <?php endif; ?>
+                    <div class="mb-2">
+                        <span class="badge bg-info"><?php echo htmlspecialchars($fas['kategori_fasilitas'] ?? 'Umum'); ?></span>
+                        <?php if ($fas['status'] == 'pending'): ?>
+                            <span class="badge bg-warning">Pending</span>
+                        <?php elseif ($fas['status'] == 'active'): ?>
+                            <span class="badge bg-success">Active</span>
+                        <?php else: ?>
+                            <span class="badge bg-danger">Rejected</span>
+                        <?php endif; ?>
+                        
+                        <?php if ($fas['id_user'] == $_SESSION['id_user']): ?>
+                            <span class="badge bg-secondary">
+                                <i class="bi bi-person"></i> Milik Saya
+                            </span>
+                        <?php endif; ?>
+                    </div>
                     <h5 class="card-title"><?php echo htmlspecialchars($fas['judul']); ?></h5>
-                    <p class="card-text text-muted"><?php echo htmlspecialchars(substr($fas['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($fas['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
+                    <p class="card-text text-muted small"><?php echo htmlspecialchars(substr($fas['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($fas['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
                 </div>
                 <div class="card-footer bg-white">
-                    <?php if ($fas['status'] == 'pending' || $fas['status'] == 'rejected'): ?>
-                        <button class="btn btn-sm btn-warning" onclick='editFasilitas(<?php echo json_encode($fas); ?>)'>
-                            <i class="bi bi-pencil"></i> Edit
-                        </button>
-                        <a href="?delete=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                    <button class="btn btn-sm btn-warning" onclick='editFasilitas(<?php echo json_encode($fas); ?>)'>
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    
+                    <?php if ($fas['id_user'] == $_SESSION['id_user'] && $fas['status'] == 'pending'): ?>
+                        <a href="?delete=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>&filter=<?php echo $filter; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
                             <i class="bi bi-trash"></i> Hapus
                         </a>
-                    <?php else: ?>
-                        <span class="text-muted small">Sudah disetujui</span>
                     <?php endif; ?>
                 </div>
             </div>
@@ -183,17 +245,17 @@ include "navbar.php";
 <nav aria-label="Page navigation">
     <ul class="pagination justify-content-center">
         <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
-            <a class="page-link" href="?page=<?php echo $page - 1; ?>">Previous</a>
+            <a class="page-link" href="?page=<?php echo $page - 1; ?>&filter=<?php echo $filter; ?>">Previous</a>
         </li>
         
         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
             <li class="page-item <?php echo $page == $i ? 'active' : ''; ?>">
-                <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                <a class="page-link" href="?page=<?php echo $i; ?>&filter=<?php echo $filter; ?>"><?php echo $i; ?></a>
             </li>
         <?php endfor; ?>
         
         <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
-            <a class="page-link" href="?page=<?php echo $page + 1; ?>">Next</a>
+            <a class="page-link" href="?page=<?php echo $page + 1; ?>&filter=<?php echo $filter; ?>">Next</a>
         </li>
     </ul>
 </nav>
@@ -211,7 +273,11 @@ include "navbar.php";
                 <div class="modal-body">
                     <input type="hidden" name="id_fasilitas" id="id_fasilitas">
                     
-                    <div class="alert alert-warning">
+                    <div class="alert alert-warning" id="alertEdit" style="display: none;">
+                        <i class="bi bi-info-circle"></i> Anda mengedit fasilitas yang sudah <strong>Active</strong>. Perubahan akan membuat pengajuan baru dan menunggu approval admin.
+                    </div>
+                    
+                    <div class="alert alert-info" id="alertNew">
                         <i class="bi bi-info-circle"></i> Data akan berstatus <strong>Pending</strong> dan menunggu persetujuan admin
                     </div>
                     
@@ -222,7 +288,11 @@ include "navbar.php";
                     
                     <div class="mb-3">
                         <label class="form-label">Gambar</label>
-                        <input type="file" class="form-control" name="gambar" accept="image/*">
+                        <div id="currentImage" style="display: none;" class="mb-2">
+                            <img id="previewImage" src="" class="img-thumbnail" style="max-height: 150px;">
+                            <small class="d-block text-muted">Gambar saat ini</small>
+                        </div>
+                        <input type="file" class="form-control" name="gambar" id="inputGambar" accept="image/*">
                         <small class="text-muted">Kosongkan jika tidak ingin mengubah gambar</small>
                     </div>
                     
@@ -243,7 +313,9 @@ include "navbar.php";
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan & Ajukan</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Simpan & Ajukan
+                    </button>
                 </div>
             </form>
         </div>
@@ -255,6 +327,9 @@ function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Fasilitas';
     document.querySelector('form').reset();
     document.getElementById('id_fasilitas').value = '';
+    document.getElementById('alertEdit').style.display = 'none';
+    document.getElementById('alertNew').style.display = 'block';
+    document.getElementById('currentImage').style.display = 'none';
 }
 
 function editFasilitas(data) {
@@ -263,6 +338,24 @@ function editFasilitas(data) {
     document.getElementById('judul').value = data.judul;
     document.getElementById('kategori_fasilitas').value = data.kategori_fasilitas || '';
     document.getElementById('deskripsi').value = data.deskripsi || '';
+    
+    // Show current image if exists
+    if (data.gambar) {
+        document.getElementById('currentImage').style.display = 'block';
+        document.getElementById('previewImage').src = '../../uploads/fasilitas/' + data.gambar;
+    } else {
+        document.getElementById('currentImage').style.display = 'none';
+    }
+    
+    // Show appropriate alert
+    if (data.status === 'active') {
+        document.getElementById('alertEdit').style.display = 'block';
+        document.getElementById('alertNew').style.display = 'none';
+    } else {
+        document.getElementById('alertEdit').style.display = 'none';
+        document.getElementById('alertNew').style.display = 'block';
+    }
+    
     new bootstrap.Modal(document.getElementById('fasilitasModal')).show();
 }
 </script>

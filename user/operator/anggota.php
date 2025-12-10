@@ -11,40 +11,29 @@ include "../../conn.php";
 $page_title = "Anggota Lab";
 $current_page = "anggota.php";
 
-// Pagination settings
-$items_per_page = 10;
-$current_page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($current_page_num - 1) * $items_per_page;
+// Pagination setup
+$limit = 10;
+$page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page_num - 1) * $limit;
 
-// Handle Delete - operator hanya bisa hapus data miliknya
+// Handle Delete - HANYA BISA HAPUS PENDING MILIK SENDIRI
 if (isset($_GET['delete'])) {
-    $id = $_GET['delete'];
     try {
-        $stmt_check = $pdo->prepare("SELECT id_user, foto FROM anggota_lab WHERE id_anggota = ?");
-        $stmt_check->execute([$id]);
-        $data_owner = $stmt_check->fetch();
+        $stmt_check = $pdo->prepare("SELECT id_user, status, nama FROM anggota_lab WHERE id_anggota = ?");
+        $stmt_check->execute([$_GET['delete']]);
+        $old_data = $stmt_check->fetch();
         
-        if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user']) {
-            $stmt_old = $pdo->prepare("SELECT nama, status FROM anggota_lab WHERE id_anggota = ?");
-            $stmt_old->execute([$id]);
-            $old_data = $stmt_old->fetch();
-            
+        if ($old_data && $old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
             $stmt = $pdo->prepare("DELETE FROM anggota_lab WHERE id_anggota = ?");
-            $stmt->execute([$id]);
-            
-            if ($data_owner['foto']) {
-                $foto_path = "../../uploads/anggota/" . $data_owner['foto'];
-                if (file_exists($foto_path)) {
-                    unlink($foto_path);
-                }
-            }
+            $stmt->execute([$_GET['delete']]);
             
             $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['anggota_lab', $id, $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus anggota: ' . $old_data['nama']]);
+            $stmt_riwayat->execute(['anggota_lab', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus anggota: ' . $old_data['nama']]);
             
-            $success = "Anggota berhasil dihapus!";
+            header("Location: anggota.php?success=deleted&page=" . $page_num);
+            exit;
         } else {
-            $error = "Anda tidak memiliki akses untuk menghapus data ini!";
+            $error = "Anda hanya bisa menghapus data pending milik Anda!";
         }
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
@@ -52,17 +41,19 @@ if (isset($_GET['delete'])) {
 }
 
 // Handle Add/Edit
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
     $nama = $_POST['nama'];
-    $nip = $_POST['nip'];
+    $role_anggota = $_POST['role_anggota']; // dosen atau mahasiswa
+    $nip_nim = $_POST['nip_nim'];
     $email = $_POST['email'];
     $kontak = $_POST['kontak'];
     $biodata_teks = $_POST['biodata_teks'];
-    $tanggal_bergabung = $_POST['tanggal_bergabung'];
+    $linkedin = $_POST['linkedin'] ?? '';
+    $shinta = $_POST['shinta'] ?? '';
     
     // Process pendidikan array
     $pendidikan_array = [];
-    if (isset($_POST['pendidikan_jenjang']) && is_array($_POST['pendidikan_jenjang'])) {
+    if ($role_anggota == 'dosen' && isset($_POST['pendidikan_jenjang']) && is_array($_POST['pendidikan_jenjang'])) {
         foreach ($_POST['pendidikan_jenjang'] as $index => $jenjang) {
             if (!empty($jenjang) && !empty($_POST['pendidikan_institusi'][$index])) {
                 $pendidikan_array[] = [
@@ -76,28 +67,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     $pendidikan = json_encode($pendidikan_array);
     
-    // Process bidang keahlian array (mata kuliah)
-    $bidang_keahlian_array = [];
-    if (isset($_POST['matakuliah_nama']) && is_array($_POST['matakuliah_nama'])) {
+    // Process mata kuliah array
+    $matakuliah_array = [];
+    if ($role_anggota == 'dosen' && isset($_POST['matakuliah_nama']) && is_array($_POST['matakuliah_nama'])) {
         foreach ($_POST['matakuliah_nama'] as $index => $nama_mk) {
             if (!empty($nama_mk)) {
-                $bidang_keahlian_array[] = [
-                    'nama' => $nama_mk
-                ];
+                $matakuliah_array[] = ['nama' => $nama_mk];
             }
         }
     }
-    $bidang_keahlian = json_encode($bidang_keahlian_array);
+    $bidang_keahlian = json_encode($matakuliah_array);
     
-    // AUTO PENDING untuk operator
-    $status = 'pending';
+    $tanggal_bergabung = $_POST['tanggal_bergabung'];
+    $status = 'pending'; // SELALU PENDING UNTUK OPERATOR
     
     $foto = null;
     if (isset($_FILES['foto']) && $_FILES['foto']['error'] == 0) {
         $target_dir = "../../uploads/anggota/";
-        if (!file_exists($target_dir)) {
-            mkdir($target_dir, 0777, true);
-        }
+        if (!file_exists($target_dir)) mkdir($target_dir, 0777, true);
+        
         $file_extension = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
         $foto = 'anggota_' . time() . '.' . $file_extension;
         move_uploaded_file($_FILES['foto']['tmp_name'], $target_dir . $foto);
@@ -107,73 +95,79 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (isset($_POST['id_anggota']) && !empty($_POST['id_anggota'])) {
             $id = $_POST['id_anggota'];
             
-            // Cek kepemilikan data
-            $stmt_check = $pdo->prepare("SELECT id_user, status, foto FROM anggota_lab WHERE id_anggota = ?");
+            // CEK APAKAH DATA ADA (operator bisa edit semua)
+            $stmt_check = $pdo->prepare("SELECT id_user, status FROM anggota_lab WHERE id_anggota = ?");
             $stmt_check->execute([$id]);
             $data_owner = $stmt_check->fetch();
             
-            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user']) {
+            if ($data_owner) {
                 $status_lama = $data_owner['status'];
-                $old_foto = $data_owner['foto'];
                 
+                // OPERATOR BISA EDIT SEMUA - UPDATE LANGSUNG
                 if ($foto) {
-                    if ($old_foto) {
-                        $old_foto_path = "../../uploads/anggota/" . $old_foto;
-                        if (file_exists($old_foto_path)) {
-                            unlink($old_foto_path);
-                        }
-                    }
-                    
-                    $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, foto=?, status=? WHERE id_anggota=?");
-                    $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $id]);
+                    $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, foto=?, status=?, id_user=? WHERE id_anggota=?");
+                    $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user'], $id]);
                 } else {
-                    $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, status=? WHERE id_anggota=?");
-                    $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $status, $id]);
+                    $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, status=?, id_user=? WHERE id_anggota=?");
+                    $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $status, $_SESSION['id_user'], $id]);
                 }
                 
-                if ($status_lama != $status) {
-                    $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt_riwayat->execute(['anggota_lab', $id, $_SESSION['id_user'], $status_lama, $status, 'Update anggota: ' . $nama]);
+                // Handle social media (LinkedIn & SHINTA)
+                $stmt_del = $pdo->prepare("DELETE FROM social_media_anggota WHERE id_anggota = ? AND platform IN ('linkedin', 'scholar')");
+                $stmt_del->execute([$id]);
+                
+                if (!empty($linkedin)) {
+                    $stmt_sm = $pdo->prepare("INSERT INTO social_media_anggota (id_anggota, platform, url) VALUES (?, 'linkedin', ?)");
+                    $stmt_sm->execute([$id, $linkedin]);
+                }
+                if (!empty($shinta)) {
+                    $stmt_sm = $pdo->prepare("INSERT INTO social_media_anggota (id_anggota, platform, url) VALUES (?, 'scholar', ?)");
+                    $stmt_sm->execute([$id, $shinta]);
                 }
                 
-                $success = "Anggota berhasil diupdate! Menunggu persetujuan admin.";
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['anggota_lab', $id, $_SESSION['id_user'], $status_lama, $status, 'Update anggota: ' . $nama]);
+                
+                header("Location: anggota.php?success=updated&page=" . $page_num);
+                exit;
             } else {
-                $error = "Anda tidak memiliki akses untuk mengubah data ini!";
+                $error = "Data tidak ditemukan!";
             }
         } else {
+            // INSERT BARU
             $stmt = $pdo->prepare("INSERT INTO anggota_lab (nama, nip, email, kontak, biodata_teks, pendidikan, bidang_keahlian, tanggal_bergabung, foto, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$nama, $nip, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user']]);
+            $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
+            
+            // Insert social media
+            if (!empty($linkedin)) {
+                $stmt_sm = $pdo->prepare("INSERT INTO social_media_anggota (id_anggota, platform, url) VALUES (?, 'linkedin', ?)");
+                $stmt_sm->execute([$new_id, $linkedin]);
+            }
+            if (!empty($shinta)) {
+                $stmt_sm = $pdo->prepare("INSERT INTO social_media_anggota (id_anggota, platform, url) VALUES (?, 'scholar', ?)");
+                $stmt_sm->execute([$new_id, $shinta]);
+            }
             
             $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_riwayat->execute(['anggota_lab', $new_id, $_SESSION['id_user'], null, $status, 'Tambah anggota: ' . $nama]);
             
-            $success = "Anggota berhasil ditambahkan! Menunggu persetujuan admin.";
+            header("Location: anggota.php?success=added");
+            exit;
         }
     } catch (PDOException $e) {
         $error = "Gagal menyimpan: " . $e->getMessage();
     }
 }
 
-// Get total count - operator hanya lihat data miliknya sendiri
-$count_stmt = $pdo->prepare("SELECT COUNT(*) FROM anggota_lab WHERE id_user = ?");
-$count_stmt->execute([$_SESSION['id_user']]);
-$total_items = $count_stmt->fetchColumn();
-$total_pages = ceil($total_items / $items_per_page);
-
-// Operator hanya bisa lihat data miliknya sendiri
-$stmt = $pdo->prepare("SELECT * FROM anggota_lab WHERE id_user = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
-$stmt->execute([$_SESSION['id_user'], $items_per_page, $offset]);
-$anggota_list = $stmt->fetchAll();
-
-// HAPUS 2 query yang duplikat dan ganti dengan ini (setelah Handle Add/Edit):
-
+// Search & Filter
 $search = $_GET['search'] ?? '';
 $status_filter = $_GET['status_filter'] ?? '';
 
-$where_clauses = ["id_user = ?"];
-$params = [$_SESSION['id_user']];
+// TAMPILKAN SEMUA DATA (bukan hanya milik sendiri)
+$where_clauses = [];
+$params = [];
 
 if ($search) {
     $where_clauses[] = "(nama ILIKE ? OR nip ILIKE ? OR email ILIKE ?)";
@@ -188,18 +182,18 @@ if ($status_filter) {
     $params[] = $status_filter;
 }
 
-$where_sql = "WHERE " . implode(" AND ", $where_clauses);
+$where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-// Get total count with filters
+// Get total count
 $count_query = "SELECT COUNT(*) FROM anggota_lab $where_sql";
 $count_stmt = $pdo->prepare($count_query);
 $count_stmt->execute($params);
 $total_items = $count_stmt->fetchColumn();
-$total_pages = ceil($total_items / $items_per_page);
+$total_pages = ceil($total_items / $limit);
 
-// Get data with pagination and filters
-$query = "SELECT * FROM anggota_lab $where_sql ORDER BY created_at DESC LIMIT ? OFFSET ?";
-$params_with_limit = array_merge($params, [$items_per_page, $offset]);
+// Get data with pagination
+$query = "SELECT a.*, u.nama as nama_pembuat FROM anggota_lab a LEFT JOIN users u ON a.id_user = u.id_user $where_sql ORDER BY a.created_at DESC LIMIT ? OFFSET ?";
+$params_with_limit = array_merge($params, [$limit, $offset]);
 $stmt = $pdo->prepare($query);
 $stmt->execute($params_with_limit);
 $anggota_list = $stmt->fetchAll();
@@ -216,31 +210,32 @@ include "navbar.php";
     </button>
 </div>
 
-<?php if (isset($success)): ?>
+<?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success alert-dismissible fade show">
-        <?php echo $success; ?>
+        <?php 
+        if ($_GET['success'] == 'added') echo "Anggota berhasil ditambahkan! Menunggu persetujuan admin.";
+        if ($_GET['success'] == 'updated') echo "Anggota berhasil diupdate! Menunggu persetujuan admin.";
+        if ($_GET['success'] == 'deleted') echo "Anggota berhasil dihapus!";
+        ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
 
 <?php if (isset($error)): ?>
-    <div class="alert alert-danger alert-dismissible fade show">
-        <?php echo $error; ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+    <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> <strong>Info:</strong> Semua data yang Anda tambahkan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua anggota. Setiap perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
 </div>
 
-<!-- Search & Filter Card -->
+<!-- Search -->
 <div class="card shadow mb-4">
     <div class="card-body">
         <form method="GET" class="row g-3">
             <div class="col-md-8">
                 <label class="form-label"><i class="bi bi-search"></i> Cari Anggota</label>
-                <input type="text" class="form-control" name="search" placeholder="Cari berdasarkan nama, NIP, atau email..." value="<?php echo htmlspecialchars($search); ?>">
+                <input type="text" class="form-control" name="search" placeholder="Cari berdasarkan nama, NIP/NIM, atau email..." value="<?php echo htmlspecialchars($search); ?>">
             </div>
             <div class="col-md-2">
                 <label class="form-label"><i class="bi bi-flag"></i> Status</label>
@@ -285,7 +280,7 @@ include "navbar.php";
                 <span class="badge bg-info">Filtered</span>
             <?php endif; ?>
         </h6>
-        <span class="text-muted">Halaman <?php echo $current_page_num; ?> dari <?php echo max(1, $total_pages); ?></span>
+        <span class="text-muted">Halaman <?php echo $page_num; ?> dari <?php echo max(1, $total_pages); ?></span>
     </div>
     <div class="card-body">
         <div class="table-responsive">
@@ -295,23 +290,28 @@ include "navbar.php";
                         <th>No</th>
                         <th>Foto</th>
                         <th>Nama</th>
-                        <th>NIP</th>
+                        <th>NIP/NIM</th>
                         <th>Email</th>
                         <th>Status</th>
+                        <th>Pembuat</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php 
                     if (count($anggota_list) > 0) {
-                        $no = $offset + 1;
+                        $no = $offset + 1; 
                         foreach ($anggota_list as $anggota): 
+                            // Get social media
+                            $stmt_sm = $pdo->prepare("SELECT platform, url FROM social_media_anggota WHERE id_anggota = ?");
+                            $stmt_sm->execute([$anggota['id_anggota']]);
+                            $social_media = $stmt_sm->fetchAll(PDO::FETCH_KEY_PAIR);
                     ?>
                     <tr>
                         <td><?php echo $no++; ?></td>
                         <td>
                             <?php if ($anggota['foto']): ?>
-                                <img src="../../uploads/anggota/<?php echo $anggota['foto']; ?>" width="50" height="50" class="rounded-circle">
+                                <img src="../../uploads/anggota/<?php echo $anggota['foto']; ?>" width="50" height="50" class="rounded-circle" style="object-fit: cover;">
                             <?php else: ?>
                                 <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($anggota['nama']); ?>" width="50" height="50" class="rounded-circle">
                             <?php endif; ?>
@@ -329,15 +329,22 @@ include "navbar.php";
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if ($anggota['status'] == 'pending' || $anggota['status'] == 'rejected'): ?>
-                                <button class="btn btn-sm btn-warning" onclick='editAnggota(<?php echo htmlspecialchars(json_encode($anggota), ENT_QUOTES, 'UTF-8'); ?>)'>
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <a href="?delete=<?php echo $anggota['id_anggota']; ?>&page=<?php echo $current_page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                            <?php if ($anggota['id_user'] == $_SESSION['id_user']): ?>
+                                <span class="badge bg-secondary">Anda</span>
+                            <?php else: ?>
+                                <small><?php echo htmlspecialchars($anggota['nama_pembuat'] ?? 'Unknown'); ?></small>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <!-- OPERATOR BISA EDIT SEMUA -->
+                            <button class="btn btn-sm btn-warning" onclick='editAnggota(<?php echo htmlspecialchars(json_encode(array_merge($anggota, ['social_media' => $social_media])), ENT_QUOTES, 'UTF-8'); ?>)'>
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            
+                            <?php if ($anggota['id_user'] == $_SESSION['id_user'] && $anggota['status'] == 'pending'): ?>
+                                <a href="?delete=<?php echo $anggota['id_anggota']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
                                     <i class="bi bi-trash"></i>
                                 </a>
-                            <?php else: ?>
-                                <span class="text-muted small">Sudah disetujui</span>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -346,13 +353,13 @@ include "navbar.php";
                     } else {
                     ?>
                     <tr>
-                        <td colspan="7" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
                             <p class="mt-3 text-muted">
                                 <?php if ($search || $status_filter): ?>
                                     Tidak ada anggota yang sesuai dengan pencarian
                                 <?php else: ?>
-                                    Belum ada anggota. Klik tombol "Tambah Anggota" untuk memulai.
+                                    Belum ada anggota
                                 <?php endif; ?>
                             </p>
                         </td>
@@ -367,15 +374,15 @@ include "navbar.php";
     <div class="card-footer bg-white">
         <nav aria-label="Page navigation">
             <ul class="pagination justify-content-center mb-0">
-                <li class="page-item <?php echo $current_page_num <= 1 ? 'disabled' : ''; ?>">
-                    <a class="page-link" href="?page=<?php echo $current_page_num - 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $status_filter ? '&status_filter=' . urlencode($status_filter) : ''; ?>">
+                <li class="page-item <?php echo $page_num <= 1 ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page_num - 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $status_filter ? '&status_filter=' . urlencode($status_filter) : ''; ?>">
                         <i class="bi bi-chevron-left"></i> Previous
                     </a>
                 </li>
                 
                 <?php
-                $start_page = max(1, $current_page_num - 2);
-                $end_page = min($total_pages, $current_page_num + 2);
+                $start_page = max(1, $page_num - 2);
+                $end_page = min($total_pages, $page_num + 2);
                 
                 if ($start_page > 1) {
                     echo '<li class="page-item"><a class="page-link" href="?page=1' . ($search ? '&search=' . urlencode($search) : '') . ($status_filter ? '&status_filter=' . urlencode($status_filter) : '') . '">1</a></li>';
@@ -385,7 +392,7 @@ include "navbar.php";
                 }
                 
                 for ($i = $start_page; $i <= $end_page; $i++) {
-                    $active = $i == $current_page_num ? 'active' : '';
+                    $active = $i == $page_num ? 'active' : '';
                     echo "<li class='page-item $active'><a class='page-link' href='?page=$i" . ($search ? '&search=' . urlencode($search) : '') . ($status_filter ? '&status_filter=' . urlencode($status_filter) : '') . "'>$i</a></li>";
                 }
                 
@@ -397,8 +404,8 @@ include "navbar.php";
                 }
                 ?>
                 
-                <li class="page-item <?php echo $current_page_num >= $total_pages ? 'disabled' : ''; ?>">
-                    <a class="page-link" href="?page=<?php echo $current_page_num + 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $status_filter ? '&status_filter=' . urlencode($status_filter) : ''; ?>">
+                <li class="page-item <?php echo $page_num >= $total_pages ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page_num + 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $status_filter ? '&status_filter=' . urlencode($status_filter) : ''; ?>">
                         Next <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
@@ -408,7 +415,7 @@ include "navbar.php";
     <?php endif; ?>
 </div>
 
-<!-- Modal Form (sama seperti sebelumnya dengan form lengkap) -->
+<!-- Modal Form -->
 <div class="modal fade" id="anggotaModal" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -430,12 +437,20 @@ include "navbar.php";
                             <input type="text" class="form-control" name="nama" id="nama" required>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">NIP</label>
-                            <input type="text" class="form-control" name="nip" id="nip">
+                            <label class="form-label">Role *</label>
+                            <select class="form-select" name="role_anggota" id="role_anggota" required onchange="toggleRoleFields()">
+                                <option value="">-- Pilih Role --</option>
+                                <option value="dosen">Dosen</option>
+                                <option value="mahasiswa">Mahasiswa</option>
+                            </select>
                         </div>
                     </div>
                     
                     <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">NIP/NIM *</label>
+                            <input type="text" class="form-control" name="nip_nim" id="nip_nim" required>
+                        </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Email</label>
                             <input type="email" class="form-control" name="email" id="email">
@@ -444,19 +459,27 @@ include "navbar.php";
                             <label class="form-label">Kontak</label>
                             <input type="text" class="form-control" name="kontak" id="kontak">
                         </div>
+                    </div>
+                    
+                    <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Tanggal Bergabung</label>
                             <input type="date" class="form-control" name="tanggal_bergabung" id="tanggal_bergabung">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">LinkedIn</label>
+                            <input type="url" class="form-control" name="linkedin" id="linkedin" placeholder="https://linkedin.com/in/...">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">SHINTA / Google Scholar</label>
+                            <input type="url" class="form-control" name="shinta" id="shinta" placeholder="https://scholar.google.com/...">
                         </div>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Foto</label>
-                        <div id="currentFotoPreview" style="display: none;" class="mb-2">
-                            <img id="currentFotoImg" src="" width="100" height="100" class="rounded-circle">
-                            <p class="small text-muted mb-0">Foto saat ini (pilih file baru untuk menggantinya)</p>
-                        </div>
-                        <input type="file" class="form-control" name="foto" accept="image/*">
+                        <input type="file" class="form-control" name="foto" id="foto_input" accept="image/*">
+                        <div id="currentFotoPreview"></div>
                     </div>
                     
                     <div class="mb-3">
@@ -464,31 +487,31 @@ include "navbar.php";
                         <textarea class="form-control" name="biodata_teks" id="biodata_teks" rows="3"></textarea>
                     </div>
                     
-                    <hr class="my-4">
-                    <h6 class="mb-3">Riwayat Pendidikan</h6>
-                    
-                    <div id="pendidikanContainer">
-                        <!-- Will be filled by JS -->
-                    </div>
-                    
-                    <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addPendidikan()">
-                        <i class="bi bi-plus-circle"></i> Tambah Pendidikan
-                    </button>
-                    
-                    <hr class="my-4">
-                    <h6 class="mb-3">Mata Kuliah yang Diampu</h6>
+                    <div id="dosenSection" style="display: none;">
+                        <hr class="my-4">
+                        <h6 class="mb-3">Riwayat Pendidikan</h6>
+                        
+                        <div id="pendidikanContainer"></div>
+                        
+                        <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addPendidikan()">
+                            <i class="bi bi-plus-circle"></i> Tambah Pendidikan
+                        </button>
+                        
+                        <hr class="my-4">
+                        <h6 class="mb-3">Mata Kuliah yang Diampu</h6>
 
-                    <div id="matakuliahContainer">
-                        <!-- Will be filled by JS -->
+                        <div id="matakuliahContainer"></div>
+                        
+                        <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addMatakuliah()">
+                            <i class="bi bi-plus-circle"></i> Tambah Mata Kuliah
+                        </button>
                     </div>
-
-                    <button type="button" class="btn btn-sm btn-outline-primary mb-3" onclick="addMatakuliah()">
-                        <i class="bi bi-plus-circle"></i> Tambah Mata Kuliah
-                    </button>                    
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan & Ajukan</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send"></i> Simpan & Ajukan
+                    </button>
                 </div>
             </form>
         </div>
@@ -496,154 +519,15 @@ include "navbar.php";
 </div>
 
 <script>
-// JavaScript functions dari file asli
-function addPendidikan() {
-    const container = document.getElementById('pendidikanContainer');
-    const newItem = document.createElement('div');
-    newItem.className = 'pendidikan-item border rounded p-3 mb-3 bg-light';
-    newItem.innerHTML = `
-        <div class="row">
-            <div class="col-md-3 mb-2">
-                <label class="form-label small">Jenjang *</label>
-                <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
-                    <option value="">Pilih Jenjang</option>
-                    <option value="D3">D3</option>
-                    <option value="D4">D4</option>
-                    <option value="S1">S1</option>
-                    <option value="S2">S2</option>
-                    <option value="S3">S3</option>
-                    <option value="Profesi">Profesi</option>
-                </select>
-            </div>
-            <div class="col-md-4 mb-2">
-                <label class="form-label small">Institusi *</label>
-                <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
-            </div>
-            <div class="col-md-3 mb-2">
-                <label class="form-label small">Jurusan</label>
-                <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika...">
-            </div>
-            <div class="col-md-2 mb-2">
-                <label class="form-label small">Tahun</label>
-                <div class="d-flex gap-1">
-                    <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020">
-                    <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    container.appendChild(newItem);
-    updateDeleteButtons('pendidikan');
-}
-
-function removePendidikan(button) {
-    button.closest('.pendidikan-item').remove();
-    updateDeleteButtons('pendidikan');
-}
-
-function addMatakuliah() {
-    const container = document.getElementById('matakuliahContainer');
-    const newItem = document.createElement('div');
-    newItem.className = 'matakuliah-item border rounded p-3 mb-3 bg-light';
-    newItem.innerHTML = `
-        <div class="row align-items-end">
-            <div class="col-auto mb-2">
-                <label class="form-label small d-block">&nbsp;</label>
-                <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </div>
-            <div class="col mb-2">
-                <label class="form-label small">Nama Mata Kuliah *</label>
-                <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
-            </div>
-        </div>
-    `;
-    container.appendChild(newItem);
-    updateDeleteButtons('matakuliah');
-}
-
-function removeMatakuliah(button) {
-    button.closest('.matakuliah-item').remove();
-    updateDeleteButtons('matakuliah');
-}
-
-function updateDeleteButtons(type) {
-    const items = document.querySelectorAll(`.${type}-item`);
-    items.forEach((item, index) => {
-        const deleteBtn = item.querySelector('.btn-danger');
-        if (items.length > 1) {
-            deleteBtn.style.display = 'block';
-        } else {
-            deleteBtn.style.display = 'none';
-        }
-    });
-}
-
-function resetForm() {
-    document.getElementById('modalTitle').textContent = 'Tambah Anggota Lab';
-    document.querySelector('form').reset();
-    document.getElementById('id_anggota').value = '';
-    document.getElementById('currentFotoPreview').style.display = 'none';
+function toggleRoleFields() {
+    const roleAnggota = document.getElementById('role_anggota').value;
+    const dosenSection = document.getElementById('dosenSection');
     
-    // Reset pendidikan
-    const pendidikanContainer = document.getElementById('pendidikanContainer');
-    pendidikanContainer.innerHTML = `
-        <div class="pendidikan-item border rounded p-3 mb-3 bg-light">
-            <div class="row">
-                <div class="col-md-3 mb-2">
-                    <label class="form-label small">Jenjang *</label>
-                    <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
-                        <option value="">Pilih Jenjang</option>
-                        <option value="D3">D3</option>
-                        <option value="D4">D4</option>
-                        <option value="S1">S1</option>
-                        <option value="S2">S2</option>
-                        <option value="S3">S3</option>
-                        <option value="Profesi">Profesi</option>
-                    </select>
-                </div>
-                <div class="col-md-4 mb-2">
-                    <label class="form-label small">Institusi *</label>
-                    <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
-                </div>
-                <div class="col-md-3 mb-2">
-                    <label class="form-label small">Jurusan</label>
-                    <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika...">
-                </div>
-                <div class="col-md-2 mb-2">
-                    <label class="form-label small">Tahun</label>
-                    <div class="d-flex gap-1">
-                        <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020">
-                        <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)" style="display: none;">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Reset mata kuliah
-    const matakuliahContainer = document.getElementById('matakuliahContainer');
-    matakuliahContainer.innerHTML = `
-        <div class="matakuliah-item border rounded p-3 mb-3 bg-light">
-            <div class="row align-items-end">
-                <div class="col-auto mb-2">
-                    <label class="form-label small d-block">&nbsp;</label>
-                    <button type="button" class="btn btn-sm btn-danger" onclick="removeMatakuliah(this)" style="display: none;">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-                <div class="col mb-2">
-                    <label class="form-label small">Nama Mata Kuliah *</label>
-                    <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
-                </div>
-            </div>
-        </div>
-    `;
+    if (roleAnggota === 'dosen') {
+        dosenSection.style.display = 'block';
+    } else {
+        dosenSection.style.display = 'none';
+    }
 }
 
 function addPendidikan() {
@@ -737,10 +621,7 @@ function resetForm() {
     document.getElementById('id_anggota').value = '';
     
     // Remove foto preview if exists
-    const existingPreview = document.getElementById('currentFotoPreview');
-    if (existingPreview) {
-        existingPreview.remove();
-    }
+    document.getElementById('currentFotoPreview').innerHTML = '';
     
     // Reset pendidikan - add one default item
     const pendidikanContainer = document.getElementById('pendidikanContainer');
@@ -751,34 +632,49 @@ function resetForm() {
     const matakuliahContainer = document.getElementById('matakuliahContainer');
     matakuliahContainer.innerHTML = '';
     addMatakuliah();
+    
+    // Hide dosen section
+    document.getElementById('dosenSection').style.display = 'none';
 }
 
 function editAnggota(data) {
     document.getElementById('modalTitle').textContent = 'Edit Anggota Lab';
     document.getElementById('id_anggota').value = data.id_anggota;
     document.getElementById('nama').value = data.nama;
-    document.getElementById('nip').value = data.nip || '';  // ← Field di operator memang 'nip' bukan 'nip_nim'
+    document.getElementById('nip_nim').value = data.nip || ''; // ✅ FIX: nip_nim bukan nip
     document.getElementById('email').value = data.email || '';
     document.getElementById('kontak').value = data.kontak || '';
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
     
-    // Show current photo preview if exists
-    const existingPreview = document.getElementById('currentFotoPreview');
-    if (existingPreview) {
-        existingPreview.remove();
+    // Handle role anggota - auto detect from data
+    const roleAnggota = data.nip && data.nip.length >= 15 ? 'dosen' : 'mahasiswa';
+    document.getElementById('role_anggota').value = roleAnggota;
+    
+    // Show/hide dosen fields
+    if (roleAnggota === 'dosen') {
+        document.getElementById('dosenSection').style.display = 'block';
+    } else {
+        document.getElementById('dosenSection').style.display = 'none';
     }
     
+    // Load social media
+    if (data.social_media) {
+        document.getElementById('linkedin').value = data.social_media.linkedin || '';
+        document.getElementById('shinta').value = data.social_media.scholar || '';
+    }
+    
+    // Show current photo preview
+    const previewContainer = document.getElementById('currentFotoPreview');
+    previewContainer.innerHTML = '';
+    
     if (data.foto) {
-        const fotoInput = document.querySelector('input[name="foto"]');
-        const previewDiv = document.createElement('div');
-        previewDiv.id = 'currentFotoPreview';
-        previewDiv.className = 'mb-2';
-        previewDiv.innerHTML = `
-            <img src="../../uploads/anggota/${data.foto}" width="100" height="100" class="rounded-circle">
-            <p class="small text-muted mb-0">Foto saat ini (pilih file baru untuk menggantinya)</p>
+        previewContainer.innerHTML = `
+            <div class="mt-2">
+                <img src="../../uploads/anggota/${data.foto}" width="100" height="100" class="rounded-circle" style="object-fit: cover;">
+                <p class="small text-muted mb-0 mt-1">Foto saat ini (pilih file baru untuk menggantinya)</p>
+            </div>
         `;
-        fotoInput.parentElement.insertBefore(previewDiv, fotoInput);
     }
     
     // Load pendidikan data

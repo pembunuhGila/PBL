@@ -560,13 +560,11 @@ function resetForm() {
     addMatakuliah();
 }
 
-// GANTI FUNCTION editAnggota() YANG LAMA DENGAN INI
-
 function editAnggota(data) {
     document.getElementById('modalTitle').textContent = 'Edit Anggota Lab';
     document.getElementById('id_anggota').value = data.id_anggota;
     document.getElementById('nama').value = data.nama;
-    document.getElementById('nip_nim').value = data.nip || ''; // ← INI YANG SALAH! Harus nip_nim
+    document.getElementById('nip_nim').value = data.nip || ''; 
     document.getElementById('email').value = data.email || '';
     document.getElementById('kontak').value = data.kontak || '';
     document.getElementById('biodata_teks').value = data.biodata_teks || '';

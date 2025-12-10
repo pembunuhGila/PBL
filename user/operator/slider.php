@@ -16,7 +16,7 @@ $limit = 10;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
-// Handle Delete
+// Handle Delete - HANYA HAPUS PENDING MILIK SENDIRI
 if (isset($_GET['delete'])) {
     try {
         $stmt_check = $pdo->prepare("SELECT id_user, status, judul FROM slider WHERE id_slider = ?");
@@ -61,13 +61,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (isset($_POST['id_slider']) && !empty($_POST['id_slider'])) {
             $id = $_POST['id_slider'];
             
+            // CEK APAKAH DATA ADA
             $stmt_check = $pdo->prepare("SELECT id_user, status FROM slider WHERE id_slider = ?");
             $stmt_check->execute([$id]);
             $data_owner = $stmt_check->fetch();
             
-            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && ($data_owner['status'] == 'pending' || $data_owner['status'] == 'rejected')) {
+            if ($data_owner) {
                 $status_lama = $data_owner['status'];
                 
+                // OPERATOR BISA EDIT SEMUA - STATUS JADI PENDING
                 if ($gambar) {
                     $stmt = $pdo->prepare("UPDATE slider SET judul=?, deskripsi=?, urutan=?, gambar=?, status=? WHERE id_slider=?");
                     $stmt->execute([$judul, $deskripsi, $urutan, $gambar, $status, $id]);
@@ -82,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 header("Location: slider.php?success=updated");
                 exit;
             } else {
-                $error = "Anda hanya bisa edit data pending/rejected milik Anda!";
+                $error = "Data tidak ditemukan!";
             }
         } else {
             if (!$gambar) {
@@ -105,15 +107,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Get total count
-$count_stmt = $pdo->prepare("SELECT COUNT(*) FROM slider WHERE id_user = ?");
-$count_stmt->execute([$_SESSION['id_user']]);
+// Get total count - TAMPILKAN SEMUA DATA
+$count_stmt = $pdo->query("SELECT COUNT(*) FROM slider");
 $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
-// Get data with pagination
-$stmt = $pdo->prepare("SELECT * FROM slider WHERE id_user = ? ORDER BY urutan ASC, tanggal_dibuat DESC LIMIT ? OFFSET ?");
-$stmt->execute([$_SESSION['id_user'], $limit, $offset]);
+// Get data with pagination - TAMPILKAN SEMUA DATA
+$stmt = $pdo->prepare("SELECT s.*, u.nama as nama_pembuat FROM slider s LEFT JOIN users u ON s.id_user = u.id_user ORDER BY s.urutan ASC, s.tanggal_dibuat DESC LIMIT ? OFFSET ?");
+$stmt->execute([$limit, $offset]);
 $slider_list = $stmt->fetchAll();
 
 include "header.php";
@@ -144,7 +145,7 @@ include "navbar.php";
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Semua slider yang Anda tambahkan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua slider. Setiap perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <div class="card shadow">
@@ -164,6 +165,7 @@ include "navbar.php";
                         <th>Judul</th>
                         <th>Deskripsi</th>
                         <th>Status</th>
+                        <th>Pembuat</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -191,20 +193,33 @@ include "navbar.php";
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ($slider['status'] == 'pending' || $slider['status'] == 'rejected'): ?>
-                                    <button class="btn btn-sm btn-warning" onclick='editSlider(<?php echo json_encode($slider); ?>)'>
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
+                                <?php if ($slider['id_user'] == $_SESSION['id_user']): ?>
+                                    <span class="badge bg-secondary">Anda</span>
+                                <?php else: ?>
+                                    <small><?php echo htmlspecialchars($slider['nama_pembuat'] ?? 'Unknown'); ?></small>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <!-- OPERATOR BISA EDIT SEMUA -->
+                                <button class="btn btn-sm btn-warning" onclick='editSlider(<?php echo json_encode($slider); ?>)'>
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                
+                                <?php if ($slider['id_user'] == $_SESSION['id_user'] && $slider['status'] == 'pending'): ?>
                                     <a href="?delete=<?php echo $slider['id_slider']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
                                         <i class="bi bi-trash"></i>
                                     </a>
-                                <?php else: ?>
-                                    <span class="text-muted small">Sudah disetujui</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                                <p class="mt-3 text-muted">Belum ada slider</p>
+                            </td>
+                        </tr>
                     <?php endif; ?>
                 </tbody>
             </table>

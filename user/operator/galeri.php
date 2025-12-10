@@ -11,7 +11,7 @@ include "../../conn.php";
 $page_title = "Galeri";
 $current_page = "galeri.php";
 
-// Handle Delete
+// Handle Delete - HANYA BISA HAPUS YANG PENDING MILIK SENDIRI
 if (isset($_GET['delete'])) {
     try {
         $stmt_check = $pdo->prepare("SELECT id_user, status, judul FROM galeri WHERE id_galeri = ?");
@@ -38,7 +38,7 @@ if (isset($_GET['delete'])) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $deskripsi = $_POST['deskripsi'];
-    $status = 'pending';
+    $status = 'pending'; // SELALU PENDING UNTUK OPERATOR
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -54,13 +54,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (isset($_POST['id_galeri']) && !empty($_POST['id_galeri'])) {
             $id = $_POST['id_galeri'];
             
+            // CEK APAKAH DATA ADA
             $stmt_check = $pdo->prepare("SELECT id_user, status FROM galeri WHERE id_galeri = ?");
             $stmt_check->execute([$id]);
             $data_owner = $stmt_check->fetch();
             
-            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && ($data_owner['status'] == 'pending' || $data_owner['status'] == 'rejected')) {
+            if ($data_owner) {
                 $status_lama = $data_owner['status'];
                 
+                // OPERATOR BISA EDIT SEMUA DATA - STATUS JADI PENDING
                 if ($gambar) {
                     $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, gambar=?, status=?, filter_kategori=NULL WHERE id_galeri=?");
                     $stmt->execute([$judul, $deskripsi, $gambar, $status, $id]);
@@ -74,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 $success = "Galeri berhasil diupdate! Menunggu persetujuan admin.";
             } else {
-                $error = "Anda hanya bisa edit data pending/rejected milik Anda!";
+                $error = "Data tidak ditemukan!";
             }
         } else {
             if (!$gambar) {
@@ -101,15 +103,14 @@ $items_per_page = 12;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $items_per_page;
 
-// Get total count
-$count_stmt = $pdo->prepare("SELECT COUNT(*) FROM galeri WHERE id_user = ?");
-$count_stmt->execute([$_SESSION['id_user']]);
+// Get total count - TAMPILKAN SEMUA DATA
+$count_stmt = $pdo->query("SELECT COUNT(*) FROM galeri");
 $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $items_per_page);
 
-// Get paginated data
-$stmt = $pdo->prepare("SELECT * FROM galeri WHERE id_user = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
-$stmt->execute([$_SESSION['id_user'], $items_per_page, $offset]);
+// Get paginated data - TAMPILKAN SEMUA DATA
+$stmt = $pdo->prepare("SELECT g.*, u.nama as nama_pembuat FROM galeri g LEFT JOIN users u ON g.id_user = u.id_user ORDER BY g.created_at DESC LIMIT ? OFFSET ?");
+$stmt->execute([$items_per_page, $offset]);
 $galeri_list = $stmt->fetchAll();
 
 include "header.php";
@@ -132,7 +133,7 @@ include "navbar.php";
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Semua foto yang Anda upload akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua foto. Setiap perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <div class="row">
@@ -145,23 +146,28 @@ include "navbar.php";
                     <?php if ($gal['status'] == 'pending'): ?>
                         <span class="badge bg-warning mb-2">Pending</span>
                     <?php elseif ($gal['status'] == 'active'): ?>
-                        <span class="badge bg-success mb-2">Approved</span>
+                        <span class="badge bg-success mb-2">Active</span>
                     <?php else: ?>
                         <span class="badge bg-danger mb-2">Rejected</span>
                     <?php endif; ?>
+                    
+                    <?php if ($gal['id_user'] != $_SESSION['id_user']): ?>
+                        <span class="badge bg-secondary mb-2">By: <?php echo htmlspecialchars($gal['nama_pembuat'] ?? 'Unknown'); ?></span>
+                    <?php endif; ?>
+                    
                     <h5 class="card-title"><?php echo htmlspecialchars($gal['judul']); ?></h5>
                     <p class="card-text text-muted"><?php echo htmlspecialchars(substr($gal['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($gal['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
                 </div>
                 <div class="card-footer bg-white">
-                    <?php if ($gal['status'] == 'pending' || $gal['status'] == 'rejected'): ?>
-                        <button class="btn btn-sm btn-warning" onclick='editGaleri(<?php echo json_encode($gal); ?>)'>
-                            <i class="bi bi-pencil"></i> Edit
-                        </button>
+                    <!-- OPERATOR BISA EDIT SEMUA -->
+                    <button class="btn btn-sm btn-warning" onclick='editGaleri(<?php echo json_encode($gal); ?>)'>
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    
+                    <?php if ($gal['id_user'] == $_SESSION['id_user'] && $gal['status'] == 'pending'): ?>
                         <a href="?delete=<?php echo $gal['id_galeri']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
                             <i class="bi bi-trash"></i> Hapus
                         </a>
-                    <?php else: ?>
-                        <span class="text-muted small">Disetujui</span>
                     <?php endif; ?>
                 </div>
             </div>

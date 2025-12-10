@@ -42,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
     $judul = $_POST['judul'];
     $slug = strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]/', '', $judul)));
     $isi = $_POST['isi'];
+    $urutan = $_POST['urutan'] ?? 1;
     $status = 'active';
     
     $gambar = null;
@@ -63,24 +64,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
             $old_data = $stmt_old->fetch();
             $status_lama = $old_data['status'];
             
-            $stmt = $pdo->prepare("SELECT * FROM sp_update_konten(?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id, $kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
-            $result = $stmt->fetch();
-            $message = $result['p_message'];
-            
-            if (strpos($message, 'Success') !== false) {
-                if ($status_lama != $status) {
-                    $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt_riwayat->execute(['konten', $id, $_SESSION['id_user'], $status_lama, $status, 'Update konten: ' . $judul]);
-                }
-                header("Location: konten.php?success=updated&page=" . $page_num);
-                exit;
+            // ADMIN BISA EDIT SEMUA - LANGSUNG UPDATE TANPA SP
+            if ($gambar) {
+                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, gambar=?, urutan=?, status=? WHERE id_konten=?");
+                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $urutan, $status, $id]);
             } else {
-                $error = $message;
+                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, urutan=?, status=? WHERE id_konten=?");
+                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $urutan, $status, $id]);
             }
+            
+            if ($status_lama != $status) {
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['konten', $id, $_SESSION['id_user'], $status_lama, $status, 'Update konten: ' . $judul]);
+            }
+            
+            header("Location: konten.php?success=updated&page=" . $page_num);
+            exit;
         } else {
-            $stmt = $pdo->prepare("SELECT * FROM sp_insert_konten(?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user'], 'admin']);
+            // INSERT BARU MENGGUNAKAN SP YANG SUDAH DIUPDATE
+            $stmt = $pdo->prepare("SELECT * FROM sp_insert_konten(?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $urutan, $status, $_SESSION['id_user'], 'admin']);
             $result = $stmt->fetch();
             $new_id = $result['p_id_konten'];
             $message = $result['p_message'];
@@ -88,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
             if ($new_id > 0) {
                 $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
+                
                 header("Location: konten.php?success=added");
                 exit;
             } else {
@@ -104,8 +108,8 @@ $search = $_GET['search'] ?? '';
 $kategori_filter = $_GET['kategori'] ?? '';
 
 // Build WHERE conditions
-$where_clauses = ["id_user = ?"];
-$params = [$_SESSION['id_user']];
+$where_clauses = [];
+$params = [];
 
 if ($search) {
     $where_clauses[] = "(judul ILIKE ? OR isi ILIKE ?)";
@@ -119,7 +123,7 @@ if ($kategori_filter) {
     $params[] = $kategori_filter;
 }
 
-$where_sql = "WHERE " . implode(" AND ", $where_clauses);
+$where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
 // Get total count
 $count_query = "SELECT COUNT(*) FROM konten $where_sql";
@@ -128,8 +132,8 @@ $count_stmt->execute($params);
 $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
-// Get data with pagination
-$query = "SELECT * FROM konten $where_sql ORDER BY tanggal_posting DESC LIMIT ? OFFSET ?";
+// Get data with pagination - URUTKAN BERDASARKAN URUTAN
+$query = "SELECT * FROM konten $where_sql ORDER BY urutan ASC, tanggal_posting DESC LIMIT ? OFFSET ?";
 $params_with_limit = array_merge($params, [$limit, $offset]);
 $stmt = $pdo->prepare($query);
 $stmt->execute($params_with_limit);
@@ -224,7 +228,7 @@ include "navbar.php";
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>No</th>
+                        <th>Urutan</th>
                         <th>Gambar</th>
                         <th>Judul</th>
                         <th>Kategori</th>
@@ -235,11 +239,10 @@ include "navbar.php";
                 <tbody>
                     <?php 
                     if (count($konten_list) > 0) {
-                        $no = $offset + 1; 
                         foreach ($konten_list as $kon): 
                     ?>
                     <tr>
-                        <td><?php echo $no++; ?></td>
+                        <td><span class="badge bg-primary">#<?php echo $kon['urutan'] ?? 1; ?></span></td>
                         <td>
                             <?php if ($kon['gambar']): ?>
                                 <img src="../../uploads/konten/<?php echo $kon['gambar']; ?>" width="60" height="40" class="img-thumbnail">
@@ -346,11 +349,11 @@ include "navbar.php";
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-8 mb-3">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">Judul *</label>
                             <input type="text" class="form-control" name="judul" id="judul" required>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label">Kategori *</label>
                             <select class="form-select" name="kategori_konten" id="kategori_konten" required>
                                 <option value="">-- Pilih Kategori --</option>
@@ -358,6 +361,11 @@ include "navbar.php";
                                 <option value="Agenda">Agenda</option>
                                 <option value="Pengumuman">Pengumuman</option>
                             </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Urutan *</label>
+                            <input type="number" class="form-control" name="urutan" id="urutan" required min="1" value="1">
+                            <small class="text-muted">Urutan tampil (1 = pertama)</small>
                         </div>
                     </div>
                     
@@ -381,11 +389,11 @@ include "navbar.php";
 </div>
 
 <script>
-// SEMUA JAVASCRIPT DIGABUNG DI SINI
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Konten';
     document.querySelector('form').reset();
     document.getElementById('id_konten').value = '';
+    document.getElementById('urutan').value = '1';
 }
 
 function editKonten(data) {
@@ -394,6 +402,7 @@ function editKonten(data) {
     document.getElementById('judul').value = data.judul;
     document.getElementById('kategori_konten').value = data.kategori_konten || '';
     document.getElementById('isi').value = data.isi || '';
+    document.getElementById('urutan').value = data.urutan || 1;
     new bootstrap.Modal(document.getElementById('kontenModal')).show();
 }
 </script>

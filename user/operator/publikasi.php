@@ -46,7 +46,7 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Handle Add/Edit - BISA EDIT SEMUA DATA (AKAN JADI PENDING)
+// Handle Add/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $abstrak = $_POST['abstrak'];
@@ -55,6 +55,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $link_shinta = $_POST['link_shinta'] ?? '';
     $tanggal_publikasi = $_POST['tanggal_publikasi'];
     $penulis_ids = $_POST['penulis'] ?? [];
+    
+    // Validasi jika edit: cek apakah status rejected
+    if (isset($_POST['id_publikasi']) && !empty($_POST['id_publikasi'])) {
+        $id = $_POST['id_publikasi'];
+        
+        $stmt_check = $pdo->prepare("SELECT status FROM publikasi WHERE id_publikasi = ?");
+        $stmt_check->execute([$id]);
+        $current_data = $stmt_check->fetch();
+        
+        if ($current_data && $current_data['status'] === 'rejected') {
+            header("Location: publikasi.php?error=rejected");
+            exit;
+        }
+    }
     
     // Handle cover upload
     $cover = null;
@@ -80,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $pdo->beginTransaction();
         
         if (isset($_POST['id_publikasi']) && !empty($_POST['id_publikasi'])) {
-            // EDIT - SEMUA DATA BISA DIEDIT, AKAN JADI PENDING
+            // EDIT - SEMUA DATA BISA DIEDIT (KECUALI REJECTED), AKAN JADI PENDING
             $id = $_POST['id_publikasi'];
             
             $stmt_check = $pdo->prepare("SELECT status FROM publikasi WHERE id_publikasi = ?");
@@ -223,13 +237,20 @@ include "navbar.php";
     </div>
 <?php endif; ?>
 
+<?php if (isset($_GET['error']) && $_GET['error'] == 'rejected'): ?>
+    <div class="alert alert-danger alert-dismissible fade show">
+        <i class="bi bi-exclamation-triangle"></i> Publikasi yang sudah di-reject tidak dapat diedit!
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
 <?php if (isset($error)): ?>
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
 <div class="alert alert-info">
     <i class="bi bi-info-circle"></i> 
-    <strong>Sebagai Operator:</strong> Anda bisa mengedit semua publikasi. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
+    <strong>Sebagai Operator:</strong> Anda bisa mengedit publikasi dengan status <span class="badge bg-warning text-dark">Pending</span> atau <span class="badge bg-success">Active</span>. Publikasi yang di-reject tidak dapat diedit. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <!-- Search & Filter -->
@@ -256,7 +277,7 @@ include "navbar.php";
                 <select class="form-select" name="status">
                     <option value="">Semua</option>
                     <option value="pending" <?php echo $status_filter == 'pending' ? 'selected' : ''; ?>>Pending</option>
-                    <option value="active" <?php echo $status_filter == 'active' ? 'selected' : ''; ?>>Approved</option>
+                    <option value="active" <?php echo $status_filter == 'active' ? 'selected' : ''; ?>>Active</option>
                     <option value="rejected" <?php echo $status_filter == 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                 </select>
             </div>
@@ -327,15 +348,22 @@ include "navbar.php";
                                 <?php if ($pub['status'] == 'pending'): ?>
                                     <span class="badge bg-warning text-dark">Pending</span>
                                 <?php elseif ($pub['status'] == 'active'): ?>
-                                    <span class="badge bg-success">Approved</span>
+                                    <span class="badge bg-success">Active</span>
                                 <?php else: ?>
                                     <span class="badge bg-danger">Rejected</span>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)' title="Edit (akan jadi pending)">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
+                                <?php if ($pub['status'] !== 'rejected'): ?>
+                                    <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)' title="Edit (akan jadi pending)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                <?php else: ?>
+                                    <button class="btn btn-sm btn-secondary" disabled title="Publikasi rejected tidak dapat diedit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                <?php endif; ?>
+                                
                                 <?php if ($pub['id_user'] == $_SESSION['id_user'] && $pub['status'] == 'pending'): ?>
                                     <a href="?delete=<?php echo $pub['id_publikasi']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
                                         <i class="bi bi-trash"></i>

@@ -32,11 +32,62 @@ $stmt = $pdo->prepare($query_galeri);
 $stmt->execute([$_SESSION['id_user']]);
 $total_galeri = $stmt->fetch()['total'];
 
-$query_pending = "SELECT COUNT(*) as total FROM riwayat_pengajuan WHERE id_operator = ? AND status_baru = 'pending'";
-$stmt = $pdo->prepare($query_pending);
-$stmt->execute([$_SESSION['id_user']]);
-$total_pending = $stmt->fetch()['total'];
+// HITUNG PENDING dari TABEL ASLI (bukan dari riwayat_pengajuan)
+// Ini akan menghitung semua data dengan status pending milik operator
 
+// 1. Pending dari modul dengan riwayat_pengajuan
+$query_pending_old = "
+    SELECT COUNT(*) as total FROM (
+        SELECT id_publikasi FROM publikasi WHERE id_user = ? AND status = 'pending'
+        UNION ALL
+        SELECT id_anggota FROM anggota_lab WHERE id_user = ? AND status = 'pending'
+        UNION ALL
+        SELECT id_fasilitas FROM fasilitas WHERE id_user = ? AND status = 'pending'
+        UNION ALL
+        SELECT id_galeri FROM galeri WHERE id_user = ? AND status = 'pending'
+        UNION ALL
+        SELECT id_struktur FROM struktur_lab WHERE id_user = ? AND status = 'pending'
+        UNION ALL
+        SELECT id_konten FROM konten WHERE id_user = ? AND status = 'pending'
+    ) as old_pending
+";
+$stmt = $pdo->prepare($query_pending_old);
+$stmt->execute([
+    $_SESSION['id_user'], 
+    $_SESSION['id_user'], 
+    $_SESSION['id_user'], 
+    $_SESSION['id_user'],
+    $_SESSION['id_user'],
+    $_SESSION['id_user']
+]);
+$pending_old = $stmt->fetch()['total'];
+
+// 2. Pending dari modul Tentang Kami
+$query_pending_tentang = "
+    SELECT COUNT(*) as total FROM (
+        SELECT id_profil FROM tentang_kami WHERE id_user = ? AND status = 'pending'
+        UNION ALL
+        SELECT id_visi FROM visi WHERE id_user = ? AND status = 'pending'
+        UNION ALL
+        SELECT id_misi FROM misi WHERE id_user = ? AND status = 'pending'
+        UNION ALL
+        SELECT id_sejarah FROM sejarah WHERE id_user = ? AND status = 'pending'
+    ) as tentang_pending
+";
+$stmt = $pdo->prepare($query_pending_tentang);
+$stmt->execute([$_SESSION['id_user'], $_SESSION['id_user'], $_SESSION['id_user'], $_SESSION['id_user']]);
+$pending_tentang = $stmt->fetch()['total'];
+
+// 3. Pending dari modul Kontak
+$query_pending_kontak = "SELECT COUNT(*) as total FROM kontak WHERE id_user = ? AND status = 'pending'";
+$stmt = $pdo->prepare($query_pending_kontak);
+$stmt->execute([$_SESSION['id_user']]);
+$pending_kontak = $stmt->fetch()['total'];
+
+// Total semua pending
+$total_pending = $pending_old + $pending_tentang + $pending_kontak;
+
+// Query approved (dari riwayat_pengajuan)
 $query_approved = "SELECT COUNT(*) as total FROM riwayat_pengajuan WHERE id_operator = ? AND status_baru = 'active'";
 $stmt = $pdo->prepare($query_approved);
 $stmt->execute([$_SESSION['id_user']]);
@@ -51,6 +102,7 @@ $query_latest = "
         created_at as tanggal
     FROM publikasi 
     WHERE id_user = ?
+    
     UNION ALL
     SELECT 
         'anggota' as tipe,
@@ -59,6 +111,7 @@ $query_latest = "
         created_at as tanggal
     FROM anggota_lab 
     WHERE id_user = ?
+    
     UNION ALL
     SELECT 
         'fasilitas' as tipe,
@@ -67,11 +120,66 @@ $query_latest = "
         created_at as tanggal
     FROM fasilitas
     WHERE id_user = ?
+    
+    UNION ALL
+    SELECT 
+        'kontak' as tipe,
+        CONCAT('Kontak - ', email) as nama,
+        status,
+        updated_at as tanggal
+    FROM kontak
+    WHERE id_user = ?
+    
+    UNION ALL
+    SELECT 
+        'profil' as tipe,
+        'Profil Lab' as nama,
+        status,
+        updated_at as tanggal
+    FROM tentang_kami
+    WHERE id_user = ?
+    
+    UNION ALL
+    SELECT 
+        'visi' as tipe,
+        CONCAT('Visi: ', LEFT(isi_visi, 30), '...') as nama,
+        status,
+        created_at as tanggal
+    FROM visi
+    WHERE id_user = ?
+    
+    UNION ALL
+    SELECT 
+        'misi' as tipe,
+        CONCAT('Misi #', urutan) as nama,
+        status,
+        created_at as tanggal
+    FROM misi
+    WHERE id_user = ?
+    
+    UNION ALL
+    SELECT 
+        'roadmap' as tipe,
+        CONCAT(tahun, ' - ', judul) as nama,
+        status,
+        created_at as tanggal
+    FROM sejarah
+    WHERE id_user = ?
+    
     ORDER BY tanggal DESC 
     LIMIT 10
 ";
 $stmt_latest = $pdo->prepare($query_latest);
-$stmt_latest->execute([$_SESSION['id_user'], $_SESSION['id_user'], $_SESSION['id_user']]);
+$stmt_latest->execute([
+    $_SESSION['id_user'], // publikasi
+    $_SESSION['id_user'], // anggota
+    $_SESSION['id_user'], // fasilitas
+    $_SESSION['id_user'], // kontak - updated_at
+    $_SESSION['id_user'], // profil - updated_at
+    $_SESSION['id_user'], // visi - created_at
+    $_SESSION['id_user'], // misi - created_at
+    $_SESSION['id_user']  // roadmap - created_at
+]);
 
 include "header.php";
 include "sidebar.php";
@@ -138,6 +246,8 @@ include "navbar.php";
                             Menunggu Review
                         </div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_pending; ?></div>
+                        <?php if ($pending_kontak > 0 || $pending_tentang > 0 || $pending_old > 0): ?>
+                        <?php endif; ?>
                     </div>
                     <div class="col-auto">
                         <i class="bi bi-hourglass-split fa-2x text-gray-300" style="font-size: 2rem; color: #f6c23e;"></i>
@@ -192,16 +302,26 @@ include "navbar.php";
                                         <span class="badge bg-primary">Publikasi</span>
                                     <?php elseif ($row['tipe'] == 'anggota'): ?>
                                         <span class="badge bg-success">Anggota</span>
-                                    <?php else: ?>
+                                    <?php elseif ($row['tipe'] == 'fasilitas'): ?>
                                         <span class="badge bg-info">Fasilitas</span>
+                                    <?php elseif ($row['tipe'] == 'kontak'): ?>
+                                        <span class="badge bg-warning">Kontak</span>
+                                    <?php elseif ($row['tipe'] == 'profil'): ?>
+                                        <span class="badge bg-secondary">Profil</span>
+                                    <?php elseif ($row['tipe'] == 'visi'): ?>
+                                        <span class="badge bg-primary">Visi</span>
+                                    <?php elseif ($row['tipe'] == 'misi'): ?>
+                                        <span class="badge bg-success">Misi</span>
+                                    <?php elseif ($row['tipe'] == 'roadmap'): ?>
+                                        <span class="badge bg-info">Roadmap</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><?php echo htmlspecialchars($row['nama']); ?></td>
+                                <td><small><?php echo htmlspecialchars($row['nama']); ?></small></td>
                                 <td>
                                     <?php if ($row['status'] == 'pending'): ?>
                                         <span class="badge bg-warning">Pending</span>
                                     <?php elseif ($row['status'] == 'active'): ?>
-                                        <span class="badge bg-success">Approved</span>
+                                        <span class="badge bg-success">Active</span>
                                     <?php else: ?>
                                         <span class="badge bg-danger">Rejected</span>
                                     <?php endif; ?>
@@ -235,6 +355,12 @@ include "navbar.php";
                     <a href="galeri.php" class="list-group-item list-group-item-action">
                         <i class="bi bi-plus-circle me-2"></i> Upload Galeri
                     </a>
+                    <a href="kontak.php" class="list-group-item list-group-item-action">
+                        <i class="bi bi-telephone me-2"></i> Kelola Kontak
+                    </a>
+                    <a href="tentang.php" class="list-group-item list-group-item-action">
+                        <i class="bi bi-building me-2"></i> Kelola Tentang Kami
+                    </a>
                     <a href="riwayat_pengajuan.php" class="list-group-item list-group-item-action">
                         <i class="bi bi-clock-history me-2"></i> Lihat Riwayat
                     </a>
@@ -251,6 +377,13 @@ include "navbar.php";
                 <p class="mb-2"><strong>Total Anggota:</strong> <?php echo $total_anggota; ?></p>
                 <p class="mb-2"><strong>Total Fasilitas:</strong> <?php echo $total_fasilitas; ?></p>
                 <p class="mb-2"><strong>Total Galeri:</strong> <?php echo $total_galeri; ?></p>
+                <hr>
+                <p class="mb-2"><strong>Pending Review:</strong></p>
+                <ul class="mb-2 ps-3">
+                    <li><small>Kontak: <?php echo $pending_kontak; ?></small></li>
+                    <li><small>Tentang Kami: <?php echo $pending_tentang; ?></small></li>
+                    <li><small>Lainnya: <?php echo $pending_old; ?></small></li>
+                </ul>
                 <hr>
                 <p class="mb-0 text-muted small">
                     <i class="bi bi-info-circle"></i> Semua data yang Anda tambahkan akan direview oleh admin.

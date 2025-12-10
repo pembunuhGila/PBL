@@ -52,6 +52,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $status = 'active'; 
     $penulis_ids = $_POST['penulis'] ?? [];
     
+    // Validasi jika edit: cek apakah status rejected
+    if (isset($_POST['id_publikasi']) && !empty($_POST['id_publikasi'])) {
+        $id = $_POST['id_publikasi'];
+        
+        $stmt_check = $pdo->prepare("SELECT status FROM publikasi WHERE id_publikasi = ?");
+        $stmt_check->execute([$id]);
+        $current_data = $stmt_check->fetch();
+        
+        if ($current_data && $current_data['status'] === 'rejected') {
+            header("Location: publikasi.php?error=rejected");
+            exit;
+        }
+    }
+    
     // Handle cover upload
     $cover = null;
     if (isset($_FILES['cover']) && $_FILES['cover']['error'] == 0) {
@@ -209,6 +223,13 @@ include "navbar.php";
     </div>
 <?php endif; ?>
 
+<?php if (isset($_GET['error']) && $_GET['error'] == 'rejected'): ?>
+    <div class="alert alert-danger alert-dismissible fade show">
+        Publikasi yang sudah di-reject tidak dapat diedit!
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
 <?php if (isset($error)): ?>
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
@@ -265,6 +286,7 @@ include "navbar.php";
                         <th>Penulis</th>
                         <th>Jurnal</th>
                         <th>Tahun</th>
+                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -293,9 +315,31 @@ include "navbar.php";
                             <td><?php echo htmlspecialchars($pub['jurnal'] ?? '-'); ?></td>
                             <td><?php echo htmlspecialchars($pub['tahun']); ?></td>
                             <td>
-                                <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)'>
-                                    <i class="bi bi-pencil"></i>
-                                </button>
+                                <?php
+                                $status_badge = '';
+                                switch($pub['status']) {
+                                    case 'active':
+                                        $status_badge = '<span class="badge bg-success">Active</span>';
+                                        break;
+                                    case 'rejected':
+                                        $status_badge = '<span class="badge bg-danger">Rejected</span>';
+                                        break;
+                                    default:
+                                        $status_badge = '<span class="badge bg-secondary">' . htmlspecialchars($pub['status']) . '</span>';
+                                }
+                                echo $status_badge;
+                                ?>
+                            </td>
+                            <td>
+                                <?php if ($pub['status'] !== 'rejected'): ?>
+                                    <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)'>
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                <?php else: ?>
+                                    <button class="btn btn-sm btn-secondary" disabled title="Publikasi rejected tidak dapat diedit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                <?php endif; ?>
                                 <a href="?delete=<?php echo $pub['id_publikasi']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
                                     <i class="bi bi-trash"></i>
                                 </a>
@@ -304,7 +348,7 @@ include "navbar.php";
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="7" class="text-center py-4 text-muted">
+                            <td colspan="8" class="text-center py-4 text-muted">
                                 <?php if ($search || $year_filter): ?>
                                     Tidak ada publikasi yang sesuai dengan pencarian.
                                 <?php else: ?>
@@ -484,6 +528,12 @@ function addPenulis() {
 }
 
 function editPublikasi(data) {
+    // Cek apakah status rejected
+    if (data.status === 'rejected') {
+        alert('Publikasi yang sudah di-reject tidak dapat diedit!');
+        return;
+    }
+    
     document.getElementById('modalTitle').textContent = 'Edit Publikasi';
     document.getElementById('id_publikasi').value = data.id_publikasi;
     document.getElementById('judul').value = data.judul;

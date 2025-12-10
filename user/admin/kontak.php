@@ -1,7 +1,7 @@
 <?php
 /**
  * Admin Kontak - Global System
- * Admin bisa edit data yang sudah active
+ * Admin bisa edit data active
  * Admin bisa approve/reject pending dari operator
  */
 $required_role = "admin";
@@ -22,24 +22,15 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
         $old_data = $stmt_old->fetch();
         
         if ($action == 'approve') {
-            // Set semua kontak lain jadi inactive
-            $pdo->query("UPDATE kontak SET status = 'inactive'");
-            
-            // Approve yang dipilih
-            $stmt = $pdo->prepare("UPDATE kontak SET status = 'active' WHERE id_kontak = ?");
+            // Hapus kontak active yang lama
+            $pdo->query("DELETE FROM kontak WHERE status = 'active'");
+            // Set yang baru jadi active
+            $stmt = $pdo->prepare("UPDATE kontak SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id_kontak = ?");
             $stmt->execute([$id]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['kontak', $id, $_SESSION['id_user'], $old_data['status'], 'active', 'Approve kontak']);
-            
             $success = "Kontak berhasil disetujui dan diaktifkan!";
         } elseif ($action == 'reject') {
-            $stmt = $pdo->prepare("UPDATE kontak SET status = 'rejected' WHERE id_kontak = ?");
+            $stmt = $pdo->prepare("UPDATE kontak SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id_kontak = ?");
             $stmt->execute([$id]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['kontak', $id, $_SESSION['id_user'], $old_data['status'], 'rejected', 'Reject kontak']);
-            
             $success = "Kontak berhasil ditolak!";
         }
     } catch (PDOException $e) {
@@ -61,24 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     try {
         // Get active kontak
-        $active = $pdo->query("SELECT id_kontak, status FROM kontak WHERE status = 'active' LIMIT 1")->fetch();
+        $active = $pdo->query("SELECT id_kontak FROM kontak WHERE status = 'active' LIMIT 1")->fetch();
         
         if ($active) {
             // UPDATE active kontak
             $stmt = $pdo->prepare("UPDATE kontak SET whatsapp=?, email=?, alamat=?, linkedin=?, jam_operasional=?, instagram=?, youtube=?, facebook=?, maps=?, updated_at=CURRENT_TIMESTAMP WHERE id_kontak=?");
             $stmt->execute([$whatsapp, $email, $alamat, $linkedin, $jam_operasional, $instagram, $youtube, $facebook, $maps, $active['id_kontak']]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['kontak', $active['id_kontak'], $_SESSION['id_user'], 'active', 'active', 'Update info kontak']);
         } else {
             // INSERT baru langsung active
             $stmt = $pdo->prepare("INSERT INTO kontak (whatsapp, email, alamat, linkedin, jam_operasional, instagram, youtube, facebook, maps, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)");
             $stmt->execute([$whatsapp, $email, $alamat, $linkedin, $jam_operasional, $instagram, $youtube, $facebook, $maps, $_SESSION['id_user']]);
-            
-            $new_id = $pdo->lastInsertId();
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['kontak', $new_id, $_SESSION['id_user'], null, 'active', 'Tambah info kontak']);
         }
         
         $success = "Informasi kontak berhasil disimpan!";
@@ -90,14 +73,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 // Get active kontak
 $kontak = $pdo->query("SELECT * FROM kontak WHERE status = 'active' LIMIT 1")->fetch();
 
-// Get pending submissions
+// Get pending submissions dengan info operator
 $pending_list = $pdo->query("
     SELECT k.*, u.nama as operator_nama 
     FROM kontak k
     LEFT JOIN users u ON k.id_user = u.id_user
     WHERE k.status = 'pending'
-    ORDER BY k.created_at DESC
+    ORDER BY k.updated_at DESC
 ")->fetchAll();
+
+$total_pending = count($pending_list);
 
 include "header.php";
 include "sidebar.php";
@@ -106,42 +91,47 @@ include "navbar.php";
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Informasi Kontak</h1>
+    <?php if ($total_pending > 0): ?>
+        <span class="badge bg-warning fs-6">
+            <i class="bi bi-clock-history"></i> <?php echo $total_pending; ?> Pending
+        </span>
+    <?php endif; ?>
 </div>
 
 <?php if (isset($success)): ?>
     <div class="alert alert-success alert-dismissible fade show">
-        <?php echo $success; ?>
+        <i class="bi bi-check-circle"></i> <?php echo $success; ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
 
 <?php if (isset($error)): ?>
     <div class="alert alert-danger alert-dismissible fade show">
-        <?php echo $error; ?>
+        <i class="bi bi-exclamation-triangle"></i> <?php echo $error; ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
 
 <!-- Pending Submissions -->
-<?php if (count($pending_list) > 0): ?>
+<?php if ($total_pending > 0): ?>
 <div class="card shadow mb-4 border-warning">
     <div class="card-header bg-warning">
-        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Pengajuan Pending (<?php echo count($pending_list); ?>)</h5>
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Pengajuan Pending dari Operator</h5>
     </div>
     <div class="card-body">
         <?php foreach ($pending_list as $pending): ?>
-        <div class="card mb-3">
+        <div class="card mb-3 border-warning">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start mb-3">
                     <div>
-                        <h6>Diajukan oleh: <?php echo htmlspecialchars($pending['operator_nama'] ?? 'Unknown'); ?></h6>
-                        <small class="text-muted">Tanggal: <?php echo date('d M Y H:i', strtotime($pending['created_at'])); ?></small>
+                        <strong>Dari: <?php echo htmlspecialchars($pending['operator_nama'] ?? 'Unknown'); ?></strong>
+                        <small class="text-muted d-block"><?php echo date('d M Y H:i', strtotime($pending['updated_at'])); ?></small>
                     </div>
-                    <div>
-                        <a href="?action=approve&id=<?php echo $pending['id_kontak']; ?>" class="btn btn-success" onclick="return confirm('Setujui dan aktifkan kontak ini?')">
+                    <div class="d-flex gap-2">
+                        <a href="?action=approve&id=<?php echo $pending['id_kontak']; ?>" class="btn btn-sm btn-success" onclick="return confirm('Approve dan aktifkan kontak ini? Data kontak aktif saat ini akan diganti.')">
                             <i class="bi bi-check-circle"></i> Approve
                         </a>
-                        <a href="?action=reject&id=<?php echo $pending['id_kontak']; ?>" class="btn btn-danger" onclick="return confirm('Tolak pengajuan ini?')">
+                        <a href="?action=reject&id=<?php echo $pending['id_kontak']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Reject pengajuan ini?')">
                             <i class="bi bi-x-circle"></i> Reject
                         </a>
                     </div>
@@ -149,16 +139,28 @@ include "navbar.php";
                 
                 <div class="row">
                     <div class="col-md-6">
-                        <p><strong>WhatsApp:</strong> <?php echo htmlspecialchars($pending['whatsapp'] ?? '-'); ?></p>
-                        <p><strong>Email:</strong> <?php echo htmlspecialchars($pending['email'] ?? '-'); ?></p>
-                        <p><strong>Jam Operasional:</strong> <?php echo htmlspecialchars($pending['jam_operasional'] ?? '-'); ?></p>
+                        <p class="mb-2"><strong>WhatsApp:</strong> <?php echo htmlspecialchars($pending['whatsapp'] ?? '-'); ?></p>
+                        <p class="mb-2"><strong>Email:</strong> <?php echo htmlspecialchars($pending['email'] ?? '-'); ?></p>
+                        <p class="mb-2"><strong>Jam Operasional:</strong> <?php echo htmlspecialchars($pending['jam_operasional'] ?? '-'); ?></p>
+                        <p class="mb-2"><strong>LinkedIn:</strong> <?php echo htmlspecialchars($pending['linkedin'] ?? '-'); ?></p>
                     </div>
                     <div class="col-md-6">
-                        <p><strong>Alamat:</strong> <?php echo htmlspecialchars($pending['alamat'] ?? '-'); ?></p>
-                        <p><strong>LinkedIn:</strong> <?php echo htmlspecialchars($pending['linkedin'] ?? '-'); ?></p>
-                        <p><strong>Instagram:</strong> <?php echo htmlspecialchars($pending['instagram'] ?? '-'); ?></p>
+                        <p class="mb-2"><strong>Alamat:</strong> <?php echo nl2br(htmlspecialchars($pending['alamat'] ?? '-')); ?></p>
+                        <p class="mb-2"><strong>Instagram:</strong> <?php echo htmlspecialchars($pending['instagram'] ?? '-'); ?></p>
+                        <p class="mb-2"><strong>YouTube:</strong> <?php echo htmlspecialchars($pending['youtube'] ?? '-'); ?></p>
+                        <p class="mb-2"><strong>Facebook:</strong> <?php echo htmlspecialchars($pending['facebook'] ?? '-'); ?></p>
                     </div>
                 </div>
+                
+                <?php if ($pending['maps']): ?>
+                <hr>
+                <div class="mb-2">
+                    <strong>Google Maps:</strong>
+                    <div class="ratio ratio-16x9 mt-2" style="max-width: 400px;">
+                        <?php echo $pending['maps']; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
         <?php endforeach; ?>
@@ -170,8 +172,8 @@ include "navbar.php";
 <div class="row">
     <div class="col-md-8">
         <div class="card shadow">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0">Form Kontak Aktif</h5>
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-telephone"></i> Form Kontak</h5>
             </div>
             <div class="card-body">
                 <form method="POST">
@@ -214,40 +216,44 @@ include "navbar.php";
                     <hr class="my-4">
                     <h6 class="mb-3">Social Media</h6>
                     
-                    <div class="mb-3">
-                        <label class="form-label">
-                            <i class="bi bi-linkedin text-primary"></i> LinkedIn
-                        </label>
-                        <input type="url" class="form-control" name="linkedin" 
-                               value="<?php echo htmlspecialchars($kontak['linkedin'] ?? ''); ?>"
-                               placeholder="https://linkedin.com/company/...">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-linkedin text-primary"></i> LinkedIn
+                            </label>
+                            <input type="url" class="form-control" name="linkedin" 
+                                   value="<?php echo htmlspecialchars($kontak['linkedin'] ?? ''); ?>"
+                                   placeholder="https://linkedin.com/company/...">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-instagram text-danger"></i> Instagram
+                            </label>
+                            <input type="url" class="form-control" name="instagram" 
+                                   value="<?php echo htmlspecialchars($kontak['instagram'] ?? ''); ?>"
+                                   placeholder="https://instagram.com/...">
+                        </div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label class="form-label">
-                            <i class="bi bi-instagram text-danger"></i> Instagram
-                        </label>
-                        <input type="url" class="form-control" name="instagram" 
-                               value="<?php echo htmlspecialchars($kontak['instagram'] ?? ''); ?>"
-                               placeholder="https://instagram.com/...">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">
-                            <i class="bi bi-youtube text-danger"></i> YouTube
-                        </label>
-                        <input type="url" class="form-control" name="youtube" 
-                               value="<?php echo htmlspecialchars($kontak['youtube'] ?? ''); ?>"
-                               placeholder="https://youtube.com/@...">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">
-                            <i class="bi bi-facebook text-primary"></i> Facebook
-                        </label>
-                        <input type="url" class="form-control" name="facebook" 
-                               value="<?php echo htmlspecialchars($kontak['facebook'] ?? ''); ?>"
-                               placeholder="https://facebook.com/...">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-youtube text-danger"></i> YouTube
+                            </label>
+                            <input type="url" class="form-control" name="youtube" 
+                                   value="<?php echo htmlspecialchars($kontak['youtube'] ?? ''); ?>"
+                                   placeholder="https://youtube.com/@...">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">
+                                <i class="bi bi-facebook text-primary"></i> Facebook
+                            </label>
+                            <input type="url" class="form-control" name="facebook" 
+                                   value="<?php echo htmlspecialchars($kontak['facebook'] ?? ''); ?>"
+                                   placeholder="https://facebook.com/...">
+                        </div>
                     </div>
                     
                     <hr class="my-4">
@@ -261,7 +267,7 @@ include "navbar.php";
                     </div>
                     
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-save"></i> Simpan Perubahan
+                        <i class="bi bi-floppy"></i> Simpan Perubahan
                     </button>
                 </form>
             </div>
@@ -290,7 +296,7 @@ include "navbar.php";
                     <p class="mb-2">
                         <i class="bi bi-geo-alt text-primary"></i> 
                         <strong>Alamat:</strong><br>
-                        <small><?php echo htmlspecialchars($kontak['alamat'] ?? '-'); ?></small>
+                        <small><?php echo nl2br(htmlspecialchars($kontak['alamat'] ?? '-')); ?></small>
                     </p>
                     
                     <p class="mb-2">

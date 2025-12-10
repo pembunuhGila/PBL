@@ -16,7 +16,7 @@ $limit = 10;
 $page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page_num - 1) * $limit;
 
-// Handle Delete - HANYA BISA HAPUS YANG PENDING
+// Handle Delete - HANYA BISA HAPUS PENDING MILIK SENDIRI
 if (isset($_GET['delete'])) {
     try {
         $stmt_check = $pdo->prepare("SELECT id_user, status, judul FROM konten WHERE id_konten = ?");
@@ -40,12 +40,13 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Handle Add/Edit - STATUS SELALU PENDING
+// Handle Add/Edit - TIDAK PAKAI STORED PROCEDURE
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
     $kategori_konten = $_POST['kategori_konten'];
     $judul = $_POST['judul'];
     $slug = strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]/', '', $judul)));
     $isi = $_POST['isi'];
+    $urutan = $_POST['urutan'] ?? 1;
     $status = 'pending'; // SELALU PENDING UNTUK OPERATOR
     
     $gambar = null;
@@ -62,41 +63,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
         if (isset($_POST['id_konten']) && !empty($_POST['id_konten'])) {
             $id = $_POST['id_konten'];
             
-            // CEK KEPEMILIKAN DAN STATUS
+            // CEK APAKAH DATA ADA (tidak perlu cek kepemilikan karena operator bisa edit semua)
             $stmt_check = $pdo->prepare("SELECT id_user, status FROM konten WHERE id_konten = ?");
             $stmt_check->execute([$id]);
             $data_owner = $stmt_check->fetch();
             
-            if ($data_owner && $data_owner['id_user'] == $_SESSION['id_user'] && $data_owner['status'] == 'pending') {
-                $stmt = $pdo->prepare("SELECT * FROM sp_update_konten(?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$id, $kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
-                $result = $stmt->fetch();
-                $message = $result['p_message'];
+            if ($data_owner) {
+                $status_lama = $data_owner['status'];
                 
-                if (strpos($message, 'Success') !== false) {
-                    header("Location: konten.php?success=updated&page=" . $page_num);
-                    exit;
+                // OPERATOR BISA EDIT SEMUA - UPDATE LANGSUNG TANPA SP
+                if ($gambar) {
+                    $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, gambar=?, urutan=?, status=? WHERE id_konten=?");
+                    $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $urutan, $status, $id]);
                 } else {
-                    $error = $message;
+                    $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, urutan=?, status=? WHERE id_konten=?");
+                    $stmt->execute([$kategori_konten, $judul, $slug, $isi, $urutan, $status, $id]);
                 }
-            } else {
-                $error = "Anda hanya bisa edit data pending milik Anda!";
-            }
-        } else {
-            $stmt = $pdo->prepare("SELECT * FROM sp_insert_konten(?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user'], 'operator']);
-            $result = $stmt->fetch();
-            $new_id = $result['p_id_konten'];
-            $message = $result['p_message'];
-            
-            if ($new_id > 0) {
+                
                 $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
-                header("Location: konten.php?success=added");
+                $stmt_riwayat->execute(['konten', $id, $_SESSION['id_user'], $status_lama, $status, 'Update konten: ' . $judul]);
+                
+                header("Location: konten.php?success=updated&page=" . $page_num);
                 exit;
             } else {
-                $error = $message;
+                $error = "Data tidak ditemukan!";
             }
+        } else {
+            // INSERT BARU LANGSUNG TANPA SP
+            $stmt = $pdo->prepare("INSERT INTO konten (kategori_konten, judul, slug, isi, gambar, urutan, status, id_user, tanggal_posting) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $urutan, $status, $_SESSION['id_user']]);
+            
+            $new_id = $pdo->lastInsertId();
+            
+            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
+            
+            header("Location: konten.php?success=added");
+            exit;
         }
     } catch (PDOException $e) {
         $error = "Gagal menyimpan: " . $e->getMessage();
@@ -108,9 +111,9 @@ $search = $_GET['search'] ?? '';
 $kategori_filter = $_GET['kategori'] ?? '';
 $status_filter = $_GET['status_filter'] ?? '';
 
-// Build WHERE conditions - HANYA DATA MILIK OPERATOR
-$where_clauses = ["id_user = ?"];
-$params = [$_SESSION['id_user']];
+// Build WHERE conditions - TAMPILKAN SEMUA DATA
+$where_clauses = [];
+$params = [];
 
 if ($search) {
     $where_clauses[] = "(judul ILIKE ? OR isi ILIKE ?)";
@@ -129,7 +132,7 @@ if ($status_filter) {
     $params[] = $status_filter;
 }
 
-$where_sql = "WHERE " . implode(" AND ", $where_clauses);
+$where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
 // Get total count
 $count_query = "SELECT COUNT(*) FROM konten $where_sql";
@@ -138,8 +141,8 @@ $count_stmt->execute($params);
 $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
-// Get data with pagination
-$query = "SELECT * FROM konten $where_sql ORDER BY tanggal_posting DESC LIMIT ? OFFSET ?";
+// Get data with pagination - URUTKAN BERDASARKAN URUTAN
+$query = "SELECT k.*, u.nama as nama_pembuat FROM konten k LEFT JOIN users u ON k.id_user = u.id_user $where_sql ORDER BY k.urutan ASC, k.tanggal_posting DESC LIMIT ? OFFSET ?";
 $params_with_limit = array_merge($params, [$limit, $offset]);
 $stmt = $pdo->prepare($query);
 $stmt->execute($params_with_limit);
@@ -175,7 +178,7 @@ include "navbar.php";
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Semua konten yang Anda tambahkan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua konten. Setiap perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <!-- Search & Filter -->
@@ -250,23 +253,23 @@ include "navbar.php";
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>No</th>
+                        <th>Urutan</th>
                         <th>Gambar</th>
                         <th>Judul</th>
                         <th>Kategori</th>
                         <th>Tanggal</th>
                         <th>Status</th>
+                        <th>Pembuat</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php 
                     if (count($konten_list) > 0) {
-                        $no = $offset + 1; 
                         foreach ($konten_list as $kon): 
                     ?>
                     <tr>
-                        <td><?php echo $no++; ?></td>
+                        <td><span class="badge bg-primary">#<?php echo $kon['urutan'] ?? 1; ?></span></td>
                         <td>
                             <?php if ($kon['gambar']): ?>
                                 <img src="../../uploads/konten/<?php echo $kon['gambar']; ?>" width="60" height="40" class="img-thumbnail">
@@ -290,15 +293,22 @@ include "navbar.php";
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if ($kon['status'] == 'pending' || $kon['status'] == 'rejected'): ?>
-                                <button class="btn btn-sm btn-warning" onclick='editKonten(<?php echo htmlspecialchars(json_encode($kon)); ?>)'>
-                                    <i class="bi bi-pencil"></i> Edit
-                                </button>
+                            <?php if ($kon['id_user'] == $_SESSION['id_user']): ?>
+                                <span class="badge bg-secondary">Anda</span>
+                            <?php else: ?>
+                                <small><?php echo htmlspecialchars($kon['nama_pembuat'] ?? 'Unknown'); ?></small>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <!-- OPERATOR BISA EDIT SEMUA -->
+                            <button class="btn btn-sm btn-warning" onclick='editKonten(<?php echo htmlspecialchars(json_encode($kon)); ?>)'>
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            
+                            <?php if ($kon['id_user'] == $_SESSION['id_user'] && $kon['status'] == 'pending'): ?>
                                 <a href="?delete=<?php echo $kon['id_konten']; ?>&page=<?php echo $page_num; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $kategori_filter ? '&kategori=' . urlencode($kategori_filter) : ''; ?><?php echo $status_filter ? '&status_filter=' . urlencode($status_filter) : ''; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
                                     <i class="bi bi-trash"></i> Hapus
                                 </a>
-                            <?php else: ?>
-                                <span class="text-muted small">Disetujui</span>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -307,7 +317,7 @@ include "navbar.php";
                     } else {
                     ?>
                     <tr>
-                        <td colspan="7" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
                             <p class="mt-3 text-muted">
                                 <?php if ($search || $kategori_filter || $status_filter): ?>
@@ -386,11 +396,11 @@ include "navbar.php";
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-8 mb-3">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">Judul *</label>
                             <input type="text" class="form-control" name="judul" id="judul" required>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <label class="form-label">Kategori *</label>
                             <select class="form-select" name="kategori_konten" id="kategori_konten" required>
                                 <option value="">-- Pilih Kategori --</option>
@@ -398,6 +408,11 @@ include "navbar.php";
                                 <option value="Agenda">Agenda</option>
                                 <option value="Pengumuman">Pengumuman</option>
                             </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Urutan *</label>
+                            <input type="number" class="form-control" name="urutan" id="urutan" required min="1" value="1">
+                            <small class="text-muted">Urutan tampil (1 = pertama)</small>
                         </div>
                     </div>
                     
@@ -421,11 +436,11 @@ include "navbar.php";
 </div>
 
 <script>
-// SEMUA JAVASCRIPT DIGABUNG DI SINI
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Konten';
     document.querySelector('form').reset();
     document.getElementById('id_konten').value = '';
+    document.getElementById('urutan').value = '1';
 }
 
 function editKonten(data) {
@@ -434,6 +449,7 @@ function editKonten(data) {
     document.getElementById('judul').value = data.judul;
     document.getElementById('kategori_konten').value = data.kategori_konten || '';
     document.getElementById('isi').value = data.isi || '';
+    document.getElementById('urutan').value = data.urutan || 1;
     new bootstrap.Modal(document.getElementById('kontenModal')).show();
 }
 </script>
