@@ -42,97 +42,102 @@ if (isset($_GET['delete'])) {
 
 // Handle Add/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
-    $nama = $_POST['nama'];
-    $role_anggota = $_POST['role_anggota']; // dosen atau mahasiswa
-    $nip_nim = $_POST['nip_nim'];
-    $email = $_POST['email'];
-    $kontak = $_POST['kontak'];
-    $biodata_teks = $_POST['biodata_teks'];
-    $linkedin = $_POST['linkedin'] ?? '';
-    $shinta = $_POST['shinta'] ?? '';
-    
-    // Process pendidikan array
-    $pendidikan_array = [];
-    if ($role_anggota == 'dosen' && isset($_POST['pendidikan_jenjang']) && is_array($_POST['pendidikan_jenjang'])) {
-        foreach ($_POST['pendidikan_jenjang'] as $index => $jenjang) {
-            if (!empty($jenjang) && !empty($_POST['pendidikan_institusi'][$index])) {
-                $pendidikan_array[] = [
-                    'jenjang' => $jenjang,
-                    'institusi' => $_POST['pendidikan_institusi'][$index],
-                    'tahun' => $_POST['pendidikan_tahun'][$index] ?? '',
-                    'jurusan' => $_POST['pendidikan_jurusan'][$index] ?? ''
-                ];
-            }
-        }
-    }
-    $pendidikan = json_encode($pendidikan_array);
-    
-    // Process mata kuliah array
-    $matakuliah_array = [];
-    if ($role_anggota == 'dosen' && isset($_POST['matakuliah_nama']) && is_array($_POST['matakuliah_nama'])) {
-        foreach ($_POST['matakuliah_nama'] as $index => $nama_mk) {
-            if (!empty($nama_mk)) {
-                $matakuliah_array[] = ['nama' => $nama_mk];
-            }
-        }
-    }
-    $bidang_keahlian = json_encode($matakuliah_array);
-    
-    $tanggal_bergabung = $_POST['tanggal_bergabung'];
-    $status = 'pending'; // SELALU PENDING UNTUK OPERATOR
-    
-    $foto = null;
-    if (isset($_FILES['foto']) && $_FILES['foto']['error'] == 0) {
-        $target_dir = "../../uploads/anggota/";
-        if (!file_exists($target_dir)) mkdir($target_dir, 0777, true);
-        
-        $file_extension = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
-        $foto = 'anggota_' . time() . '.' . $file_extension;
-        move_uploaded_file($_FILES['foto']['tmp_name'], $target_dir . $foto);
-    }
-    
     try {
+        // Validasi input required
+        if (empty($_POST['nama']) || empty($_POST['role_anggota']) || empty($_POST['nip_nim'])) {
+            throw new Exception("Nama, Role, dan NIP/NIM wajib diisi!");
+        }
+        
+        $nama = trim($_POST['nama']);
+        $role_anggota = $_POST['role_anggota'];
+        $nip_nim = trim($_POST['nip_nim']);
+        $email = trim($_POST['email'] ?? '');
+        $kontak = trim($_POST['kontak'] ?? '');
+        $biodata_teks = trim($_POST['biodata_teks'] ?? '');
+        $linkedin = trim($_POST['linkedin'] ?? '');
+        $shinta = trim($_POST['shinta'] ?? '');
+        
+        // Process pendidikan array
+        $pendidikan_array = [];
+        if ($role_anggota == 'dosen' && isset($_POST['pendidikan_jenjang']) && is_array($_POST['pendidikan_jenjang'])) {
+            foreach ($_POST['pendidikan_jenjang'] as $index => $jenjang) {
+                if (!empty($jenjang) && !empty($_POST['pendidikan_institusi'][$index])) {
+                    $pendidikan_array[] = [
+                        'jenjang' => $jenjang,
+                        'institusi' => $_POST['pendidikan_institusi'][$index],
+                        'tahun' => $_POST['pendidikan_tahun'][$index] ?? '',
+                        'jurusan' => $_POST['pendidikan_jurusan'][$index] ?? ''
+                    ];
+                }
+            }
+        }
+        $pendidikan = empty($pendidikan_array) ? '[]' : json_encode($pendidikan_array);
+        
+        // Process mata kuliah array
+        $matakuliah_array = [];
+        if ($role_anggota == 'dosen' && isset($_POST['matakuliah_nama']) && is_array($_POST['matakuliah_nama'])) {
+            foreach ($_POST['matakuliah_nama'] as $index => $nama_mk) {
+                if (!empty(trim($nama_mk))) {
+                    $matakuliah_array[] = ['nama' => trim($nama_mk)];
+                }
+            }
+        }
+        $bidang_keahlian = empty($matakuliah_array) ? '[]' : json_encode($matakuliah_array);
+        
+        $tanggal_bergabung = $_POST['tanggal_bergabung'] ?? null;
+        $status = 'pending'; // SELALU PENDING UNTUK OPERATOR
+        
+        $foto = null;
+        if (isset($_FILES['foto']) && $_FILES['foto']['error'] == 0) {
+            $target_dir = "../../uploads/anggota/";
+            if (!file_exists($target_dir)) mkdir($target_dir, 0777, true);
+            
+            $file_extension = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
+            $foto = 'anggota_' . time() . '.' . $file_extension;
+            move_uploaded_file($_FILES['foto']['tmp_name'], $target_dir . $foto);
+        }
+        
         if (isset($_POST['id_anggota']) && !empty($_POST['id_anggota'])) {
             $id = $_POST['id_anggota'];
             
-            // CEK APAKAH DATA ADA (operator bisa edit semua)
+            // CEK APAKAH DATA ADA
             $stmt_check = $pdo->prepare("SELECT id_user, status FROM anggota_lab WHERE id_anggota = ?");
             $stmt_check->execute([$id]);
             $data_owner = $stmt_check->fetch();
             
-            if ($data_owner) {
-                $status_lama = $data_owner['status'];
-                
-                // OPERATOR BISA EDIT SEMUA - UPDATE LANGSUNG
-                if ($foto) {
-                    $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, foto=?, status=?, id_user=? WHERE id_anggota=?");
-                    $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user'], $id]);
-                } else {
-                    $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, status=?, id_user=? WHERE id_anggota=?");
-                    $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $status, $_SESSION['id_user'], $id]);
-                }
-                
-                // Handle social media (LinkedIn & SHINTA)
-                $stmt_del = $pdo->prepare("DELETE FROM social_media_anggota WHERE id_anggota = ? AND platform IN ('linkedin', 'scholar')");
-                $stmt_del->execute([$id]);
-                
-                if (!empty($linkedin)) {
-                    $stmt_sm = $pdo->prepare("INSERT INTO social_media_anggota (id_anggota, platform, url) VALUES (?, 'linkedin', ?)");
-                    $stmt_sm->execute([$id, $linkedin]);
-                }
-                if (!empty($shinta)) {
-                    $stmt_sm = $pdo->prepare("INSERT INTO social_media_anggota (id_anggota, platform, url) VALUES (?, 'scholar', ?)");
-                    $stmt_sm->execute([$id, $shinta]);
-                }
-                
-                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_riwayat->execute(['anggota_lab', $id, $_SESSION['id_user'], $status_lama, $status, 'Update anggota: ' . $nama]);
-                
-                header("Location: anggota.php?success=updated&page=" . $page_num);
-                exit;
-            } else {
-                $error = "Data tidak ditemukan!";
+            if (!$data_owner) {
+                throw new Exception("Data tidak ditemukan!");
             }
+            
+            $status_lama = $data_owner['status'];
+            
+            // OPERATOR BISA EDIT SEMUA - UPDATE LANGSUNG
+            if ($foto) {
+                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, foto=?, status=?, id_user=? WHERE id_anggota=?");
+                $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user'], $id]);
+            } else {
+                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, status=?, id_user=? WHERE id_anggota=?");
+                $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $status, $_SESSION['id_user'], $id]);
+            }
+            
+            // Handle social media (LinkedIn & SHINTA)
+            $stmt_del = $pdo->prepare("DELETE FROM social_media_anggota WHERE id_anggota = ? AND platform IN ('linkedin', 'scholar')");
+            $stmt_del->execute([$id]);
+            
+            if (!empty($linkedin)) {
+                $stmt_sm = $pdo->prepare("INSERT INTO social_media_anggota (id_anggota, platform, url) VALUES (?, 'linkedin', ?)");
+                $stmt_sm->execute([$id, $linkedin]);
+            }
+            if (!empty($shinta)) {
+                $stmt_sm = $pdo->prepare("INSERT INTO social_media_anggota (id_anggota, platform, url) VALUES (?, 'scholar', ?)");
+                $stmt_sm->execute([$id, $shinta]);
+            }
+            
+            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_riwayat->execute(['anggota_lab', $id, $_SESSION['id_user'], $status_lama, $status, 'Update anggota: ' . $nama]);
+            
+            header("Location: anggota.php?success=updated&page=" . $page_num);
+            exit;
         } else {
             // INSERT BARU
             $stmt = $pdo->prepare("INSERT INTO anggota_lab (nama, nip, email, kontak, biodata_teks, pendidikan, bidang_keahlian, tanggal_bergabung, foto, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -157,7 +162,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
             exit;
         }
     } catch (PDOException $e) {
-        $error = "Gagal menyimpan: " . $e->getMessage();
+        $error = "Gagal menyimpan (Database): " . $e->getMessage();
+        error_log("PDO Error save anggota: " . $e->getMessage());
+    } catch (Exception $e) {
+        $error = $e->getMessage();
+        error_log("Error save anggota: " . $e->getMessage());
     }
 }
 
@@ -165,12 +174,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
 $search = $_GET['search'] ?? '';
 $status_filter = $_GET['status_filter'] ?? '';
 
-// TAMPILKAN SEMUA DATA (bukan hanya milik sendiri)
+// TAMPILKAN SEMUA DATA
 $where_clauses = [];
 $params = [];
 
 if ($search) {
-    $where_clauses[] = "(nama ILIKE ? OR nip ILIKE ? OR email ILIKE ?)";
+    $where_clauses[] = "(a.nama ILIKE ? OR a.nip ILIKE ? OR a.email ILIKE ?)";
     $search_param = "%$search%";
     $params[] = $search_param;
     $params[] = $search_param;
@@ -178,14 +187,14 @@ if ($search) {
 }
 
 if ($status_filter) {
-    $where_clauses[] = "status = ?";
+    $where_clauses[] = "a.status = ?";
     $params[] = $status_filter;
 }
 
 $where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-// Get total count
-$count_query = "SELECT COUNT(*) FROM anggota_lab $where_sql";
+// Get total count - FIX: tambahkan alias 'a'
+$count_query = "SELECT COUNT(*) FROM anggota_lab a $where_sql";
 $count_stmt = $pdo->prepare($count_query);
 $count_stmt->execute($params);
 $total_items = $count_stmt->fetchColumn();
@@ -222,7 +231,7 @@ include "navbar.php";
 <?php endif; ?>
 
 <?php if (isset($error)): ?>
-    <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    <div class="alert alert-danger alert-dismissible fade show"><?php echo htmlspecialchars($error); ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
 <div class="alert alert-info">
@@ -242,7 +251,7 @@ include "navbar.php";
                 <select class="form-select" name="status_filter">
                     <option value="">Semua</option>
                     <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                    <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Approved</option>
+                    <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
                     <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                 </select>
             </div>
@@ -323,7 +332,7 @@ include "navbar.php";
                             <?php if ($anggota['status'] == 'pending'): ?>
                                 <span class="badge bg-warning text-dark">Pending</span>
                             <?php elseif ($anggota['status'] == 'active'): ?>
-                                <span class="badge bg-success">Approved</span>
+                                <span class="badge bg-success">Active</span>
                             <?php else: ?>
                                 <span class="badge bg-danger">Rejected</span>
                             <?php endif; ?>
@@ -419,7 +428,7 @@ include "navbar.php";
 <div class="modal fade" id="anggotaModal" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data" id="anggotaForm">
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalTitle">Tambah Anggota Lab</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -522,11 +531,24 @@ include "navbar.php";
 function toggleRoleFields() {
     const roleAnggota = document.getElementById('role_anggota').value;
     const dosenSection = document.getElementById('dosenSection');
+    const pendidikanContainer = document.getElementById('pendidikanContainer');
+    const matakuliahContainer = document.getElementById('matakuliahContainer');
     
     if (roleAnggota === 'dosen') {
         dosenSection.style.display = 'block';
+        
+        // Add default items if empty
+        if (pendidikanContainer.children.length === 0) {
+            addPendidikan();
+        }
+        if (matakuliahContainer.children.length === 0) {
+            addMatakuliah();
+        }
     } else {
         dosenSection.style.display = 'none';
+        // Clear containers when switching to mahasiswa
+        pendidikanContainer.innerHTML = '';
+        matakuliahContainer.innerHTML = '';
     }
 }
 
@@ -538,7 +560,7 @@ function addPendidikan() {
         <div class="row">
             <div class="col-md-3 mb-2">
                 <label class="form-label small">Jenjang *</label>
-                <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                <select class="form-select form-select-sm" name="pendidikan_jenjang[]">
                     <option value="">Pilih Jenjang</option>
                     <option value="D3">D3</option>
                     <option value="D4">D4</option>
@@ -550,7 +572,7 @@ function addPendidikan() {
             </div>
             <div class="col-md-4 mb-2">
                 <label class="form-label small">Institusi *</label>
-                <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." required>
+                <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas...">
             </div>
             <div class="col-md-3 mb-2">
                 <label class="form-label small">Jurusan</label>
@@ -590,7 +612,7 @@ function addMatakuliah() {
             </div>
             <div class="col mb-2">
                 <label class="form-label small">Nama Mata Kuliah *</label>
-                <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" required>
+                <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web">
             </div>
         </div>
     `;
@@ -608,7 +630,7 @@ function updateDeleteButtons(type) {
     items.forEach((item, index) => {
         const deleteBtn = item.querySelector('.btn-danger');
         if (items.length > 1) {
-            deleteBtn.style.display = 'block';
+            deleteBtn.style.display = 'inline-block';
         } else {
             deleteBtn.style.display = 'none';
         }
@@ -617,31 +639,26 @@ function updateDeleteButtons(type) {
 
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Anggota Lab';
-    document.querySelector('form').reset();
+    document.getElementById('anggotaForm').reset();
     document.getElementById('id_anggota').value = '';
+    document.getElementById('role_anggota').value = '';
     
     // Remove foto preview if exists
     document.getElementById('currentFotoPreview').innerHTML = '';
     
-    // Reset pendidikan - add one default item
-    const pendidikanContainer = document.getElementById('pendidikanContainer');
-    pendidikanContainer.innerHTML = '';
-    addPendidikan();
-    
-    // Reset mata kuliah - add one default item
-    const matakuliahContainer = document.getElementById('matakuliahContainer');
-    matakuliahContainer.innerHTML = '';
-    addMatakuliah();
-    
     // Hide dosen section
     document.getElementById('dosenSection').style.display = 'none';
+    
+    // Reset containers
+    document.getElementById('pendidikanContainer').innerHTML = '';
+    document.getElementById('matakuliahContainer').innerHTML = '';
 }
 
 function editAnggota(data) {
     document.getElementById('modalTitle').textContent = 'Edit Anggota Lab';
     document.getElementById('id_anggota').value = data.id_anggota;
     document.getElementById('nama').value = data.nama;
-    document.getElementById('nip_nim').value = data.nip || ''; // ✅ FIX: nip_nim bukan nip
+    document.getElementById('nip_nim').value = data.nip || '';
     document.getElementById('email').value = data.email || '';
     document.getElementById('kontak').value = data.kontak || '';
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
@@ -651,12 +668,8 @@ function editAnggota(data) {
     const roleAnggota = data.nip && data.nip.length >= 15 ? 'dosen' : 'mahasiswa';
     document.getElementById('role_anggota').value = roleAnggota;
     
-    // Show/hide dosen fields
-    if (roleAnggota === 'dosen') {
-        document.getElementById('dosenSection').style.display = 'block';
-    } else {
-        document.getElementById('dosenSection').style.display = 'none';
-    }
+    // Trigger toggle to show/hide dosen fields
+    toggleRoleFields();
     
     // Load social media
     if (data.social_media) {
@@ -700,7 +713,7 @@ function editAnggota(data) {
                 <div class="row">
                     <div class="col-md-3 mb-2">
                         <label class="form-label small">Jenjang *</label>
-                        <select class="form-select form-select-sm" name="pendidikan_jenjang[]" required>
+                        <select class="form-select form-select-sm" name="pendidikan_jenjang[]">
                             <option value="">Pilih Jenjang</option>
                             <option value="D3" ${item.jenjang === 'D3' ? 'selected' : ''}>D3</option>
                             <option value="D4" ${item.jenjang === 'D4' ? 'selected' : ''}>D4</option>
@@ -712,7 +725,7 @@ function editAnggota(data) {
                     </div>
                     <div class="col-md-4 mb-2">
                         <label class="form-label small">Institusi *</label>
-                        <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${item.institusi || ''}" required>
+                        <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${item.institusi || ''}">
                     </div>
                     <div class="col-md-3 mb-2">
                         <label class="form-label small">Jurusan</label>
@@ -731,7 +744,7 @@ function editAnggota(data) {
             `;
             pendidikanContainer.appendChild(newItem);
         });
-    } else {
+    } else if (roleAnggota === 'dosen') {
         addPendidikan();
     }
     updateDeleteButtons('pendidikan');
@@ -765,13 +778,13 @@ function editAnggota(data) {
                     </div>
                     <div class="col mb-2">
                         <label class="form-label small">Nama Mata Kuliah *</label>
-                        <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${item.nama || ''}" required>
+                        <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${item.nama || ''}">
                     </div>
                 </div>
             `;
             matakuliahContainer.appendChild(newItem);
         });
-    } else {
+    } else if (roleAnggota === 'dosen') {
         addMatakuliah();
     }
     updateDeleteButtons('matakuliah');

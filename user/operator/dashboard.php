@@ -299,7 +299,7 @@ include "navbar.php";
                             Disetujui Admin
                         </div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_approved; ?></div>
-                        <small class="text-muted">Total Approved</small>
+                        <small class="text-muted">Total Active</small>
                     </div>
                     <div class="col-auto">
                         <i class="bi bi-check-circle fa-2x text-gray-300" style="font-size: 2rem; color: #1cc88a;"></i>

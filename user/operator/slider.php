@@ -187,7 +187,7 @@ include "navbar.php";
                                 <?php if ($slider['status'] == 'pending'): ?>
                                     <span class="badge bg-warning">Pending</span>
                                 <?php elseif ($slider['status'] == 'active'): ?>
-                                    <span class="badge bg-success">Approved</span>
+                                    <span class="badge bg-success">Active</span>
                                 <?php else: ?>
                                     <span class="badge bg-danger">Rejected</span>
                                 <?php endif; ?>
