@@ -29,7 +29,6 @@ $id_user = $_SESSION['id_user'];
 
 // UNION query untuk gabungkan semua data milik operator
 $union_parts = [];
-$union_params = [];
 
 // 1. Data dari riwayat_pengajuan (modul lama)
 $riwayat_query = "
@@ -46,7 +45,6 @@ $riwayat_query = "
     WHERE r.id_operator = ?
 ";
 $union_parts[] = $riwayat_query;
-$union_params[] = $id_user;
 
 // 2. Data dari kontak milik operator
 $kontak_query = "
@@ -62,7 +60,6 @@ $kontak_query = "
     WHERE k.id_user = ? AND k.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $kontak_query;
-$union_params[] = $id_user;
 
 // 3. Data dari tentang_kami milik operator
 $profil_query = "
@@ -78,7 +75,6 @@ $profil_query = "
     WHERE t.id_user = ? AND t.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $profil_query;
-$union_params[] = $id_user;
 
 // 4. Data dari visi milik operator
 $visi_query = "
@@ -94,7 +90,6 @@ $visi_query = "
     WHERE v.id_user = ? AND v.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $visi_query;
-$union_params[] = $id_user;
 
 // 5. Data dari misi milik operator
 $misi_query = "
@@ -110,7 +105,6 @@ $misi_query = "
     WHERE m.id_user = ? AND m.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $misi_query;
-$union_params[] = $id_user;
 
 // 6. Data dari sejarah/roadmap milik operator
 $sejarah_query = "
@@ -126,10 +120,12 @@ $sejarah_query = "
     WHERE s.id_user = ? AND s.status IN ('pending', 'rejected', 'active')
 ";
 $union_parts[] = $sejarah_query;
-$union_params[] = $id_user;
 
 // Gabungkan semua query dengan UNION ALL
 $base_query = "SELECT * FROM (" . implode(" UNION ALL ", $union_parts) . ") as all_riwayat";
+
+// Parameter untuk base query (6 kali id_user untuk 6 UNION parts)
+$union_params = array_fill(0, 6, $id_user);
 
 // Apply filters
 $where_clauses = [];
@@ -171,28 +167,27 @@ $stmt->execute($all_params);
 $riwayat_list = $stmt->fetchAll();
 
 // ========================================
-// GET STATISTICS
+// GET STATISTICS - FIXED: Gunakan $union_params saja
 // ========================================
-$stats_params = array_merge($union_params, array_fill(0, 6, $id_user));
 
 $pending_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'pending'";
 $pending_stmt = $pdo->prepare($pending_query);
-$pending_stmt->execute($stats_params);
+$pending_stmt->execute($union_params);
 $pending = $pending_stmt->fetchColumn();
 
 $approved_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'active'";
 $approved_stmt = $pdo->prepare($approved_query);
-$approved_stmt->execute($stats_params);
+$approved_stmt->execute($union_params);
 $approved = $approved_stmt->fetchColumn();
 
 $rejected_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'rejected'";
 $rejected_stmt = $pdo->prepare($rejected_query);
-$rejected_stmt->execute($stats_params);
+$rejected_stmt->execute($union_params);
 $rejected = $rejected_stmt->fetchColumn();
 
 $deleted_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'deleted'";
 $deleted_stmt = $pdo->prepare($deleted_query);
-$deleted_stmt->execute($stats_params);
+$deleted_stmt->execute($union_params);
 $deleted = $deleted_stmt->fetchColumn();
 
 // Get available months untuk filter
@@ -250,7 +245,7 @@ include "navbar.php";
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Approved</div>
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Active</div>
                         <div class="h4 mb-0 font-weight-bold"><?php echo $approved; ?></div>
                         <small class="text-muted">Disetujui Admin</small>
                     </div>
@@ -318,7 +313,7 @@ include "navbar.php";
                 <select class="form-select" name="status">
                     <option value="">Semua Status</option>
                     <option value="pending" <?php echo $filter_status == 'pending' ? 'selected' : ''; ?>>⏳ Pending</option>
-                    <option value="active" <?php echo $filter_status == 'active' ? 'selected' : ''; ?>>✅ Approved</option>
+                    <option value="active" <?php echo $filter_status == 'active' ? 'selected' : ''; ?>>✅ Active</option>
                     <option value="rejected" <?php echo $filter_status == 'rejected' ? 'selected' : ''; ?>>❌ Rejected</option>
                     <option value="deleted" <?php echo $filter_status == 'deleted' ? 'selected' : ''; ?>>🗑️ Deleted</option>
                 </select>
@@ -356,7 +351,7 @@ include "navbar.php";
     <i class="bi bi-info-circle"></i> 
     <strong>Informasi:</strong> Menampilkan semua pengajuan Anda dari <strong>12 modul</strong> (Publikasi, Anggota, Fasilitas, Galeri, Konten, Struktur, Slider, Profil, Visi, Misi, Roadmap, Kontak). 
     Status <span class="badge bg-warning">Pending</span> menunggu review admin, 
-    <span class="badge bg-success">Approved</span> sudah disetujui, 
+    <span class="badge bg-success">Active</span> sudah disetujui, 
     <span class="badge bg-danger">Rejected</span> ditolak oleh admin.
 </div>
 
@@ -555,8 +550,7 @@ include "navbar.php";
 
 .table td, .table th {
     vertical-align: middle;
-}
-
+}a
 .badge {
     font-weight: 500;
 }

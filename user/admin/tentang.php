@@ -21,7 +21,7 @@ if (isset($_GET['action']) && isset($_GET['type']) && isset($_GET['id'])) {
         if ($type == 'profil') {
             if ($action == 'approve') {
                 $pdo->query("DELETE FROM tentang_kami WHERE status = 'active'");
-                $stmt = $pdo->prepare("UPDATE tentang_kami SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id_profil = ?");
+                $stmt = $pdo->prepare("UPDATE tentang_kami SET status = 'active' WHERE id_profil = ?");
                 $stmt->execute([$id]);
                 $success = "Profil berhasil disetujui!";
             } elseif ($action == 'reject') {
@@ -32,7 +32,7 @@ if (isset($_GET['action']) && isset($_GET['type']) && isset($_GET['id'])) {
         }
         elseif ($type == 'visi') {
             if ($action == 'approve') {
-                $stmt = $pdo->prepare("UPDATE visi SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id_visi = ?");
+                $stmt = $pdo->prepare("UPDATE visi SET status = 'active' WHERE id_visi = ?");
                 $stmt->execute([$id]);
                 $success = "Visi berhasil disetujui!";
             } elseif ($action == 'reject') {
@@ -43,7 +43,7 @@ if (isset($_GET['action']) && isset($_GET['type']) && isset($_GET['id'])) {
         }
         elseif ($type == 'misi') {
             if ($action == 'approve') {
-                $stmt = $pdo->prepare("UPDATE misi SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id_misi = ?");
+                $stmt = $pdo->prepare("UPDATE misi SET status = 'active' WHERE id_misi = ?");
                 $stmt->execute([$id]);
                 $success = "Misi berhasil disetujui!";
             } elseif ($action == 'reject') {
@@ -54,7 +54,7 @@ if (isset($_GET['action']) && isset($_GET['type']) && isset($_GET['id'])) {
         }
         elseif ($type == 'roadmap') {
             if ($action == 'approve') {
-                $stmt = $pdo->prepare("UPDATE sejarah SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id_sejarah = ?");
+                $stmt = $pdo->prepare("UPDATE sejarah SET status = 'active' WHERE id_sejarah = ?");
                 $stmt->execute([$id]);
                 $success = "Roadmap berhasil disetujui!";
             } elseif ($action == 'reject') {
@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $success = "Visi berhasil ditambahkan!";
         }
         elseif ($action == 'edit_visi') {
-            $stmt = $pdo->prepare("UPDATE visi SET isi_visi=?, urutan=?, updated_at=CURRENT_TIMESTAMP WHERE id_visi=?");
+            $stmt = $pdo->prepare("UPDATE visi SET isi_visi=?, urutan=? WHERE id_visi=?");
             $stmt->execute([$_POST['isi_visi'], $_POST['urutan'], $_POST['id_visi']]);
             $success = "Visi berhasil diupdate!";
         }
@@ -117,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $success = "Misi berhasil ditambahkan!";
         }
         elseif ($action == 'edit_misi') {
-            $stmt = $pdo->prepare("UPDATE misi SET isi_misi=?, urutan=?, updated_at=CURRENT_TIMESTAMP WHERE id_misi=?");
+            $stmt = $pdo->prepare("UPDATE misi SET isi_misi=?, urutan=? WHERE id_misi=?");
             $stmt->execute([$_POST['isi_misi'], $_POST['urutan'], $_POST['id_misi']]);
             $success = "Misi berhasil diupdate!";
         }
@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $success = "Roadmap berhasil ditambahkan!";
         }
         elseif ($action == 'edit_roadmap') {
-            $stmt = $pdo->prepare("UPDATE sejarah SET tahun=?, judul=?, deskripsi=?, urutan=?, updated_at=CURRENT_TIMESTAMP WHERE id_sejarah=?");
+            $stmt = $pdo->prepare("UPDATE sejarah SET tahun=?, judul=?, deskripsi=?, urutan=? WHERE id_sejarah=?");
             $stmt->execute([$_POST['tahun'], $_POST['judul'], $_POST['deskripsi'], $_POST['urutan'], $_POST['id_sejarah']]);
             $success = "Roadmap berhasil diupdate!";
         }
@@ -158,9 +158,9 @@ $roadmap_list = $pdo->query("SELECT * FROM sejarah WHERE status = 'active' ORDER
 
 // Get PENDING
 $pending_profil = $pdo->query("SELECT t.*, u.nama as operator_nama FROM tentang_kami t LEFT JOIN users u ON t.id_user = u.id_user WHERE t.status = 'pending' ORDER BY t.updated_at DESC")->fetchAll();
-$pending_visi = $pdo->query("SELECT v.*, u.nama as operator_nama FROM visi v LEFT JOIN users u ON v.id_user = u.id_user WHERE v.status = 'pending' ORDER BY v.updated_at DESC")->fetchAll();
-$pending_misi = $pdo->query("SELECT m.*, u.nama as operator_nama FROM misi m LEFT JOIN users u ON m.id_user = u.id_user WHERE m.status = 'pending' ORDER BY m.updated_at DESC")->fetchAll();
-$pending_roadmap = $pdo->query("SELECT s.*, u.nama as operator_nama FROM sejarah s LEFT JOIN users u ON s.id_user = u.id_user WHERE s.status = 'pending' ORDER BY s.updated_at DESC")->fetchAll();
+$pending_visi = $pdo->query("SELECT v.*, u.nama as operator_nama FROM visi v LEFT JOIN users u ON v.id_user = u.id_user WHERE v.status = 'pending' ORDER BY v.created_at DESC")->fetchAll();
+$pending_misi = $pdo->query("SELECT m.*, u.nama as operator_nama FROM misi m LEFT JOIN users u ON m.id_user = u.id_user WHERE m.status = 'pending' ORDER BY m.created_at DESC")->fetchAll();
+$pending_roadmap = $pdo->query("SELECT s.*, u.nama as operator_nama FROM sejarah s LEFT JOIN users u ON s.id_user = u.id_user WHERE s.status = 'pending' ORDER BY s.created_at DESC")->fetchAll();
 
 $total_pending = count($pending_profil) + count($pending_visi) + count($pending_misi) + count($pending_roadmap);
 
@@ -494,15 +494,15 @@ include "navbar.php";
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label"><strong>Tahun *</strong></label>
-                        <input type="number" class="form-control" name="tahun" id="tahun" min="1900" max="2100" required>
+                        <input type="text" class="form-control" name="tahun" id="tahun_roadmap" placeholder="2024" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label"><strong>Judul *</strong></label>
-                        <input type="text" class="form-control" name="judul" id="judul" required>
+                        <input type="text" class="form-control" name="judul" id="judul_roadmap" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Deskripsi</label>
-                        <textarea class="form-control" name="deskripsi" id="deskripsi" rows="3"></textarea>
+                        <textarea class="form-control" name="deskripsi" id="deskripsi_roadmap" rows="3"></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Urutan</label>
@@ -563,9 +563,9 @@ function editMisi(data) {
 function resetRoadmapForm() {
     document.getElementById('roadmap_action').value = 'add_roadmap';
     document.getElementById('id_roadmap').value = '';
-    document.getElementById('tahun').value = '';
-    document.getElementById('judul').value = '';
-    document.getElementById('deskripsi').value = '';
+    document.getElementById('tahun_roadmap').value = '';
+    document.getElementById('judul_roadmap').value = '';
+    document.getElementById('deskripsi_roadmap').value = '';
     document.getElementById('urutan_roadmap').value = '1';
     document.getElementById('roadmapModalTitle').textContent = 'Tambah Roadmap';
 }
@@ -573,9 +573,9 @@ function resetRoadmapForm() {
 function editRoadmap(data) {
     document.getElementById('roadmap_action').value = 'edit_roadmap';
     document.getElementById('id_roadmap').value = data.id_sejarah;
-    document.getElementById('tahun').value = data.tahun;
-    document.getElementById('judul').value = data.judul;
-    document.getElementById('deskripsi').value = data.deskripsi;
+    document.getElementById('tahun_roadmap').value = data.tahun;
+    document.getElementById('judul_roadmap').value = data.judul;
+    document.getElementById('deskripsi_roadmap').value = data.deskripsi || '';
     document.getElementById('urutan_roadmap').value = data.urutan;
     document.getElementById('roadmapModalTitle').textContent = 'Edit Roadmap';
     

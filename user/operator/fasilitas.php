@@ -11,7 +11,7 @@ include "../../conn.php";
 $page_title = "Fasilitas";
 $current_page = "fasilitas.php";
 
-// Handle Delete
+// Handle Delete - HANYA BISA HAPUS PENDING MILIK SENDIRI
 if (isset($_GET['delete'])) {
     try {
         $stmt_check = $pdo->prepare("SELECT id_user, status, judul FROM fasilitas WHERE id_fasilitas = ?");
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $deskripsi = $_POST['deskripsi'];
     $kategori_fasilitas = $_POST['kategori_fasilitas'];
-    $status = 'pending';
+    $status = 'pending'; // SELALU PENDING UNTUK OPERATOR
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (isset($_POST['id_fasilitas']) && !empty($_POST['id_fasilitas'])) {
             $id = $_POST['id_fasilitas'];
             
-            // Cek data yang akan diedit
+            // CEK DATA YANG AKAN DIEDIT
             $stmt_check = $pdo->prepare("SELECT id_user, status, gambar FROM fasilitas WHERE id_fasilitas = ?");
             $stmt_check->execute([$id]);
             $existing_data = $stmt_check->fetch();
@@ -63,46 +63,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if (!$existing_data) {
                 $error = "Data tidak ditemukan!";
             } else {
-                // Jika data milik operator sendiri dan masih pending/rejected, langsung update
-                if ($existing_data['id_user'] == $_SESSION['id_user'] && 
-                    ($existing_data['status'] == 'pending' || $existing_data['status'] == 'rejected')) {
-                    
-                    $status_lama = $existing_data['status'];
-                    
-                    // Jika tidak upload gambar baru, pakai gambar lama
-                    if (!$gambar) {
-                        $gambar = $existing_data['gambar'];
-                    }
-                    
-                    $stmt = $pdo->prepare("UPDATE fasilitas SET judul=?, deskripsi=?, kategori_fasilitas=?, gambar=?, status=?, id_user=? WHERE id_fasilitas=?");
-                    $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $gambar, $status, $_SESSION['id_user'], $id]);
-                    
-                    $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt_riwayat->execute(['fasilitas', $id, $_SESSION['id_user'], $status_lama, $status, 'Update fasilitas: ' . $judul]);
-                    
-                    $success = "Fasilitas berhasil diupdate! Menunggu persetujuan admin.";
-                    
-                } else {
-                    // Jika data sudah active (milik siapapun), buat pengajuan edit baru
-                    // Simpan gambar lama jika tidak upload baru
-                    if (!$gambar) {
-                        $gambar = $existing_data['gambar'];
-                    }
-                    
-                    // Insert data baru dengan status pending
-                    $stmt = $pdo->prepare("INSERT INTO fasilitas (judul, deskripsi, kategori_fasilitas, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $gambar, $status, $_SESSION['id_user']]);
-                    
-                    $new_id = $pdo->lastInsertId();
-                    
-                    $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                    $stmt_riwayat->execute(['fasilitas', $new_id, $_SESSION['id_user'], null, $status, 'Pengajuan edit fasilitas (dari ID: ' . $id . '): ' . $judul]);
-                    
-                    $success = "Pengajuan edit fasilitas berhasil dibuat! Menunggu persetujuan admin. Data baru akan menggantikan data lama setelah disetujui.";
+                $status_lama = $existing_data['status'];
+                
+                // Jika tidak upload gambar baru, pakai gambar lama
+                if (!$gambar) {
+                    $gambar = $existing_data['gambar'];
                 }
+                
+                // OPERATOR BISA EDIT SEMUA DATA - UPDATE LANGSUNG & UBAH KE PENDING
+                $stmt = $pdo->prepare("UPDATE fasilitas SET judul=?, deskripsi=?, kategori_fasilitas=?, gambar=?, status=?, id_user=? WHERE id_fasilitas=?");
+                $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $gambar, $status, $_SESSION['id_user'], $id]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['fasilitas', $id, $_SESSION['id_user'], $status_lama, $status, 'Update fasilitas: ' . $judul]);
+                
+                $success = "Fasilitas berhasil diupdate! Menunggu persetujuan admin.";
             }
         } else {
-            // Tambah baru
+            // TAMBAH BARU
             $stmt = $pdo->prepare("INSERT INTO fasilitas (judul, deskripsi, kategori_fasilitas, gambar, status, id_user) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->execute([$judul, $deskripsi, $kategori_fasilitas, $gambar, $status, $_SESSION['id_user']]);
             
@@ -133,14 +111,14 @@ if ($filter == 'my') {
     $count_stmt->execute([$_SESSION['id_user']]);
     $total_items = $count_stmt->fetchColumn();
     
-    $stmt = $pdo->prepare("SELECT * FROM fasilitas WHERE id_user = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
+    $stmt = $pdo->prepare("SELECT f.*, u.nama as nama_pembuat FROM fasilitas f LEFT JOIN users u ON f.id_user = u.id_user WHERE f.id_user = ? ORDER BY f.created_at DESC LIMIT ? OFFSET ?");
     $stmt->execute([$_SESSION['id_user'], $items_per_page, $offset]);
 } else {
     // Semua data (all)
     $count_stmt = $pdo->query("SELECT COUNT(*) FROM fasilitas");
     $total_items = $count_stmt->fetchColumn();
     
-    $stmt = $pdo->prepare("SELECT * FROM fasilitas ORDER BY created_at DESC LIMIT ? OFFSET ?");
+    $stmt = $pdo->prepare("SELECT f.*, u.nama as nama_pembuat FROM fasilitas f LEFT JOIN users u ON f.id_user = u.id_user ORDER BY f.created_at DESC LIMIT ? OFFSET ?");
     $stmt->execute([$items_per_page, $offset]);
 }
 
@@ -168,22 +146,8 @@ include "navbar.php";
 
 <div class="alert alert-info">
     <i class="bi bi-info-circle"></i> 
-    <strong>Info:</strong> Anda bisa mengedit semua fasilitas. Edit data yang sudah <span class="badge bg-success">Active</span> akan membuat pengajuan baru dengan status <span class="badge bg-warning text-dark">Pending</span>.
+    <strong>Info:</strong> Anda bisa mengedit semua fasilitas. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
 </div>
-
-<!-- Filter Tabs -->
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item">
-        <a class="nav-link <?php echo $filter == 'all' ? 'active' : ''; ?>" href="?filter=all">
-            <i class="bi bi-list-ul"></i> Semua Fasilitas
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link <?php echo $filter == 'my' ? 'active' : ''; ?>" href="?filter=my">
-            <i class="bi bi-person-circle"></i> Data Saya
-        </a>
-    </li>
-</ul>
 
 <div class="row">
     <?php if (count($fasilitas_list) > 0): ?>
@@ -201,7 +165,7 @@ include "navbar.php";
                     <div class="mb-2">
                         <span class="badge bg-info"><?php echo htmlspecialchars($fas['kategori_fasilitas'] ?? 'Umum'); ?></span>
                         <?php if ($fas['status'] == 'pending'): ?>
-                            <span class="badge bg-warning">Pending</span>
+                            <span class="badge bg-warning text-dark">Pending</span>
                         <?php elseif ($fas['status'] == 'active'): ?>
                             <span class="badge bg-success">Active</span>
                         <?php else: ?>
@@ -210,7 +174,11 @@ include "navbar.php";
                         
                         <?php if ($fas['id_user'] == $_SESSION['id_user']): ?>
                             <span class="badge bg-secondary">
-                                <i class="bi bi-person"></i> Milik Saya
+                                <i class="bi bi-person"></i> Anda
+                            </span>
+                        <?php else: ?>
+                            <span class="badge bg-light text-dark">
+                                <i class="bi bi-person"></i> <?php echo htmlspecialchars($fas['nama_pembuat'] ?? 'Unknown'); ?>
                             </span>
                         <?php endif; ?>
                     </div>
@@ -218,10 +186,12 @@ include "navbar.php";
                     <p class="card-text text-muted small"><?php echo htmlspecialchars(substr($fas['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($fas['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
                 </div>
                 <div class="card-footer bg-white">
+                    <!-- OPERATOR BISA EDIT SEMUA -->
                     <button class="btn btn-sm btn-warning" onclick='editFasilitas(<?php echo json_encode($fas); ?>)'>
                         <i class="bi bi-pencil"></i> Edit
                     </button>
                     
+                    <!-- HANYA BISA HAPUS PENDING MILIK SENDIRI -->
                     <?php if ($fas['id_user'] == $_SESSION['id_user'] && $fas['status'] == 'pending'): ?>
                         <a href="?delete=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>&filter=<?php echo $filter; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
                             <i class="bi bi-trash"></i> Hapus
@@ -273,11 +243,7 @@ include "navbar.php";
                 <div class="modal-body">
                     <input type="hidden" name="id_fasilitas" id="id_fasilitas">
                     
-                    <div class="alert alert-warning" id="alertEdit" style="display: none;">
-                        <i class="bi bi-info-circle"></i> Anda mengedit fasilitas yang sudah <strong>Active</strong>. Perubahan akan membuat pengajuan baru dan menunggu approval admin.
-                    </div>
-                    
-                    <div class="alert alert-info" id="alertNew">
+                    <div class="alert alert-info">
                         <i class="bi bi-info-circle"></i> Data akan berstatus <strong>Pending</strong> dan menunggu persetujuan admin
                     </div>
                     
@@ -327,8 +293,6 @@ function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Fasilitas';
     document.querySelector('form').reset();
     document.getElementById('id_fasilitas').value = '';
-    document.getElementById('alertEdit').style.display = 'none';
-    document.getElementById('alertNew').style.display = 'block';
     document.getElementById('currentImage').style.display = 'none';
 }
 
@@ -345,15 +309,6 @@ function editFasilitas(data) {
         document.getElementById('previewImage').src = '../../uploads/fasilitas/' + data.gambar;
     } else {
         document.getElementById('currentImage').style.display = 'none';
-    }
-    
-    // Show appropriate alert
-    if (data.status === 'active') {
-        document.getElementById('alertEdit').style.display = 'block';
-        document.getElementById('alertNew').style.display = 'none';
-    } else {
-        document.getElementById('alertEdit').style.display = 'none';
-        document.getElementById('alertNew').style.display = 'block';
     }
     
     new bootstrap.Modal(document.getElementById('fasilitasModal')).show();

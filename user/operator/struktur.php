@@ -156,54 +156,6 @@ include "navbar.php";
     <i class="bi bi-info-circle"></i> Anda dapat mengedit semua struktur. Semua perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
 </div>
 
-<!-- Organizational Chart View - Active Only -->
-<div class="row mb-4">
-    <?php 
-    $stmt_chart = $pdo->query("
-        SELECT s.*, a.nama, a.foto, a.email 
-        FROM struktur_lab s
-        JOIN anggota_lab a ON s.id_anggota = a.id_anggota
-        WHERE s.status = 'active'
-        ORDER BY s.urutan ASC
-        LIMIT 12
-    ");
-    $struktur_chart = $stmt_chart->fetchAll();
-    
-    if (count($struktur_chart) > 0) {
-        $current_urutan = 0;
-        foreach ($struktur_chart as $struktur): 
-            if ($current_urutan != $struktur['urutan']) {
-                if ($current_urutan != 0) echo '</div><div class="row mb-4 justify-content-center">';
-                $current_urutan = $struktur['urutan'];
-            }
-    ?>
-    <div class="col-md-4 mb-3">
-        <div class="card shadow text-center h-100">
-            <div class="card-body">
-                <?php if ($struktur['foto']): ?>
-                    <img src="../../uploads/anggota/<?php echo $struktur['foto']; ?>" class="rounded-circle mb-3" width="100" height="100" style="object-fit: cover;">
-                <?php else: ?>
-                    <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($struktur['nama']); ?>&size=100" class="rounded-circle mb-3">
-                <?php endif; ?>
-                <h5 class="card-title mb-1"><?php echo htmlspecialchars($struktur['nama']); ?></h5>
-                <p class="text-muted mb-2"><?php echo htmlspecialchars($struktur['jabatan']); ?></p>
-                <small class="text-muted"><?php echo htmlspecialchars($struktur['email']); ?></small>
-                <?php if ($struktur['urutan'] == 1): ?>
-                    <div class="mt-2">
-                        <span class="badge bg-primary">Ketua/Pimpinan</span>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-    <?php 
-        endforeach;
-    } else {
-        echo '<div class="col-12"><div class="alert alert-warning"><i class="bi bi-info-circle"></i> Belum ada struktur yang aktif</div></div>';
-    }
-    ?>
-</div>
-
 <!-- Table View for All Data (Bisa Edit) -->
 <div class="card shadow">
     <div class="card-body">

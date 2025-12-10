@@ -11,6 +11,31 @@ include "../../conn.php";
 $page_title = "Fasilitas";
 $current_page = "fasilitas.php";
 
+// Handle Approve/Reject - FIX: Pastikan hanya 1 data yang di-approve
+if (isset($_GET['approve']) || isset($_GET['reject'])) {
+    $id = isset($_GET['approve']) ? $_GET['approve'] : $_GET['reject'];
+    $new_status = isset($_GET['approve']) ? 'active' : 'rejected';
+    
+    try {
+        $stmt_old = $pdo->prepare("SELECT judul, status FROM fasilitas WHERE id_fasilitas = ?");
+        $stmt_old->execute([$id]);
+        $old_data = $stmt_old->fetch();
+        
+        // FIX: Hanya update 1 data dengan WHERE id_fasilitas = ?
+        $stmt = $pdo->prepare("UPDATE fasilitas SET status = ? WHERE id_fasilitas = ?");
+        $stmt->execute([$new_status, $id]);
+        
+        $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+        $catatan = isset($_GET['approve']) ? 'DISETUJUI fasilitas: ' . $old_data['judul'] : 'DITOLAK fasilitas: ' . $old_data['judul'];
+        $stmt_riwayat->execute(['fasilitas', $id, $_SESSION['id_user'], $old_data['status'], $new_status, $catatan]);
+        
+        header("Location: fasilitas.php?success=" . ($new_status == 'active' ? 'approved' : 'rejected') . "&page=" . (isset($_GET['page']) ? $_GET['page'] : 1));
+        exit;
+    } catch (PDOException $e) {
+        $error = "Gagal: " . $e->getMessage();
+    }
+}
+
 // Handle Delete
 if (isset($_GET['delete'])) {
     try {
@@ -24,7 +49,8 @@ if (isset($_GET['delete'])) {
         $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt_riwayat->execute(['fasilitas', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus fasilitas: ' . $old_data['judul']]);
         
-        $success = "Fasilitas berhasil dihapus!";
+        header("Location: fasilitas.php?success=deleted&page=" . (isset($_GET['page']) ? $_GET['page'] : 1));
+        exit;
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
     }
@@ -35,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $judul = $_POST['judul'];
     $deskripsi = $_POST['deskripsi'];
     $kategori_fasilitas = $_POST['kategori_fasilitas'];
-    $status = $_POST['status'] ?? 'active';
+    $status = 'active';
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -87,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // Pagination
-$items_per_page = 9; // 3 kolom x 3 baris
+$items_per_page = 9;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $items_per_page;
 
@@ -97,9 +123,15 @@ $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $items_per_page);
 
 // Get paginated data
-$stmt = $pdo->prepare("SELECT * FROM fasilitas ORDER BY created_at DESC LIMIT ? OFFSET ?");
+$stmt = $pdo->prepare("SELECT f.*, u.nama as nama_pembuat FROM fasilitas f LEFT JOIN users u ON f.id_user = u.id_user ORDER BY f.created_at DESC LIMIT ? OFFSET ?");
 $stmt->execute([$items_per_page, $offset]);
 $fasilitas_list = $stmt->fetchAll();
+
+// Get pending count
+$pending_count_query = "SELECT COUNT(*) FROM fasilitas WHERE status = 'pending'";
+$pending_count_stmt = $pdo->prepare($pending_count_query);
+$pending_count_stmt->execute();
+$pending_count = $pending_count_stmt->fetchColumn();
 
 include "header.php";
 include "sidebar.php";
@@ -107,7 +139,9 @@ include "navbar.php";
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Fasilitas Lab</h1>
+    <h1 class="h2">
+        Fasilitas Lab
+    </h1>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#fasilitasModal" onclick="resetForm()">
         <i class="bi bi-plus-circle"></i> Tambah Fasilitas
     </button>
@@ -120,27 +154,74 @@ include "navbar.php";
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
+<?php if (isset($_GET['success'])): ?>
+    <div class="alert alert-success alert-dismissible fade show">
+        <?php 
+        if ($_GET['success'] == 'approved') echo "✅ Pengajuan fasilitas berhasil disetujui!";
+        if ($_GET['success'] == 'rejected') echo "❌ Pengajuan fasilitas berhasil ditolak!";
+        if ($_GET['success'] == 'deleted') echo "✅ Fasilitas berhasil dihapus!";
+        ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
 <div class="row">
     <?php if (count($fasilitas_list) > 0): ?>
         <?php foreach ($fasilitas_list as $fas): ?>
         <div class="col-md-4 mb-4">
-            <div class="card shadow h-100">
+            <div class="card shadow h-100 position-relative">
+                <!-- Status Badge di pojok kanan atas (seperti galeri) -->
+                <div class="position-absolute top-0 end-0 m-2" style="z-index: 10;">
+                    <?php if ($fas['status'] == 'pending'): ?>
+                        <span class="badge bg-warning text-dark">Pending</span>
+                    <?php elseif ($fas['status'] == 'active'): ?>
+                        <span class="badge bg-success">Active</span>
+                    <?php else: ?>
+                        <span class="badge bg-danger">Rejected</span>
+                    <?php endif; ?>
+                </div>
+                
                 <?php if ($fas['gambar']): ?>
                     <img src="../../uploads/fasilitas/<?php echo $fas['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover;">
                 <?php else: ?>
-                    <div class="bg-secondary" style="height: 200px;"></div>
+                    <div class="bg-secondary d-flex align-items-center justify-content-center text-white" style="height: 200px;">
+                        <i class="bi bi-image" style="font-size: 3rem;"></i>
+                    </div>
                 <?php endif; ?>
                 <div class="card-body">
                     <span class="badge bg-info mb-2"><?php echo htmlspecialchars($fas['kategori_fasilitas'] ?? 'Umum'); ?></span>
+                    <small class="text-muted d-block mb-2">
+                        <i class="bi bi-person"></i> <?php echo htmlspecialchars($fas['nama_pembuat'] ?? 'Admin'); ?>
+                    </small>
+                    
                     <h5 class="card-title"><?php echo htmlspecialchars($fas['judul']); ?></h5>
-                    <p class="card-text text-muted"><?php echo htmlspecialchars(substr($fas['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($fas['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
+                    <p class="card-text text-muted small"><?php echo htmlspecialchars(substr($fas['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($fas['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
                 </div>
                 <div class="card-footer bg-white">
+                    <!-- Edit Button -->
                     <button class="btn btn-sm btn-warning" onclick='editFasilitas(<?php echo json_encode($fas); ?>)'>
-                        <i class="bi bi-pencil"></i> Edit
+                        <i class="bi bi-pencil"></i>
                     </button>
-                    <a href="?delete=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
-                        <i class="bi bi-trash"></i> Hapus
+                    
+                    <!-- Approve/Reject Buttons (hanya untuk pending) -->
+                    <?php if ($fas['status'] == 'pending'): ?>
+                        <a href="?approve=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>" 
+                           class="btn btn-sm btn-success" 
+                           onclick="return confirm('Setujui fasilitas: <?php echo htmlspecialchars($fas['judul']); ?>?')">
+                            <i class="bi bi-check-circle"></i>
+                        </a>
+                        <a href="?reject=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>" 
+                           class="btn btn-sm btn-danger" 
+                           onclick="return confirm('Tolak fasilitas: <?php echo htmlspecialchars($fas['judul']); ?>?')">
+                            <i class="bi bi-x-circle"></i>
+                        </a>
+                    <?php endif; ?>
+                    
+                    <!-- Delete Button -->
+                    <a href="?delete=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>" 
+                       class="btn btn-sm btn-danger" 
+                       onclick="return confirm('Yakin hapus: <?php echo htmlspecialchars($fas['judul']); ?>?')">
+                        <i class="bi bi-trash"></i>
                     </a>
                 </div>
             </div>
@@ -195,6 +276,10 @@ include "navbar.php";
                     
                     <div class="mb-3">
                         <label class="form-label">Gambar</label>
+                        <div id="currentImage" style="display: none;" class="mb-2">
+                            <img id="previewImage" src="" class="img-thumbnail" style="max-height: 150px;">
+                            <small class="d-block text-muted">Gambar saat ini</small>
+                        </div>
                         <input type="file" class="form-control" name="gambar" accept="image/*">
                         <small class="text-muted">Kosongkan jika tidak ingin mengubah gambar</small>
                     </div>
@@ -228,6 +313,7 @@ function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Fasilitas';
     document.querySelector('form').reset();
     document.getElementById('id_fasilitas').value = '';
+    document.getElementById('currentImage').style.display = 'none';
 }
 
 function editFasilitas(data) {
@@ -236,6 +322,14 @@ function editFasilitas(data) {
     document.getElementById('judul').value = data.judul;
     document.getElementById('kategori_fasilitas').value = data.kategori_fasilitas || '';
     document.getElementById('deskripsi').value = data.deskripsi || '';
+    
+    if (data.gambar) {
+        document.getElementById('currentImage').style.display = 'block';
+        document.getElementById('previewImage').src = '../../uploads/fasilitas/' + data.gambar;
+    } else {
+        document.getElementById('currentImage').style.display = 'none';
+    }
+    
     new bootstrap.Modal(document.getElementById('fasilitasModal')).show();
 }
 </script>

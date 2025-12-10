@@ -16,6 +16,30 @@ $limit = 10; // Items per page
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
+// Handle Approve/Reject Pending
+if (isset($_GET['approve']) || isset($_GET['reject'])) {
+    $id = isset($_GET['approve']) ? $_GET['approve'] : $_GET['reject'];
+    $new_status = isset($_GET['approve']) ? 'active' : 'rejected';
+    
+    try {
+        $stmt_old = $pdo->prepare("SELECT judul, status FROM slider WHERE id_slider = ?");
+        $stmt_old->execute([$id]);
+        $old_data = $stmt_old->fetch();
+        
+        $stmt = $pdo->prepare("UPDATE slider SET status = ? WHERE id_slider = ?");
+        $stmt->execute([$new_status, $id]);
+        
+        $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+        $catatan = isset($_GET['approve']) ? 'DISETUJUI slider: ' . $old_data['judul'] : 'DITOLAK slider: ' . $old_data['judul'];
+        $stmt_riwayat->execute(['slider', $id, $_SESSION['id_user'], $old_data['status'], $new_status, $catatan]);
+        
+        header("Location: slider.php?success=" . ($new_status == 'active' ? 'approved' : 'rejected') . "&page=" . $page);
+        exit;
+    } catch (PDOException $e) {
+        $error = "Gagal: " . $e->getMessage();
+    }
+}
+
 // Handle Delete
 if (isset($_GET['delete'])) {
     try {
@@ -29,7 +53,7 @@ if (isset($_GET['delete'])) {
         $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt_riwayat->execute(['slider', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus slider: ' . $old_data['judul']]);
         
-        header("Location: slider.php?success=deleted");
+        header("Location: slider.php?success=deleted&page=$page");
         exit;
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
@@ -104,9 +128,15 @@ $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
 // Get data with pagination
-$stmt = $pdo->prepare("SELECT * FROM slider ORDER BY urutan ASC, tanggal_dibuat DESC LIMIT ? OFFSET ?");
+$stmt = $pdo->prepare("SELECT s.*, u.nama as nama_pembuat FROM slider s LEFT JOIN users u ON s.id_user = u.id_user ORDER BY s.urutan ASC, s.tanggal_dibuat DESC LIMIT ? OFFSET ?");
 $stmt->execute([$limit, $offset]);
 $slider_list = $stmt->fetchAll();
+
+// Get pending count
+$pending_count_query = "SELECT COUNT(*) FROM slider WHERE status = 'pending'";
+$pending_count_stmt = $pdo->prepare($pending_count_query);
+$pending_count_stmt->execute();
+$pending_count = $pending_count_stmt->fetchColumn();
 
 include "header.php";
 include "sidebar.php";
@@ -123,9 +153,11 @@ include "navbar.php";
 <?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success alert-dismissible fade show">
         <?php 
-        if ($_GET['success'] == 'added') echo "Slider berhasil ditambahkan!";
-        if ($_GET['success'] == 'updated') echo "Slider berhasil diupdate!";
-        if ($_GET['success'] == 'deleted') echo "Slider berhasil dihapus!";
+        if ($_GET['success'] == 'added') echo "✅ Slider berhasil ditambahkan!";
+        if ($_GET['success'] == 'updated') echo "✅ Slider berhasil diupdate!";
+        if ($_GET['success'] == 'deleted') echo "✅ Slider berhasil dihapus!";
+        if ($_GET['success'] == 'approved') echo "✅ Pengajuan slider berhasil disetujui!";
+        if ($_GET['success'] == 'rejected') echo "❌ Pengajuan slider berhasil ditolak!";
         ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
@@ -133,6 +165,13 @@ include "navbar.php";
 
 <?php if (isset($error)): ?>
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+<?php endif; ?>
+
+<?php if ($pending_count > 0): ?>
+    <div class="alert alert-warning alert-dismissible fade show">
+        <i class="bi bi-exclamation-circle"></i> Ada <strong><?php echo $pending_count; ?> slider</strong> menunggu persetujuan Anda
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
 <?php endif; ?>
 
 <div class="card shadow">
@@ -150,6 +189,7 @@ include "navbar.php";
                         <th>Judul</th>
                         <th>Deskripsi</th>
                         <th>Status</th>
+                        <th>Pembuat</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -168,16 +208,31 @@ include "navbar.php";
                             <td><strong><?php echo htmlspecialchars($slider['judul']); ?></strong></td>
                             <td><?php echo htmlspecialchars(substr($slider['deskripsi'] ?? '', 0, 80)); ?>...</td>
                             <td>
-                                <?php if ($slider['status'] == 'active'): ?>
+                                <?php if ($slider['status'] == 'pending'): ?>
+                                    <span class="badge bg-secondary">Pending</span>
+                                <?php elseif ($slider['status'] == 'active'): ?>
                                     <span class="badge bg-success">Active</span>
                                 <?php else: ?>
-                                    <span class="badge bg-secondary">Inactive</span>
+                                    <span class="badge bg-danger">Rejected</span>
                                 <?php endif; ?>
+                            </td>
+                            <td>
+                                <small><?php echo htmlspecialchars($slider['nama_pembuat'] ?? 'Admin'); ?></small>
                             </td>
                             <td>
                                 <button class="btn btn-sm btn-warning" onclick='editSlider(<?php echo json_encode($slider); ?>)'>
                                     <i class="bi bi-pencil"></i>
                                 </button>
+                                
+                                <?php if ($slider['status'] == 'pending'): ?>
+                                    <a href="?approve=<?php echo $slider['id_slider']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-success" onclick="return confirm('Setujui pengajuan ini?')">
+                                        <i class="bi bi-check"></i> Acc
+                                    </a>
+                                    <a href="?reject=<?php echo $slider['id_slider']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Tolak pengajuan ini?')">
+                                        <i class="bi bi-x"></i> Reject
+                                    </a>
+                                <?php endif; ?>
+                                
                                 <a href="?delete=<?php echo $slider['id_slider']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
                                     <i class="bi bi-trash"></i>
                                 </a>
@@ -185,6 +240,12 @@ include "navbar.php";
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                                <p class="mt-3 text-muted">Belum ada slider</p>
+                            </td>
+                        </tr>
                     <?php endif; ?>
                 </tbody>
             </table>

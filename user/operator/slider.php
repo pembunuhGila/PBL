@@ -145,7 +145,7 @@ include "navbar.php";
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua slider. Setiap perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua slider. Setiap perubahan akan berstatus <span class="badge bg-secondary">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <div class="card shadow">

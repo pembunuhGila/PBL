@@ -1,6 +1,6 @@
 <?php
 /**
- * Operator Dashboard - Connected to ALL modules
+ * Operator Dashboard - Clean Version
  * @var PDO $pdo
  * @var string $current_page
  * @var int $current_id_user
@@ -35,26 +35,7 @@ $stmt = $pdo->prepare($query_galeri);
 $stmt->execute([$_SESSION['id_user']]);
 $total_galeri = $stmt->fetch()['total'];
 
-$query_konten = "SELECT COUNT(*) as total FROM konten WHERE id_user = ?";
-$stmt = $pdo->prepare($query_konten);
-$stmt->execute([$_SESSION['id_user']]);
-$total_konten = $stmt->fetch()['total'];
-
-$query_struktur = "SELECT COUNT(*) as total FROM struktur_lab WHERE id_user = ?";
-$stmt = $pdo->prepare($query_struktur);
-$stmt->execute([$_SESSION['id_user']]);
-$total_struktur = $stmt->fetch()['total'];
-
-$query_slider = "SELECT COUNT(*) as total FROM slider WHERE id_user = ?";
-$stmt = $pdo->prepare($query_slider);
-$stmt->execute([$_SESSION['id_user']]);
-$total_slider = $stmt->fetch()['total'];
-
-// ========================================
 // HITUNG PENDING MILIK OPERATOR
-// ========================================
-
-// 1. Pending dari modul lama
 $pending_old_query = "
     SELECT COUNT(*) as total FROM (
         SELECT id_publikasi FROM publikasi WHERE id_user = ? AND status = 'pending'
@@ -76,7 +57,6 @@ $stmt = $pdo->prepare($pending_old_query);
 $stmt->execute(array_fill(0, 7, $_SESSION['id_user']));
 $pending_old = $stmt->fetch()['total'];
 
-// 2. Pending dari modul Tentang Kami
 $pending_tentang_query = "
     SELECT COUNT(*) as total FROM (
         SELECT id_profil FROM tentang_kami WHERE id_user = ? AND status = 'pending'
@@ -92,26 +72,19 @@ $stmt = $pdo->prepare($pending_tentang_query);
 $stmt->execute(array_fill(0, 4, $_SESSION['id_user']));
 $pending_tentang = $stmt->fetch()['total'];
 
-// 3. Pending dari modul Kontak
 $pending_kontak_query = "SELECT COUNT(*) as total FROM kontak WHERE id_user = ? AND status = 'pending'";
 $stmt = $pdo->prepare($pending_kontak_query);
 $stmt->execute([$_SESSION['id_user']]);
 $pending_kontak = $stmt->fetch()['total'];
 
-// Total semua pending
 $total_pending = $pending_old + $pending_tentang + $pending_kontak;
 
-// ========================================
-// HITUNG APPROVED MILIK OPERATOR
-// ========================================
 $approved_query = "SELECT COUNT(*) as total FROM riwayat_pengajuan WHERE id_operator = ? AND status_baru = 'active'";
 $stmt = $pdo->prepare($approved_query);
 $stmt->execute([$_SESSION['id_user']]);
 $total_approved = $stmt->fetch()['total'];
 
-// ========================================
 // DATA TERBARU MILIK OPERATOR
-// ========================================
 $query_latest = "
     SELECT 
         'publikasi' as tipe,
@@ -246,18 +219,7 @@ include "navbar.php";
 <?php if ($total_pending > 0): ?>
 <div class="alert alert-warning alert-dismissible fade show mb-4">
     <i class="bi bi-hourglass-split"></i> 
-    <strong>Info:</strong> Anda memiliki <strong><?php echo $total_pending; ?> pengajuan pending</strong> yang menunggu review admin:
-    <ul class="mb-0 mt-2">
-        <?php if ($pending_old > 0): ?>
-            <li>Modul Utama: <strong><?php echo $pending_old; ?> pending</strong></li>
-        <?php endif; ?>
-        <?php if ($pending_tentang > 0): ?>
-            <li>Tentang Kami: <strong><?php echo $pending_tentang; ?> pending</strong></li>
-        <?php endif; ?>
-        <?php if ($pending_kontak > 0): ?>
-            <li>Kontak: <strong><?php echo $pending_kontak; ?> pending</strong></li>
-        <?php endif; ?>
-    </ul>
+    <strong>Info:</strong> Anda memiliki <strong><?php echo $total_pending; ?> pengajuan pending</strong> yang menunggu review admin.
     <a href="riwayat_pengajuan.php?status=pending" class="alert-link">Lihat riwayat pending →</a>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
@@ -274,13 +236,8 @@ include "navbar.php";
                             Total Data Saya
                         </div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800">
-                            <?php 
-                            $total_all = $total_publikasi + $total_anggota + $total_fasilitas + 
-                                        $total_galeri + $total_konten + $total_struktur + $total_slider;
-                            echo $total_all; 
-                            ?>
+                            <?php echo $total_publikasi + $total_anggota + $total_fasilitas + $total_galeri; ?>
                         </div>
-                        <small class="text-muted">Semua Modul</small>
                     </div>
                     <div class="col-auto">
                         <i class="bi bi-files fa-2x text-gray-300" style="font-size: 2rem; color: #4e73df;"></i>
@@ -299,7 +256,6 @@ include "navbar.php";
                             Disetujui Admin
                         </div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_approved; ?></div>
-                        <small class="text-muted">Total Active</small>
                     </div>
                     <div class="col-auto">
                         <i class="bi bi-check-circle fa-2x text-gray-300" style="font-size: 2rem; color: #1cc88a;"></i>
@@ -318,13 +274,6 @@ include "navbar.php";
                             Menunggu Review
                         </div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_pending; ?></div>
-                        <small class="text-muted">
-                            <?php if ($pending_kontak > 0 || $pending_tentang > 0): ?>
-                                Termasuk Kontak & Profil
-                            <?php else: ?>
-                                Status Pending
-                            <?php endif; ?>
-                        </small>
                     </div>
                     <div class="col-auto">
                         <i class="bi bi-hourglass-split fa-2x text-gray-300" style="font-size: 2rem; color: #f6c23e;"></i>
@@ -343,7 +292,6 @@ include "navbar.php";
                             Publikasi Saya
                         </div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_publikasi; ?></div>
-                        <small class="text-muted">+ <?php echo $total_anggota; ?> Anggota</small>
                     </div>
                     <div class="col-auto">
                         <i class="bi bi-journal-text fa-2x text-gray-300" style="font-size: 2rem; color: #36b9cc;"></i>
@@ -354,7 +302,7 @@ include "navbar.php";
     </div>
 </div>
 
-<!-- Detail Statistics & Recent Activity -->
+<!-- Recent Activity & Quick Actions -->
 <div class="row">
     <div class="col-lg-8 mb-4">
         <div class="card shadow mb-4">
@@ -377,26 +325,24 @@ include "navbar.php";
                             $row_count = 0;
                             while ($row = $stmt_latest->fetch()): 
                                 $row_count++;
+                                $badge_colors = [
+                                    'publikasi' => 'primary',
+                                    'anggota' => 'success',
+                                    'fasilitas' => 'info',
+                                    'galeri' => 'warning',
+                                    'konten' => 'danger',
+                                    'struktur' => 'secondary',
+                                    'slider' => 'dark',
+                                    'profil' => 'success',
+                                    'visi' => 'primary',
+                                    'misi' => 'info',
+                                    'roadmap' => 'warning',
+                                    'kontak' => 'danger'
+                                ];
+                                $color = $badge_colors[$row['tipe']] ?? 'secondary';
                             ?>
                             <tr>
                                 <td>
-                                    <?php
-                                    $badge_colors = [
-                                        'publikasi' => 'primary',
-                                        'anggota' => 'success',
-                                        'fasilitas' => 'info',
-                                        'galeri' => 'warning',
-                                        'konten' => 'danger',
-                                        'struktur' => 'secondary',
-                                        'slider' => 'dark',
-                                        'profil' => 'success',
-                                        'visi' => 'primary',
-                                        'misi' => 'info',
-                                        'roadmap' => 'warning',
-                                        'kontak' => 'danger'
-                                    ];
-                                    $color = $badge_colors[$row['tipe']] ?? 'secondary';
-                                    ?>
                                     <span class="badge bg-<?php echo $color; ?>">
                                         <?php echo ucfirst($row['tipe']); ?>
                                     </span>
@@ -406,7 +352,7 @@ include "navbar.php";
                                     <?php if ($row['status'] == 'pending'): ?>
                                         <span class="badge bg-warning">Pending</span>
                                     <?php elseif ($row['status'] == 'active'): ?>
-                                        <span class="badge bg-success">Active</span>
+                                        <span class="badge bg-success">Active  </span>
                                     <?php else: ?>
                                         <span class="badge bg-danger">Rejected</span>
                                     <?php endif; ?>
@@ -417,9 +363,9 @@ include "navbar.php";
                             
                             <?php if ($row_count == 0): ?>
                             <tr>
-                                <td colspan="4" class="text-center py-4 text-muted">
-                                    <i class="bi bi-inbox" style="font-size: 2rem; opacity: 0.3;"></i>
-                                    <p class="mt-2 mb-0">Belum ada data</p>
+                                <td colspan="4" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                                    <p class="mt-3 mb-0">Belum ada data</p>
                                 </td>
                             </tr>
                             <?php endif; ?>
@@ -443,13 +389,10 @@ include "navbar.php";
                     </a>
                     <?php endif; ?>
                     <a href="anggota.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-plus-circle me-2"></i> Tambah Anggota Baru
+                        <i class="bi bi-plus-circle me-2"></i> Tambah Anggota
                     </a>
                     <a href="publikasi.php" class="list-group-item list-group-item-action">
                         <i class="bi bi-plus-circle me-2"></i> Tambah Publikasi
-                    </a>
-                    <a href="konten.php" class="list-group-item list-group-item-action">
-                        <i class="bi bi-plus-circle me-2"></i> Tambah Konten
                     </a>
                     <a href="fasilitas.php" class="list-group-item list-group-item-action">
                         <i class="bi bi-plus-circle me-2"></i> Tambah Fasilitas
@@ -467,56 +410,6 @@ include "navbar.php";
                         <i class="bi bi-clock-history me-2"></i> Lihat Riwayat
                     </a>
                 </div>
-            </div>
-        </div>
-
-        <div class="card shadow">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Info</h6>
-            </div>
-            <div class="card-body">
-                <h6 class="text-muted small mb-3">Data Saya:</h6>
-                <ul class="list-unstyled small">
-                    <li class="mb-2">
-                        <i class="bi bi-journal-text text-primary"></i> 
-                        Publikasi: <strong><?php echo $total_publikasi; ?></strong>
-                    </li>
-                    <li class="mb-2">
-                        <i class="bi bi-people text-success"></i> 
-                        Anggota: <strong><?php echo $total_anggota; ?></strong>
-                    </li>
-                    <li class="mb-2">
-                        <i class="bi bi-building text-info"></i> 
-                        Fasilitas: <strong><?php echo $total_fasilitas; ?></strong>
-                    </li>
-                    <li class="mb-2">
-                        <i class="bi bi-images text-warning"></i> 
-                        Galeri: <strong><?php echo $total_galeri; ?></strong>
-                    </li>
-                    <li class="mb-2">
-                        <i class="bi bi-newspaper text-danger"></i> 
-                        Konten: <strong><?php echo $total_konten; ?></strong>
-                    </li>
-                    <li class="mb-2">
-                        <i class="bi bi-diagram-3 text-secondary"></i> 
-                        Struktur: <strong><?php echo $total_struktur; ?></strong>
-                    </li>
-                    <li class="mb-2">
-                        <i class="bi bi-sliders text-primary"></i> 
-                        Slider: <strong><?php echo $total_slider; ?></strong>
-                    </li>
-                </ul>
-                <hr>
-                <h6 class="text-muted small mb-2">Pending Review:</h6>
-                <ul class="mb-2 ps-3 small">
-                    <li>Modul Utama: <strong><?php echo $pending_old; ?></strong></li>
-                    <li>Tentang Kami: <strong><?php echo $pending_tentang; ?></strong></li>
-                    <li>Kontak: <strong><?php echo $pending_kontak; ?></strong></li>
-                </ul>
-                <hr>
-                <p class="mb-0 text-muted small">
-                    <i class="bi bi-info-circle"></i> Semua data yang Anda tambahkan akan direview oleh admin.
-                </p>
             </div>
         </div>
     </div>

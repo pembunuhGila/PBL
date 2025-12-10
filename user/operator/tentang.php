@@ -43,6 +43,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
         
+        elseif ($action == 'add_visi') {
+            $stmt = $pdo->prepare("INSERT INTO visi (isi_visi, urutan, status, id_user) VALUES (?, ?, 'pending', ?)");
+            $stmt->execute([$_POST['isi_visi'], $_POST['urutan'], $_SESSION['id_user']]);
+            $success = "Visi ditambahkan! Menunggu approval admin.";
+        }
+        
         elseif ($action == 'edit_visi') {
             $id_visi = $_POST['id_visi'];
             $stmt_check = $pdo->prepare("SELECT id_user, status FROM visi WHERE id_visi = ?");
@@ -50,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = $stmt_check->fetch();
             
             if ($data && $data['id_user'] == $_SESSION['id_user'] && in_array($data['status'], ['pending', 'rejected'])) {
-                $stmt = $pdo->prepare("UPDATE visi SET isi_visi=?, urutan=?, status='pending', updated_at=CURRENT_TIMESTAMP WHERE id_visi=?");
+                $stmt = $pdo->prepare("UPDATE visi SET isi_visi=?, urutan=?, status='pending' WHERE id_visi=?");
                 $stmt->execute([$_POST['isi_visi'], $_POST['urutan'], $id_visi]);
                 $success = "Visi diupdate! Menunggu approval admin.";
             } elseif ($data && $data['status'] == 'active') {
@@ -76,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = $stmt_check->fetch();
             
             if ($data && $data['id_user'] == $_SESSION['id_user'] && in_array($data['status'], ['pending', 'rejected'])) {
-                $stmt = $pdo->prepare("UPDATE misi SET isi_misi=?, urutan=?, status='pending', updated_at=CURRENT_TIMESTAMP WHERE id_misi=?");
+                $stmt = $pdo->prepare("UPDATE misi SET isi_misi=?, urutan=?, status='pending' WHERE id_misi=?");
                 $stmt->execute([$_POST['isi_misi'], $_POST['urutan'], $id_misi]);
                 $success = "Misi diupdate! Menunggu approval admin.";
             } elseif ($data && $data['status'] == 'active') {
@@ -102,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $data = $stmt_check->fetch();
             
             if ($data && $data['id_user'] == $_SESSION['id_user'] && in_array($data['status'], ['pending', 'rejected'])) {
-                $stmt = $pdo->prepare("UPDATE sejarah SET tahun=?, judul=?, deskripsi=?, urutan=?, status='pending', updated_at=CURRENT_TIMESTAMP WHERE id_sejarah=?");
+                $stmt = $pdo->prepare("UPDATE sejarah SET tahun=?, judul=?, deskripsi=?, urutan=?, status='pending' WHERE id_sejarah=?");
                 $stmt->execute([$_POST['tahun'], $_POST['judul'], $_POST['deskripsi'], $_POST['urutan'], $id_sejarah]);
                 $success = "Roadmap diupdate! Menunggu approval admin.";
             } elseif ($data && $data['status'] == 'active') {
@@ -378,6 +384,9 @@ include "navbar.php";
                 <?php else: ?>
                     <p class="text-muted small">Belum ada visi</p>
                 <?php endif; ?>
+                <button class="btn btn-primary btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#visiModal" onclick="resetVisiForm()">
+                    <i class="bi bi-plus-circle"></i> Tambah Visi
+                </button>
             </div>
         </div>
         
@@ -444,6 +453,50 @@ include "navbar.php";
 </div>
 
 <!-- MODALS -->
+
+<!-- Modal Edit Profil Pending -->
+<?php if ($my_profil): ?>
+<div class="modal fade" id="editProfilModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="profil">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Pengajuan Profil</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Logo Lab</strong></label>
+                        <?php if ($my_profil['logo_lab']): ?>
+                            <div class="mb-2">
+                                <img src="../../uploads/tentang/<?php echo $my_profil['logo_lab']; ?>" height="100" class="border">
+                            </div>
+                        <?php endif; ?>
+                        <input type="file" class="form-control" name="logo_lab" accept="image/*">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Penjelasan Logo</strong></label>
+                        <textarea class="form-control" name="penjelasan_logo" rows="2"><?php echo htmlspecialchars($my_profil['penjelasan_logo'] ?? ''); ?></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Profil Lab *</strong></label>
+                        <textarea class="form-control" name="profil_lab" rows="5" required><?php echo htmlspecialchars($my_profil['profil_lab']); ?></textarea>
+                    </div>
+                </div>
+               <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-arrow-repeat"></i> Update & Ajukan Ulang
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Modal Edit Profil Aktif (jika belum punya pending) -->
 <?php if (!$my_profil && $profil_active): ?>
@@ -541,8 +594,12 @@ include "navbar.php";
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST">
-                <input type="hidden" name="action" id="visi_action" value="add_visi">
+                <input type="hidden" name="action" id="visi_action" value="edit_visi">
                 <input type="hidden" name="id_visi" id="id_visi">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="visiModalTitle">Edit Visi</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
                 <div class="modal-body">
                     <div class="alert alert-warning small">
                         <i class="bi bi-info-circle"></i> Status: <strong>Pending</strong>

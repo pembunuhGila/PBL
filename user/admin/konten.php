@@ -1,8 +1,6 @@
 <?php
 /**
- * @var PDO $pdo
- * @var string $current_page
- * @var int $current_id_user
+ * Admin Konten - Bisa approve pending & edit active
  */
 $required_role = "admin";
 include "../auth.php";
@@ -15,6 +13,30 @@ $current_page = "konten.php";
 $limit = 10;
 $page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page_num - 1) * $limit;
+
+// Handle Approve/Reject
+if (isset($_GET['approve']) || isset($_GET['reject'])) {
+    $id = isset($_GET['approve']) ? $_GET['approve'] : $_GET['reject'];
+    $new_status = isset($_GET['approve']) ? 'active' : 'rejected';
+    
+    try {
+        $stmt_old = $pdo->prepare("SELECT judul, status FROM konten WHERE id_konten = ?");
+        $stmt_old->execute([$id]);
+        $old_data = $stmt_old->fetch();
+        
+        $stmt = $pdo->prepare("UPDATE konten SET status = ? WHERE id_konten = ?");
+        $stmt->execute([$new_status, $id]);
+        
+        $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+        $catatan = isset($_GET['approve']) ? 'DISETUJUI konten: ' . $old_data['judul'] : 'DITOLAK konten: ' . $old_data['judul'];
+        $stmt_riwayat->execute(['konten', $id, $_SESSION['id_user'], $old_data['status'], $new_status, $catatan]);
+        
+        header("Location: konten.php?success=" . ($new_status == 'active' ? 'approved' : 'rejected') . "&page=" . $page_num);
+        exit;
+    } catch (PDOException $e) {
+        $error = "Gagal: " . $e->getMessage();
+    }
+}
 
 // Handle Delete
 if (isset($_GET['delete'])) {
@@ -42,8 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
     $judul = $_POST['judul'];
     $slug = strtolower(str_replace(' ', '-', preg_replace('/[^A-Za-z0-9 ]/', '', $judul)));
     $isi = $_POST['isi'];
-    $urutan = $_POST['urutan'] ?? 1;
-    $status = 'active';
+    $status = 'active'; // Admin langsung active
     
     $gambar = null;
     if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
@@ -64,13 +85,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
             $old_data = $stmt_old->fetch();
             $status_lama = $old_data['status'];
             
-            // ADMIN BISA EDIT SEMUA - LANGSUNG UPDATE TANPA SP
             if ($gambar) {
-                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, gambar=?, urutan=?, status=? WHERE id_konten=?");
-                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $urutan, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, gambar=?, status=? WHERE id_konten=?");
+                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $id]);
             } else {
-                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, urutan=?, status=? WHERE id_konten=?");
-                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $urutan, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE konten SET kategori_konten=?, judul=?, slug=?, isi=?, status=? WHERE id_konten=?");
+                $stmt->execute([$kategori_konten, $judul, $slug, $isi, $status, $id]);
             }
             
             if ($status_lama != $status) {
@@ -81,22 +101,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
             header("Location: konten.php?success=updated&page=" . $page_num);
             exit;
         } else {
-            // INSERT BARU MENGGUNAKAN SP YANG SUDAH DIUPDATE
-            $stmt = $pdo->prepare("SELECT * FROM sp_insert_konten(?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $urutan, $status, $_SESSION['id_user'], 'admin']);
-            $result = $stmt->fetch();
-            $new_id = $result['p_id_konten'];
-            $message = $result['p_message'];
+            $stmt = $pdo->prepare("INSERT INTO konten (kategori_konten, judul, slug, isi, gambar, status, id_user, tanggal_posting) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+            $stmt->execute([$kategori_konten, $judul, $slug, $isi, $gambar, $status, $_SESSION['id_user']]);
             
-            if ($new_id > 0) {
-                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
-                
-                header("Location: konten.php?success=added");
-                exit;
-            } else {
-                $error = $message;
-            }
+            $new_id = $pdo->lastInsertId();
+            
+            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_riwayat->execute(['konten', $new_id, $_SESSION['id_user'], null, $status, 'Tambah konten: ' . $judul]);
+            
+            header("Location: konten.php?success=added");
+            exit;
         }
     } catch (PDOException $e) {
         $error = "Gagal menyimpan: " . $e->getMessage();
@@ -107,7 +121,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
 $search = $_GET['search'] ?? '';
 $kategori_filter = $_GET['kategori'] ?? '';
 
-// Build WHERE conditions
 $where_clauses = [];
 $params = [];
 
@@ -132,12 +145,18 @@ $count_stmt->execute($params);
 $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
-// Get data with pagination - URUTKAN BERDASARKAN URUTAN
-$query = "SELECT * FROM konten $where_sql ORDER BY urutan ASC, tanggal_posting DESC LIMIT ? OFFSET ?";
+// Get data with pagination
+$query = "SELECT k.*, u.nama as operator_nama FROM konten k LEFT JOIN users u ON k.id_user = u.id_user $where_sql ORDER BY k.tanggal_posting DESC LIMIT ? OFFSET ?";
 $params_with_limit = array_merge($params, [$limit, $offset]);
 $stmt = $pdo->prepare($query);
 $stmt->execute($params_with_limit);
 $konten_list = $stmt->fetchAll();
+
+// Get pending count
+$pending_count_query = "SELECT COUNT(*) FROM konten WHERE status = 'pending'";
+$pending_count_stmt = $pdo->prepare($pending_count_query);
+$pending_count_stmt->execute();
+$pending_count = $pending_count_stmt->fetchColumn();
 
 $kategori_list = ['Berita', 'Agenda', 'Pengumuman'];
 
@@ -156,9 +175,11 @@ include "navbar.php";
 <?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success alert-dismissible fade show">
         <?php 
-        if ($_GET['success'] == 'added') echo "Konten berhasil ditambahkan!";
-        if ($_GET['success'] == 'updated') echo "Konten berhasil diupdate!";
-        if ($_GET['success'] == 'deleted') echo "Konten berhasil dihapus!";
+        if ($_GET['success'] == 'added') echo "✅ Konten berhasil ditambahkan!";
+        if ($_GET['success'] == 'updated') echo "✅ Konten berhasil diupdate!";
+        if ($_GET['success'] == 'deleted') echo "✅ Konten berhasil dihapus!";
+        if ($_GET['success'] == 'approved') echo "✅ Pengajuan konten berhasil disetujui!";
+        if ($_GET['success'] == 'rejected') echo "❌ Pengajuan konten berhasil ditolak!";
         ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
@@ -168,18 +189,25 @@ include "navbar.php";
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
+<?php if ($pending_count > 0): ?>
+    <div class="alert alert-warning alert-dismissible fade show">
+        <i class="bi bi-exclamation-circle"></i> Ada <strong><?php echo $pending_count; ?> konten</strong> menunggu persetujuan Anda
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
 <!-- Search & Filter -->
 <div class="card shadow mb-4">
     <div class="card-body">
         <form method="GET" class="row g-3">
-            <div class="col-md-6">
+            <div class="col-md-8">
                 <label class="form-label"><i class="bi bi-search"></i> Cari Konten</label>
                 <input type="text" class="form-control" name="search" placeholder="Cari berdasarkan judul atau isi..." value="<?php echo htmlspecialchars($search); ?>">
             </div>
-            <div class="col-md-4">
-                <label class="form-label"><i class="bi bi-funnel"></i> Filter Kategori</label>
+            <div class="col-md-2">
+                <label class="form-label"><i class="bi bi-funnel"></i> Kategori</label>
                 <select class="form-select" name="kategori">
-                    <option value="">Semua Kategori</option>
+                    <option value="">Semua</option>
                     <?php foreach ($kategori_list as $kat): ?>
                         <option value="<?php echo $kat; ?>" <?php echo $kategori_filter === $kat ? 'selected' : ''; ?>>
                             <?php echo $kat; ?>
@@ -228,21 +256,24 @@ include "navbar.php";
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>Urutan</th>
+                        <th>No</th>
                         <th>Gambar</th>
                         <th>Judul</th>
                         <th>Kategori</th>
                         <th>Tanggal</th>
+                        <th>Status</th>
+                        <th>Operator</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php 
                     if (count($konten_list) > 0) {
+                        $no = $offset + 1;
                         foreach ($konten_list as $kon): 
                     ?>
                     <tr>
-                        <td><span class="badge bg-primary">#<?php echo $kon['urutan'] ?? 1; ?></span></td>
+                        <td><?php echo $no++; ?></td>
                         <td>
                             <?php if ($kon['gambar']): ?>
                                 <img src="../../uploads/konten/<?php echo $kon['gambar']; ?>" width="60" height="40" class="img-thumbnail">
@@ -257,11 +288,33 @@ include "navbar.php";
                         <td><span class="badge bg-info"><?php echo htmlspecialchars($kon['kategori_konten'] ?? '-'); ?></span></td>
                         <td><?php echo date('d M Y', strtotime($kon['tanggal_posting'])); ?></td>
                         <td>
+                            <?php if ($kon['status'] == 'pending'): ?>
+                                <span class="badge bg-secondary">Pending</span>
+                            <?php elseif ($kon['status'] == 'active'): ?>
+                                <span class="badge bg-success">Active</span>
+                            <?php else: ?>
+                                <span class="badge bg-danger">Rejected</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <small><?php echo htmlspecialchars($kon['operator_nama'] ?? 'Admin'); ?></small>
+                        </td>
+                        <td>
                             <button class="btn btn-sm btn-warning" onclick='editKonten(<?php echo htmlspecialchars(json_encode($kon)); ?>)'>
-                                <i class="bi bi-pencil"></i> Edit
+                                <i class="bi bi-pencil"></i>
                             </button>
-                            <a href="?delete=<?php echo $kon['id_konten']; ?>&page=<?php echo $page_num; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $kategori_filter ? '&kategori=' . urlencode($kategori_filter) : ''; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
-                                <i class="bi bi-trash"></i> Hapus
+                            
+                            <?php if ($kon['status'] == 'pending'): ?>
+                                <a href="?approve=<?php echo $kon['id_konten']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-success" onclick="return confirm('Setujui pengajuan ini?')">
+                                    <i class="bi bi-check"></i> Acc
+                                </a>
+                                <a href="?reject=<?php echo $kon['id_konten']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Tolak pengajuan ini?')">
+                                    <i class="bi bi-x"></i> Reject
+                                </a>
+                            <?php endif; ?>
+                            
+                            <a href="?delete=<?php echo $kon['id_konten']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                                <i class="bi bi-trash"></i>
                             </a>
                         </td>
                     </tr>
@@ -270,7 +323,7 @@ include "navbar.php";
                     } else {
                     ?>
                     <tr>
-                        <td colspan="6" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
                             <p class="mt-3 text-muted">
                                 <?php if ($search || $kategori_filter): ?>
@@ -349,11 +402,11 @@ include "navbar.php";
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-8 mb-3">
                             <label class="form-label">Judul *</label>
                             <input type="text" class="form-control" name="judul" id="judul" required>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Kategori *</label>
                             <select class="form-select" name="kategori_konten" id="kategori_konten" required>
                                 <option value="">-- Pilih Kategori --</option>
@@ -361,11 +414,6 @@ include "navbar.php";
                                 <option value="Agenda">Agenda</option>
                                 <option value="Pengumuman">Pengumuman</option>
                             </select>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <label class="form-label">Urutan *</label>
-                            <input type="number" class="form-control" name="urutan" id="urutan" required min="1" value="1">
-                            <small class="text-muted">Urutan tampil (1 = pertama)</small>
                         </div>
                     </div>
                     
@@ -393,7 +441,6 @@ function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Konten';
     document.querySelector('form').reset();
     document.getElementById('id_konten').value = '';
-    document.getElementById('urutan').value = '1';
 }
 
 function editKonten(data) {
@@ -402,7 +449,6 @@ function editKonten(data) {
     document.getElementById('judul').value = data.judul;
     document.getElementById('kategori_konten').value = data.kategori_konten || '';
     document.getElementById('isi').value = data.isi || '';
-    document.getElementById('urutan').value = data.urutan || 1;
     new bootstrap.Modal(document.getElementById('kontenModal')).show();
 }
 </script>

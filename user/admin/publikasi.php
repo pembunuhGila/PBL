@@ -12,13 +12,38 @@ $page_title = "Publikasi";
 $current_page = "publikasi.php";
 
 // Pagination setup
-$limit = 10; // Items per page
+$limit = 10;
 $page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page_num - 1) * $limit;
 
 // Search filter
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $year_filter = isset($_GET['year']) ? trim($_GET['year']) : '';
+$status_filter = isset($_GET['status']) ? trim($_GET['status']) : '';
+
+// Handle Approve/Reject
+if (isset($_GET['approve']) || isset($_GET['reject'])) {
+    $id = isset($_GET['approve']) ? $_GET['approve'] : $_GET['reject'];
+    $new_status = isset($_GET['approve']) ? 'active' : 'rejected';
+    
+    try {
+        $stmt_old = $pdo->prepare("SELECT judul, status FROM publikasi WHERE id_publikasi = ?");
+        $stmt_old->execute([$id]);
+        $old_data = $stmt_old->fetch();
+        
+        $stmt = $pdo->prepare("UPDATE publikasi SET status = ? WHERE id_publikasi = ?");
+        $stmt->execute([$new_status, $id]);
+        
+        $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_admin, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+        $catatan = isset($_GET['approve']) ? 'DISETUJUI publikasi: ' . $old_data['judul'] : 'DITOLAK publikasi: ' . $old_data['judul'];
+        $stmt_riwayat->execute(['publikasi', $id, $_SESSION['id_user'], $old_data['status'], $new_status, $catatan]);
+        
+        header("Location: publikasi.php?success=" . ($new_status == 'active' ? 'approved' : 'rejected') . "&page=" . $page_num);
+        exit;
+    } catch (PDOException $e) {
+        $error = "Gagal: " . $e->getMessage();
+    }
+}
 
 // Handle Delete
 if (isset($_GET['delete'])) {
@@ -51,20 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $tanggal_publikasi = $_POST['tanggal_publikasi'];
     $status = 'active'; 
     $penulis_ids = $_POST['penulis'] ?? [];
-    
-    // Validasi jika edit: cek apakah status rejected
-    if (isset($_POST['id_publikasi']) && !empty($_POST['id_publikasi'])) {
-        $id = $_POST['id_publikasi'];
-        
-        $stmt_check = $pdo->prepare("SELECT status FROM publikasi WHERE id_publikasi = ?");
-        $stmt_check->execute([$id]);
-        $current_data = $stmt_check->fetch();
-        
-        if ($current_data && $current_data['status'] === 'rejected') {
-            header("Location: publikasi.php?error=rejected");
-            exit;
-        }
-    }
     
     // Handle cover upload
     $cover = null;
@@ -163,10 +174,12 @@ if (!empty($year_filter)) {
     $where_params[] = $year_filter;
 }
 
-$where_sql = '';
-if (count($where_conditions) > 0) {
-    $where_sql = "WHERE " . implode(" AND ", $where_conditions);
+if (!empty($status_filter)) {
+    $where_conditions[] = "p.status = ?";
+    $where_params[] = $status_filter;
 }
+
+$where_sql = count($where_conditions) > 0 ? "WHERE " . implode(" AND ", $where_conditions) : "";
 
 // Get total count for pagination
 $count_query = "SELECT COUNT(DISTINCT p.id_publikasi) FROM publikasi p $where_sql";
@@ -178,19 +191,27 @@ $total_pages = ceil($total_items / $limit);
 // Get data with pagination
 $query = "
     SELECT p.*, 
-           STRING_AGG(a.nama, ', ' ORDER BY pa.urutan_penulis) as penulis
+           STRING_AGG(a.nama, ', ' ORDER BY pa.urutan_penulis) as penulis,
+           u.nama as operator_nama
     FROM publikasi p
     LEFT JOIN publikasi_anggota pa ON p.id_publikasi = pa.id_publikasi
     LEFT JOIN anggota_lab a ON pa.id_anggota = a.id_anggota
+    LEFT JOIN users u ON p.id_user = u.id_user
     $where_sql
-    GROUP BY p.id_publikasi
-    ORDER BY p.created_at DESC
+    GROUP BY p.id_publikasi, u.nama
+    ORDER BY p.status ASC, p.created_at DESC
     LIMIT ? OFFSET ?
 ";
 $params = array_merge($where_params, [$limit, $offset]);
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $publikasi_list = $stmt->fetchAll();
+
+// Get pending count
+$pending_count_query = "SELECT COUNT(*) FROM publikasi WHERE status = 'pending'";
+$pending_count_stmt = $pdo->prepare($pending_count_query);
+$pending_count_stmt->execute();
+$pending_count = $pending_count_stmt->fetchColumn();
 
 // Get anggota for dropdown
 $stmt_anggota = $pdo->query("SELECT id_anggota, nama FROM anggota_lab WHERE status = 'active' ORDER BY nama");
@@ -215,17 +236,12 @@ include "navbar.php";
 <?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success alert-dismissible fade show">
         <?php 
-        if ($_GET['success'] == 'added') echo "Publikasi berhasil ditambahkan!";
-        if ($_GET['success'] == 'updated') echo "Publikasi berhasil diupdate!";
-        if ($_GET['success'] == 'deleted') echo "Publikasi berhasil dihapus!";
+        if ($_GET['success'] == 'added') echo "✅ Publikasi berhasil ditambahkan!";
+        if ($_GET['success'] == 'updated') echo "✅ Publikasi berhasil diupdate!";
+        if ($_GET['success'] == 'deleted') echo "✅ Publikasi berhasil dihapus!";
+        if ($_GET['success'] == 'approved') echo "✅ Pengajuan publikasi berhasil disetujui!";
+        if ($_GET['success'] == 'rejected') echo "❌ Pengajuan publikasi berhasil ditolak!";
         ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-<?php endif; ?>
-
-<?php if (isset($_GET['error']) && $_GET['error'] == 'rejected'): ?>
-    <div class="alert alert-danger alert-dismissible fade show">
-        Publikasi yang sudah di-reject tidak dapat diedit!
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
@@ -234,23 +250,39 @@ include "navbar.php";
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
+<?php if ($pending_count > 0): ?>
+    <div class="alert alert-warning alert-dismissible fade show">
+        <i class="bi bi-exclamation-circle"></i> Ada <strong><?php echo $pending_count; ?> publikasi</strong> menunggu persetujuan Anda
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
 <!-- Search & Filter -->
 <div class="card shadow mb-4">
     <div class="card-body">
         <form method="GET" class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label">Cari Judul/Jurnal</label>
+            <div class="col-md-5">
+                <label class="form-label"><i class="bi bi-search"></i> Cari Judul/Jurnal</label>
                 <input type="text" class="form-control" name="search" value="<?php echo htmlspecialchars($search); ?>" placeholder="Ketik judul atau nama jurnal...">
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Tahun</label>
+            <div class="col-md-2">
+                <label class="form-label"><i class="bi bi-calendar"></i> Tahun</label>
                 <select class="form-select" name="year">
-                    <option value="">Semua Tahun</option>
+                    <option value="">Semua</option>
                     <?php foreach ($available_years as $year): ?>
                         <option value="<?php echo $year; ?>" <?php echo $year_filter == $year ? 'selected' : ''; ?>>
                             <?php echo $year; ?>
                         </option>
                     <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label"><i class="bi bi-flag"></i> Status</label>
+                <select class="form-select" name="status">
+                    <option value="">Semua</option>
+                    <option value="pending" <?php echo $status_filter == 'pending' ? 'selected' : ''; ?>>Pending</option>
+                    <option value="active" <?php echo $status_filter == 'active' ? 'selected' : ''; ?>>Active</option>
+                    <option value="rejected" <?php echo $status_filter == 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                 </select>
             </div>
             <div class="col-md-3 d-flex align-items-end gap-2">
@@ -265,15 +297,34 @@ include "navbar.php";
     </div>
 </div>
 
+<?php if ($search || $year_filter || $status_filter): ?>
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> 
+    Menampilkan <?php echo count($publikasi_list); ?> hasil
+    <?php if ($search): ?>
+        untuk pencarian "<strong><?php echo htmlspecialchars($search); ?></strong>"
+    <?php endif; ?>
+    <?php if ($year_filter): ?>
+        tahun <strong><?php echo $year_filter; ?></strong>
+    <?php endif; ?>
+    <?php if ($status_filter): ?>
+        status <strong><?php echo $status_filter; ?></strong>
+    <?php endif; ?>
+    <a href="publikasi.php" class="alert-link ms-2">Reset filter</a>
+</div>
+<?php endif; ?>
+
 <div class="card shadow">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h6 class="mb-0">
             Total: <?php echo $total_items; ?> publikasi
-            <?php if ($search || $year_filter): ?>
+            <?php if ($search || $year_filter || $status_filter): ?>
                 <span class="badge bg-info">Filtered</span>
             <?php endif; ?>
         </h6>
-        <span class="text-muted">Halaman <?php echo $page_num; ?> dari <?php echo $total_pages; ?></span>
+        <?php if ($total_pages > 1): ?>
+            <span class="text-muted">Halaman <?php echo $page_num; ?> dari <?php echo $total_pages; ?></span>
+        <?php endif; ?>
     </div>
     <div class="card-body">
         <div class="table-responsive">
@@ -287,6 +338,7 @@ include "navbar.php";
                         <th>Jurnal</th>
                         <th>Tahun</th>
                         <th>Status</th>
+                        <th>Operator</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -308,39 +360,39 @@ include "navbar.php";
                             <td>
                                 <strong><?php echo htmlspecialchars($pub['judul']); ?></strong>
                                 <?php if ($pub['link_shinta']): ?>
-                                    <br><small class="text-muted">link_shinta: <?php echo htmlspecialchars($pub['link_shinta']); ?></small>
+                                    <br><small class="text-muted">DOI: <?php echo htmlspecialchars($pub['link_shinta']); ?></small>
                                 <?php endif; ?>
                             </td>
                             <td><?php echo htmlspecialchars($pub['penulis'] ?? '-'); ?></td>
                             <td><?php echo htmlspecialchars($pub['jurnal'] ?? '-'); ?></td>
                             <td><?php echo htmlspecialchars($pub['tahun']); ?></td>
                             <td>
-                                <?php
-                                $status_badge = '';
-                                switch($pub['status']) {
-                                    case 'active':
-                                        $status_badge = '<span class="badge bg-success">Active</span>';
-                                        break;
-                                    case 'rejected':
-                                        $status_badge = '<span class="badge bg-danger">Rejected</span>';
-                                        break;
-                                    default:
-                                        $status_badge = '<span class="badge bg-secondary">' . htmlspecialchars($pub['status']) . '</span>';
-                                }
-                                echo $status_badge;
-                                ?>
+                                <?php if ($pub['status'] == 'pending'): ?>
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                <?php elseif ($pub['status'] == 'active'): ?>
+                                    <span class="badge bg-success">Active</span>
+                                <?php else: ?>
+                                    <span class="badge bg-danger">Rejected</span>
+                                <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ($pub['status'] !== 'rejected'): ?>
-                                    <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)'>
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                <?php else: ?>
-                                    <button class="btn btn-sm btn-secondary" disabled title="Publikasi rejected tidak dapat diedit">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
+                                <small><?php echo htmlspecialchars($pub['operator_nama'] ?? 'Admin'); ?></small>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)' title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                
+                                <?php if ($pub['status'] == 'pending'): ?>
+                                    <a href="?approve=<?php echo $pub['id_publikasi']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-success" onclick="return confirm('Setujui pengajuan ini?')" title="Approve">
+                                        <i class="bi bi-check"></i>
+                                    </a>
+                                    <a href="?reject=<?php echo $pub['id_publikasi']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Tolak pengajuan ini?')" title="Reject">
+                                        <i class="bi bi-x"></i>
+                                    </a>
                                 <?php endif; ?>
-                                <a href="?delete=<?php echo $pub['id_publikasi']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                                
+                                <a href="?delete=<?php echo $pub['id_publikasi']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')" title="Hapus">
                                     <i class="bi bi-trash"></i>
                                 </a>
                             </td>
@@ -348,12 +400,15 @@ include "navbar.php";
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
-                                <?php if ($search || $year_filter): ?>
-                                    Tidak ada publikasi yang sesuai dengan pencarian.
-                                <?php else: ?>
-                                    Belum ada publikasi. Klik tombol "Tambah Publikasi" untuk menambahkan.
-                                <?php endif; ?>
+                            <td colspan="9" class="text-center py-5">
+                                <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                                <p class="mt-3 text-muted">
+                                    <?php if ($search || $year_filter || $status_filter): ?>
+                                        Tidak ada publikasi yang sesuai dengan pencarian.
+                                    <?php else: ?>
+                                        Belum ada publikasi. Klik tombol "Tambah Publikasi" untuk menambahkan.
+                                    <?php endif; ?>
+                                </p>
                             </td>
                         </tr>
                     <?php endif; ?>
@@ -367,7 +422,7 @@ include "navbar.php";
         <nav aria-label="Page navigation">
             <ul class="pagination justify-content-center mb-0">
                 <li class="page-item <?php echo $page_num <= 1 ? 'disabled' : ''; ?>">
-                    <a class="page-link" href="?page=<?php echo $page_num - 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $year_filter ? '&year=' . urlencode($year_filter) : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page_num - 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $year_filter ? '&year=' . urlencode($year_filter) : ''; ?><?php echo $status_filter ? '&status=' . urlencode($status_filter) : ''; ?>">
                         <i class="bi bi-chevron-left"></i> Previous
                     </a>
                 </li>
@@ -377,7 +432,8 @@ include "navbar.php";
                 $end_page = min($total_pages, $page_num + 2);
                 
                 if ($start_page > 1) {
-                    echo '<li class="page-item"><a class="page-link" href="?page=1' . ($search ? '&search=' . urlencode($search) : '') . ($year_filter ? '&year=' . urlencode($year_filter) : '') . '">1</a></li>';
+                    $url = '?page=1' . ($search ? '&search=' . urlencode($search) : '') . ($year_filter ? '&year=' . urlencode($year_filter) : '') . ($status_filter ? '&status=' . urlencode($status_filter) : '');
+                    echo "<li class='page-item'><a class='page-link' href='$url'>1</a></li>";
                     if ($start_page > 2) {
                         echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
                     }
@@ -385,19 +441,21 @@ include "navbar.php";
                 
                 for ($i = $start_page; $i <= $end_page; $i++) {
                     $active = $i == $page_num ? 'active' : '';
-                    echo "<li class='page-item $active'><a class='page-link' href='?page=$i" . ($search ? '&search=' . urlencode($search) : '') . ($year_filter ? '&year=' . urlencode($year_filter) : '') . "'>$i</a></li>";
+                    $url = "?page=$i" . ($search ? '&search=' . urlencode($search) : '') . ($year_filter ? '&year=' . urlencode($year_filter) : '') . ($status_filter ? '&status=' . urlencode($status_filter) : '');
+                    echo "<li class='page-item $active'><a class='page-link' href='$url'>$i</a></li>";
                 }
                 
                 if ($end_page < $total_pages) {
                     if ($end_page < $total_pages - 1) {
                         echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
                     }
-                    echo "<li class='page-item'><a class='page-link' href='?page=$total_pages" . ($search ? '&search=' . urlencode($search) : '') . ($year_filter ? '&year=' . urlencode($year_filter) : '') . "'>$total_pages</a></li>";
+                    $url = "?page=$total_pages" . ($search ? '&search=' . urlencode($search) : '') . ($year_filter ? '&year=' . urlencode($year_filter) : '') . ($status_filter ? '&status=' . urlencode($status_filter) : '');
+                    echo "<li class='page-item'><a class='page-link' href='$url'>$total_pages</a></li>";
                 }
                 ?>
                 
                 <li class="page-item <?php echo $page_num >= $total_pages ? 'disabled' : ''; ?>">
-                    <a class="page-link" href="?page=<?php echo $page_num + 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $year_filter ? '&year=' . urlencode($year_filter) : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page_num + 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $year_filter ? '&year=' . urlencode($year_filter) : ''; ?><?php echo $status_filter ? '&status=' . urlencode($status_filter) : ''; ?>">
                         Next <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
@@ -418,6 +476,10 @@ include "navbar.php";
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="id_publikasi" id="id_publikasi">
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Data akan langsung aktif setelah disimpan
+                    </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Judul Publikasi *</label>
@@ -456,7 +518,7 @@ include "navbar.php";
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">link_shinta</label>
+                        <label class="form-label">DOI</label>
                         <input type="text" class="form-control" name="link_shinta" id="link_shinta" placeholder="10.xxxx/xxxxx">
                     </div>
                     
@@ -528,12 +590,6 @@ function addPenulis() {
 }
 
 function editPublikasi(data) {
-    // Cek apakah status rejected
-    if (data.status === 'rejected') {
-        alert('Publikasi yang sudah di-reject tidak dapat diedit!');
-        return;
-    }
-    
     document.getElementById('modalTitle').textContent = 'Edit Publikasi';
     document.getElementById('id_publikasi').value = data.id_publikasi;
     document.getElementById('judul').value = data.judul;
