@@ -24,6 +24,44 @@ $struktur_list = $pdo->query("
     ORDER BY s.urutan ASC
 ")->fetchAll();
 
+// HELPER FUNCTION: Cari logo di multiple locations
+function get_logo_path($logo_name) {
+    if (empty($logo_name)) return '';
+    
+    $possible_paths = [
+        'uploads/tentang/' . htmlspecialchars($logo_name),
+        'uploads/' . htmlspecialchars($logo_name),
+        'assets/img/' . htmlspecialchars($logo_name)
+    ];
+    
+    foreach ($possible_paths as $path) {
+        if (file_exists($path)) {
+            return $path;
+        }
+    }
+    
+    return '';
+}
+
+// HELPER FUNCTION: Cari foto di multiple locations
+function get_foto_path($foto_name) {
+    if (empty($foto_name)) return '';
+    
+    $possible_paths = [
+        'assets/img/anggota/' . htmlspecialchars($foto_name),
+        'uploads/anggota/' . htmlspecialchars($foto_name),
+        'uploads/' . htmlspecialchars($foto_name)
+    ];
+    
+    foreach ($possible_paths as $path) {
+        if (file_exists($path)) {
+            return $path;
+        }
+    }
+    
+    return '';
+}
+
 include 'navbar.php'; // Navbar
 ?>
 <link rel="stylesheet" href="assets/css/style.css">
@@ -118,11 +156,27 @@ include 'navbar.php'; // Navbar
     <h2 class="section-title">Identitas Lab</h2>
     <div class="logo-identity">
       <div class="logo-box">
-        <?php if ($profil_data && $profil_data['logo_lab']): ?>
-          <img src="uploads/tentang/<?= htmlspecialchars($profil_data['logo_lab']) ?>" alt="Logo Lab Data Technology" class="lab-logo">
-        <?php else: ?>
-          <img src="assets/img/logo-lab-dt.png" alt="Logo Lab Data Technology" class="lab-logo">
-        <?php endif; ?>
+        <?php 
+          $logo_path = '';
+          
+          // Cek logo dari database
+          if ($profil_data && $profil_data['logo_lab']) {
+            $logo_path = get_logo_path($profil_data['logo_lab']);
+          }
+          
+          // Fallback ke asset default
+          if (empty($logo_path)) {
+            $logo_path = 'assets/img/logo-lab-dt.png';
+          }
+        ?>
+        
+        <img 
+          src="<?= $logo_path ?>" 
+          alt="Logo Lab Data Technology" 
+          class="lab-logo"
+          loading="lazy"
+          onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%221e4a7a%22 stroke-width=%222%22%3E%3Crect x=%223%22 y=%223%22 width=%2218%22 height=%2218%22 rx=%222%22/%3E%3Cpath d=%22M9 12h6M12 9v6%22/%3E%3C/svg%3E'"
+          style="max-width: 100%; max-height: 280px; height: auto; display: block; margin: 0 auto;">
       </div>
       
       <div class="logo-description">
@@ -244,19 +298,35 @@ include 'navbar.php'; // Navbar
         <?php foreach($struktur_list as $index => $struktur): ?>
           <a href="anggota_detail.php?id=<?= $struktur['id_anggota'] ?>" class="struktur-card <?= $index === 0 ? 'kepala' : '' ?>">
             <div class="struktur-photo">
-              <?php if ($struktur['foto']): ?>
-                <img src="assets/img/anggota/<?= htmlspecialchars($struktur['foto']) ?>" alt="<?= htmlspecialchars($struktur['nama']) ?>">
+              <?php 
+                $foto_path = '';
+                
+                // Cek foto dari database
+                if ($struktur['foto']) {
+                  $foto_path = get_foto_path($struktur['foto']);
+                }
+              ?>
+              
+              <?php if (!empty($foto_path)): ?>
+                <img 
+                  src="<?= $foto_path ?>" 
+                  alt="<?= htmlspecialchars($struktur['nama']) ?>"
+                  class="struktur-photo-img"
+                  loading="lazy"
+                  onerror="this.src='https://ui-avatars.com/api/?name=<?= urlencode($struktur['nama']) ?>&background=1e4a7a&color=fff'">
               <?php else: ?>
-                <div class="photo-placeholder">
-                  <svg width="60" height="60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                  </svg>
-                </div>
+                <!-- Avatar placeholder jika foto tidak ada -->
+                <img 
+                  src="https://ui-avatars.com/api/?name=<?= urlencode($struktur['nama']) ?>&background=1e4a7a&color=fff" 
+                  alt="<?= htmlspecialchars($struktur['nama']) ?>"
+                  class="struktur-photo-img"
+                  loading="lazy">
               <?php endif; ?>
             </div>
+            
             <h4><?= htmlspecialchars($struktur['nama']) ?></h4>
             <p class="jabatan"><?= htmlspecialchars($struktur['jabatan']) ?></p>
+            
             <?php if ($struktur['nip']): ?>
               <p class="nip"><?= htmlspecialchars($struktur['nip']) ?></p>
             <?php endif; ?>

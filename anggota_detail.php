@@ -22,7 +22,7 @@ $stmt_social = $pdo->prepare("SELECT * FROM social_media_anggota WHERE id_anggot
 $stmt_social->execute([$id_anggota]);
 $social_media = $stmt_social->fetchAll();
 
-// Ambil SEMUA publikasi anggota (bukan hanya 3)
+// Ambil SEMUA publikasi anggota
 $stmt_publikasi = $pdo->prepare("
     SELECT p.* FROM publikasi p
     JOIN publikasi_anggota pa ON p.id_publikasi = pa.id_publikasi
@@ -52,6 +52,25 @@ $stmt_jabatan = $pdo->prepare("
 ");
 $stmt_jabatan->execute([$id_anggota]);
 $jabatan = $stmt_jabatan->fetch();
+
+// HELPER FUNCTION: Cari foto di multiple locations
+function get_foto_path($foto_name) {
+    if (empty($foto_name)) return '';
+    
+    $possible_paths = [
+        'assets/img/anggota/' . htmlspecialchars($foto_name),
+        'uploads/anggota/' . htmlspecialchars($foto_name),
+        'uploads/' . htmlspecialchars($foto_name)
+    ];
+    
+    foreach ($possible_paths as $path) {
+        if (file_exists($path)) {
+            return $path;
+        }
+    }
+    
+    return '';
+}
 
 include 'navbar.php';
 ?>
@@ -133,6 +152,10 @@ include 'navbar.php';
 .publication-item {
   position: relative;
   overflow: hidden;
+  padding: 16px;
+  background: #f8f9fb;
+  border-radius: 12px;
+  margin-bottom: 16px;
 }
 
 .publication-item::before {
@@ -145,6 +168,12 @@ include 'navbar.php';
   background: var(--primary-blue);
   transform: scaleY(0);
   transition: transform 0.3s;
+}
+
+.publication-item:hover {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateX(4px);
 }
 
 .publication-item:hover::before {
@@ -198,15 +227,24 @@ include 'navbar.php';
         
         <!-- Photo -->
         <div class="profile-photo">
-          <?php if ($anggota['foto']): ?>
-            <img src="assets/img/anggota/<?= htmlspecialchars($anggota['foto']) ?>" alt="<?= htmlspecialchars($anggota['nama']) ?>">
+          <?php 
+            $foto_path = get_foto_path($anggota['foto']);
+          ?>
+          
+          <?php if (!empty($foto_path)): ?>
+            <img 
+              src="<?= $foto_path ?>" 
+              alt="<?= htmlspecialchars($anggota['nama']) ?>"
+              loading="lazy"
+              style="width: 100%; height: 100%; object-fit: cover; object-position: center;"
+              onerror="this.src='https://ui-avatars.com/api/?name=<?= urlencode($anggota['nama']) ?>&background=1e4a7a&color=fff&size=400'">
           <?php else: ?>
-            <div class="photo-placeholder">
-              <svg width="80" height="80" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-            </div>
+            <!-- Avatar placeholder jika foto tidak ada -->
+            <img 
+              src="https://ui-avatars.com/api/?name=<?= urlencode($anggota['nama']) ?>&background=1e4a7a&color=fff&size=400" 
+              alt="<?= htmlspecialchars($anggota['nama']) ?>"
+              loading="lazy"
+              style="width: 100%; height: 100%;">
           <?php endif; ?>
         </div>
         
@@ -260,7 +298,7 @@ include 'navbar.php';
           <?php if (count($social_media) > 0): ?>
           <div class="profile-social">
             <?php foreach($social_media as $social): ?>
-              <a href="<?= htmlspecialchars($social['url']) ?>" class="social-link" title="<?= ucfirst($social['platform']) ?>" target="_blank">
+              <a href="<?= htmlspecialchars($social['url']) ?>" class="social-link" title="<?= ucfirst($social['platform']) ?>" target="_blank" rel="noopener noreferrer">
                 <?php if ($social['platform'] == 'email'): ?>
                   <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M0 3v18h24v-18h-24zm6.623 7.929l-4.623 5.712v-9.458l4.623 3.746zm-4.141-5.929h19.035l-9.517 7.713-9.518-7.713zm5.694 7.188l3.824 3.099 3.83-3.104 5.612 6.817h-18.779l5.513-6.812zm9.208-1.264l4.616-3.741v9.348l-4.616-5.607z"/>
@@ -390,7 +428,7 @@ include 'navbar.php';
               $current_year = '';
               foreach($publikasi_list as $pub): 
                 if ($pub['tahun'] != $current_year):
-                  if ($current_year != '') echo '</div>'; // Close previous year group
+                  if ($current_year != '') echo '</div></div>'; // Close previous year group
                   $current_year = $pub['tahun'];
               ?>
               <div class="timeline-year">
@@ -415,7 +453,7 @@ include 'navbar.php';
                   <?php endif; ?>
                   <div class="pub-actions">
                     <?php if ($pub['file_path']): ?>
-                    <a href="assets/uploads/publikasi/<?= htmlspecialchars($pub['file_path']) ?>" class="pub-action-link" target="_blank">
+                    <a href="uploads/publikasi/<?= htmlspecialchars($pub['file_path']) ?>" class="pub-action-link" target="_blank" rel="noopener noreferrer">
                       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="7 10 12 15 17 10"></polyline>
@@ -426,7 +464,7 @@ include 'navbar.php';
                     <?php endif; ?>
                     
                     <?php if ($pub['link_shinta']): ?>
-                    <a href="<?= htmlspecialchars($pub['link_shinta']) ?>" class="pub-action-link" target="_blank">
+                    <a href="<?= htmlspecialchars($pub['link_shinta']) ?>" class="pub-action-link" target="_blank" rel="noopener noreferrer">
                       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>

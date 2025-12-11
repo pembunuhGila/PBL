@@ -1,616 +1,560 @@
-/* ============================================
-   TENTANG.CSS - DOMINAN BIRU, AKSEN HIJAU STRATEGIS
-   Filosofi: Biru 80%, Hijau 20% (hanya untuk CTA & highlight)
-============================================ */
+/* ================================================
+   IMAGE STYLING - LOGO & STRUKTUR ANGGOTA
+   Tambahkan ke assets/css/style.css
+================================================ */
 
-/* ============================================
-   PAGE HERO
-============================================ */
-.page-hero {
-  margin-top: 85px;
-  height: 350px;
-  background-size: cover;
-  background-position: center;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.page-hero-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(30, 74, 122, 0.9), rgba(14, 43, 102, 0.85));
-  backdrop-filter: blur(3px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.page-title {
-  font-size: 48px;
-  font-weight: 700;
-  color: #fff;
-  margin-bottom: 12px;
-  text-align: center;
-}
-
-.page-subtitle {
-  font-size: 18px;
-  color: rgba(255, 255, 255, 0.95);
-  text-align: center;
-}
-
-/* ============================================
-   QUICK NAVIGATION
-============================================ */
-.quick-nav-section {
-  background: #fff;
-  padding: 20px 0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  position: sticky;
-  top: 85px;
-  z-index: 100;
-}
-
-.quick-nav {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.quick-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: #f8f9fb;
-  border-radius: 8px;
-  text-decoration: none;
-  color: var(--text-dark);
-  font-weight: 600;
-  font-size: 14px;
-  transition: all 0.3s;
-  border: 2px solid transparent;
-}
-
-.quick-nav-item:hover {
-  background: var(--primary-blue);
-  color: #fff;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(30, 74, 122, 0.2);
-}
-
-.quick-nav-item svg {
-  width: 20px;
-  height: 20px;
-}
-
-/* ============================================
-   PROFIL SECTION
-============================================ */
-.profil-section {
-  padding: 80px 0;
-  background: #fff;
-}
-
-.profil-text-content {
-  max-width: 900px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.profil-text-content p {
-  line-height: 1.9;
-  color: #555;
-  font-size: 16px;
-  margin-bottom: 20px;
-}
-
-.profil-text-content p:last-child {
-  margin-bottom: 0;
-}
-
-/* ============================================
-   LOGO IDENTITY
-============================================ */
+/* =====================================
+   LOGO IDENTITAS LAB
+===================================== */
 .logo-section {
   padding: 80px 0;
-  background: #f8f9fb;
+  background: linear-gradient(135deg, #f8f9fb 0%, #e8ebef 100%);
 }
 
 .logo-identity {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 60px;
   align-items: center;
+  padding: 40px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 .logo-box {
-  flex: 0 0 300px;
-  background: #fff;
-  padding: 40px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #e8ebef;
-  transition: all 0.3s;
-}
-
-.logo-box:hover {
-  border-color: var(--primary-blue);
-  box-shadow: 0 8px 24px rgba(30, 74, 122, 0.15);
+  min-height: 300px;
+  background: linear-gradient(135deg, #f0f0f0, #e5e5e5);
+  border-radius: 12px;
+  padding: 30px;
+  overflow: hidden;
 }
 
 .lab-logo {
-  width: 100%;
-  max-width: 220px;
+  max-width: 100%;
+  max-height: 280px;
+  width: auto;
   height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
 }
 
 .logo-description {
-  flex: 1;
+  padding: 0;
+}
+
+.logo-description h3 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 16px;
+}
+
+.logo-description p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #555;
+  margin-bottom: 16px;
 }
 
 .logo-title {
-  color: var(--primary-blue);
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
+  color: var(--text-dark);
   margin-bottom: 16px;
 }
 
 .logo-desc {
-  line-height: 1.8;
-  color: #555;
-  margin-bottom: 16px;
-  font-size: 15px;
-}
-
-/* ============================================
-   VISI MISI - DOMINAN BIRU
-============================================ */
-.visi-misi-section {
-  padding: 80px 0;
-  background: #fff;
-}
-
-.visi-misi-wrapper {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 40px;
-  margin-top: 40px;
-}
-
-.vm-card {
-  background: #fff;
-  padding: 40px;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s;
-  border: 2px solid transparent;
-}
-
-/* Visi Card - Biru solid */
-.vm-card.visi-card {
-  border-left: 4px solid var(--primary-blue);
-}
-
-.vm-card.visi-card:hover {
-  border-color: var(--primary-blue);
-  box-shadow: 0 8px 24px rgba(30, 74, 122, 0.2);
-  transform: translateY(-4px);
-}
-
-/* Misi Card - Biru solid */
-.vm-card.misi-card {
-  border-left: 4px solid #2563a8;
-}
-
-.vm-card.misi-card:hover {
-  border-color: #2563a8;
-  box-shadow: 0 8px 24px rgba(30, 74, 122, 0.2);
-  transform: translateY(-4px);
-}
-
-.vm-icon {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, var(--primary-blue), #2563a8);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 20px;
-  color: #fff;
-}
-
-.vm-card h3 {
-  font-size: 24px;
-  color: var(--primary-blue);
-  margin-bottom: 16px;
-  font-weight: 700;
-}
-
-.vm-card p {
-  line-height: 1.8;
-  color: #555;
-  font-size: 15px;
-}
-
-.misi-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.misi-list li {
-  padding-left: 28px;
-  position: relative;
-  margin-bottom: 12px;
-  line-height: 1.7;
-  color: #555;
-  font-size: 15px;
-}
-
-/* Checkmark biru, bukan hijau */
-.misi-list li::before {
-  content: '✓';
-  position: absolute;
-  left: 0;
-  color: var(--primary-blue);
-  font-weight: 700;
-  font-size: 18px;
-}
-
-/* ============================================
-   ROADMAP SECTION - MODERN DESIGN
-============================================ */
-.roadmap-section {
-  padding: 80px 0;
-  background: linear-gradient(135deg, #f8f9fb 0%, #e8ebef 100%);
-  position: relative;
-  overflow: hidden;
-}
-
-.roadmap-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(46, 204, 113, 0.1) 0%, transparent 70%);
-  border-radius: 50%;
-}
-
-.section-subtitle {
-  text-align: center;
   color: #666;
-  font-size: 16px;
-  margin-top: -30px;
-  margin-bottom: 50px;
+  text-align: justify;
+  font-size: 15px;
+  line-height: 1.8;
 }
 
-.roadmap-container {
-  position: relative;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 40px 0;
-}
-
-/* Center Line */
-.roadmap-container::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: linear-gradient(180deg, var(--primary-blue), var(--accent-green));
-  transform: translateX(-50%);
-}
-
-.roadmap-item {
-  position: relative;
-  margin-bottom: 60px;
-  display: flex;
-  align-items: center;
-}
-
-/* Dot on Timeline */
-.roadmap-dot {
-  position: absolute;
-  left: 50%;
-  width: 24px;
-  height: 24px;
-  background: var(--accent-green);
-  border: 4px solid #fff;
-  border-radius: 50%;
-  transform: translateX(-50%);
-  box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.2);
-  z-index: 2;
-  transition: all 0.3s;
-}
-
-.roadmap-item:hover .roadmap-dot {
-  width: 32px;
-  height: 32px;
-  box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.3);
-}
-
-/* Content Positioning */
-.roadmap-item.left .roadmap-content {
-  width: 45%;
-  text-align: right;
-  padding-right: 40px;
-}
-
-.roadmap-item.right .roadmap-content {
-  width: 45%;
-  margin-left: auto;
-  text-align: left;
-  padding-left: 40px;
-}
-
-.roadmap-year {
-  display: inline-block;
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--accent-green);
-  margin-bottom: 12px;
-  text-shadow: 2px 2px 0 rgba(46, 204, 113, 0.1);
-}
-
-.roadmap-card {
-  background: #fff;
-  padding: 28px;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s;
-  border: 2px solid transparent;
-  position: relative;
-}
-
-.roadmap-item.left .roadmap-card::after {
-  content: '';
-  position: absolute;
-  right: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 12px 0 12px 12px;
-  border-color: transparent transparent transparent #fff;
-}
-
-.roadmap-item.right .roadmap-card::after {
-  content: '';
-  position: absolute;
-  left: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 12px 12px 12px 0;
-  border-color: transparent #fff transparent transparent;
-}
-
-.roadmap-item:hover .roadmap-card {
-  border-color: var(--accent-green);
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(46, 204, 113, 0.2);
-}
-
-.roadmap-icon {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, var(--accent-green), #27ae60);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 16px;
-  color: #fff;
-}
-
-.roadmap-item.left .roadmap-icon {
-  margin-left: auto;
-}
-
-.roadmap-card h4 {
-  font-size: 20px;
-  color: var(--primary-blue);
-  margin-bottom: 12px;
-  font-weight: 700;
-}
-
-.roadmap-card p {
-  font-size: 14px;
-  line-height: 1.7;
-  color: #666;
-  margin: 0;
-}
-
-/* ============================================
-   STRUKTUR ORGANISASI
-============================================ */
+/* =====================================
+   STRUKTUR ORGANISASI GRID
+===================================== */
 .struktur-section {
-  padding: 80px 0;
-  background: #fff;
+  padding: 70px 0;
+  background: #fafbfc;
 }
 
 .struktur-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 30px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
   margin-top: 40px;
 }
 
 .struktur-card {
   background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s;
-  border: 2px solid #e8ebef;
+  border-radius: 16px;
+  overflow: hidden;
   text-decoration: none;
-  display: block;
   color: inherit;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 2px solid transparent;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  position: relative;
 }
 
 .struktur-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(30, 74, 122, 0.15);
   border-color: var(--primary-blue);
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(30, 74, 122, 0.15);
 }
 
 .struktur-card.kepala {
-  grid-column: 1 / -1;
-  max-width: 400px;
-  margin: 0 auto;
-  width: 100%;
-  border-color: var(--primary-blue);
-  background: linear-gradient(135deg, #f8f9fb, #fff);
+  grid-column: 1 / 2;
+  background: linear-gradient(135deg, var(--primary-blue), #2563a8);
+  color: #fff;
 }
 
+.struktur-card.kepala h4 {
+  color: #fff;
+}
+
+.struktur-card.kepala .jabatan {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.struktur-card.kepala .nip {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.struktur-card.kepala::before {
+  content: '⭐ KETUA';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: var(--accent-green);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  z-index: 10;
+}
+
+/* Struktur Photo Container */
 .struktur-photo {
-  width: 150px;
-  height: 150px;
-  margin: 0 auto 20px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 4px solid var(--primary-blue);
-}
-
-.struktur-card.kepala .struktur-photo {
-  width: 180px;
-  height: 180px;
-  border-width: 5px;
-}
-
-.photo-placeholder {
+  position: relative;
   width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #e8ebef, #d5dae0);
+  height: 220px;
+  background: linear-gradient(135deg, #e0e0e0, #d0d0d0);
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
-  font-weight: 600;
-  font-size: 13px;
 }
 
 .struktur-photo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  display: block;
 }
 
+.struktur-photo-img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+}
+
+.struktur-card:hover .struktur-photo::after {
+  opacity: 1;
+}
+
+.struktur-photo::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(30, 74, 122, 0.1);
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 5;
+}
+
+/* Struktur Info */
 .struktur-card h4 {
-  font-size: 17px;
+  padding: 16px 16px 8px;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text-dark);
-  margin-bottom: 8px;
-  font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  margin: 0;
 }
 
-.struktur-card .jabatan {
-  color: var(--primary-blue);
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 6px;
-}
-
-.struktur-card .nip {
-  color: #888;
+.jabatan {
+  padding: 0 16px 8px;
   font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-blue);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  min-height: 32px;
 }
 
-/* ============================================
-   RESPONSIVE
-============================================ */
-@media (max-width: 1024px) {
+.nip {
+  padding: 0 16px 16px;
+  font-size: 11px;
+  color: #888;
+  margin: 0;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Photo Placeholder */
+.photo-placeholder {
+  background: linear-gradient(135deg, #e8e8e8, #d5d5d5);
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  width: 100%;
+}
+
+.photo-placeholder svg {
+  stroke: #999;
+}
+
+/* =====================================
+   ANGGOTA DETAIL - PROFILE PHOTO
+===================================== */
+.profile-photo {
+  width: 100%;
+  max-width: 250px;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #e0e0e0, #d0d0d0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.profile-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* =====================================
+   RESPONSIVE - LOGO SECTION
+===================================== */
+
+/* Tablet Landscape (1024px - 1199px) */
+@media (max-width: 1199px) {
   .logo-identity {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .logo-box {
-    flex: 0 0 auto;
-  }
-  
-  .visi-misi-wrapper {
     grid-template-columns: 1fr;
+    gap: 30px;
+    padding: 30px;
   }
-  
+
+  .logo-box {
+    min-height: 250px;
+    order: 2;
+  }
+
+  .logo-description {
+    order: 1;
+  }
+
+  .logo-title {
+    font-size: 24px;
+  }
+
+  .logo-desc {
+    font-size: 14px;
+  }
+}
+
+/* Tablet Portrait (768px - 1023px) */
+@media (max-width: 1023px) {
+  .logo-section {
+    padding: 60px 0;
+  }
+
+  .logo-identity {
+    grid-template-columns: 1fr;
+    gap: 25px;
+    padding: 25px;
+  }
+
+  .logo-box {
+    min-height: 220px;
+    padding: 20px;
+    order: 2;
+  }
+
+  .logo-description {
+    order: 1;
+  }
+
+  .logo-title {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+
+  .logo-desc {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+}
+
+/* Mobile Landscape (576px - 767px) */
+@media (max-width: 767px) and (min-width: 576px) {
+  .logo-section {
+    padding: 50px 0;
+  }
+
+  .logo-identity {
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .logo-box {
+    min-height: 180px;
+    padding: 15px;
+  }
+
+  .lab-logo {
+    max-height: 150px;
+  }
+
+  .logo-title {
+    font-size: 20px;
+  }
+
+  .logo-desc {
+    font-size: 12px;
+  }
+}
+
+/* Mobile Portrait (320px - 575px) */
+@media (max-width: 575px) {
+  .logo-section {
+    padding: 50px 0;
+  }
+
+  .logo-identity {
+    grid-template-columns: 1fr;
+    gap: 15px;
+    padding: 15px;
+  }
+
+  .logo-box {
+    min-height: 150px;
+    padding: 15px;
+    order: 2;
+  }
+
+  .logo-description {
+    order: 1;
+  }
+
+  .lab-logo {
+    max-height: 120px;
+  }
+
+  .logo-title {
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+
+  .logo-desc {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
+/* =====================================
+   RESPONSIVE - STRUKTUR GRID
+===================================== */
+
+/* Tablet Landscape (1024px - 1199px) */
+@media (max-width: 1199px) {
+  .struktur-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .struktur-photo {
+    height: 200px;
+  }
+
+  .struktur-card h4 {
+    font-size: 15px;
+    padding: 14px 14px 6px;
+  }
+
+  .jabatan {
+    padding: 0 14px 6px;
+    font-size: 12px;
+  }
+
+  .nip {
+    padding: 0 14px 12px;
+    font-size: 10px;
+  }
+}
+
+/* Tablet Portrait (768px - 1023px) */
+@media (max-width: 1023px) {
   .struktur-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 30px;
+  }
+
+  .struktur-card.kepala {
+    grid-column: 1 / -1;
+  }
+
+  .struktur-photo {
+    height: 180px;
+  }
+
+  .struktur-card h4 {
+    font-size: 14px;
+    padding: 12px 12px 4px;
+  }
+
+  .jabatan {
+    font-size: 11px;
+    padding: 0 12px 4px;
+  }
+
+  .nip {
+    font-size: 9px;
+    padding: 0 12px 10px;
+  }
+}
+
+/* Mobile Landscape (576px - 767px) */
+@media (max-width: 767px) and (min-width: 576px) {
+  .struktur-section {
+    padding: 50px 0;
+  }
+
+  .struktur-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-top: 25px;
+  }
+
+  .struktur-card.kepala {
+    grid-column: 1 / -1;
+  }
+
+  .struktur-photo {
+    height: 160px;
+  }
+
+  .struktur-card h4 {
+    font-size: 13px;
+    padding: 10px 10px 4px;
+  }
+
+  .jabatan {
+    font-size: 11px;
+    padding: 0 10px 4px;
+  }
+
+  .nip {
+    font-size: 9px;
+    padding: 0 10px 8px;
+  }
+}
+
+/* Mobile Portrait (320px - 575px) */
+@media (max-width: 575px) {
+  .struktur-section {
+    padding: 50px 0;
+  }
+
+  .struktur-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .struktur-card.kepala {
+    grid-column: 1 / -1;
+  }
+
+  .struktur-photo {
+    height: 140px;
+  }
+
+  .struktur-card {
+    border-radius: 12px;
+  }
+
+  .struktur-card h4 {
+    font-size: 12px;
+    padding: 10px 10px 4px;
+    line-height: 1.3;
+  }
+
+  .jabatan {
+    font-size: 10px;
+    padding: 0 10px 4px;
+    min-height: auto;
+  }
+
+  .nip {
+    font-size: 8px;
+    padding: 0 10px 8px;
+  }
+}
+
+/* =====================================
+   RESPONSIVE - PROFILE DETAIL
+===================================== */
+
+@media (max-width: 1023px) {
+  .profile-photo {
+    max-width: 220px;
+    margin: 0 auto 24px;
   }
 }
 
 @media (max-width: 768px) {
-  .page-title {
-    font-size: 36px;
+  .profile-photo {
+    max-width: 200px;
+    margin: 0 auto 24px;
   }
-  
-  .page-subtitle {
-    font-size: 16px;
-  }
-  
-  .quick-nav {
-    gap: 8px;
-  }
-  
-  .quick-nav-item {
-    padding: 8px 12px;
-    font-size: 12px;
-  }
-  
-  .quick-nav-item span {
-    display: none;
-  }
-  
-  .roadmap-container::before {
-    left: 20px;
-  }
-  
-  .roadmap-item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .roadmap-dot {
-    left: 20px;
-  }
-  
-  .roadmap-item.left .roadmap-content,
-  .roadmap-item.right .roadmap-content {
-    width: 100%;
-    text-align: left;
-    padding-left: 60px;
-    padding-right: 0;
-    margin-left: 0;
-  }
-  
-  .roadmap-item.left .roadmap-icon {
-    margin-left: 0;
-  }
-  
-  .roadmap-item.left .roadmap-card::after,
-  .roadmap-item.right .roadmap-card::after {
-    display: none;
-  }
-  
-  .struktur-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .struktur-card.kepala {
-    grid-column: 1;
+}
+
+@media (max-width: 575px) {
+  .profile-photo {
+    max-width: 180px;
+    margin: 0 auto 20px;
   }
 }

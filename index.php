@@ -30,11 +30,11 @@ $stmt_publikasi = $pdo->query("
 ");
 $publikasi_list = $stmt_publikasi->fetchAll();
 
-// Ambil galeri untuk kegiatan (filter atau random)
+// Ambil galeri untuk kegiatan
 $stmt_galeri = $pdo->query("SELECT * FROM galeri WHERE status = 'active' ORDER BY created_at DESC LIMIT 4");
 $galeri_list = $stmt_galeri->fetchAll();
 
-// Ambil mata kuliah terkait dari anggota lab (unique)
+// Ambil mata kuliah terkait
 $stmt_matakuliah = $pdo->query("
     SELECT DISTINCT jsonb_array_elements(bidang_keahlian::jsonb)->>'nama' as nama_mk
     FROM anggota_lab 
@@ -45,7 +45,6 @@ $stmt_matakuliah = $pdo->query("
 $matakuliah_list = $stmt_matakuliah->fetchAll();
 ?>
 <link rel="stylesheet" href="assets/css/style.css">
-<script src="assets/js/main.js" defer></script>
 
 <!-- ============================================
      HERO / SLIDER SECTION
@@ -57,21 +56,49 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
       <div class="gallery-slider">
         <?php foreach($sliders as $index => $slide): ?>
           <div class="slide <?= $index === 0 ? 'active' : '' ?>">
-            <img src="uploads/slider/<?= htmlspecialchars($slide['gambar']) ?>" 
-                 alt="<?= htmlspecialchars($slide['judul']) ?>">
+            <?php 
+              $slider_path = '';
+              if ($slide['gambar']) {
+                $possible_paths = [
+                  'uploads/slider/' . htmlspecialchars($slide['gambar']),
+                  'uploads/' . htmlspecialchars($slide['gambar']),
+                  'assets/img/slider/' . htmlspecialchars($slide['gambar'])
+                ];
+                foreach ($possible_paths as $path) {
+                  if (file_exists($path)) {
+                    $slider_path = $path;
+                    break;
+                  }
+                }
+              }
+            ?>
             
-            <?php if($slide['judul'] || $slide['deskripsi']): ?>
-              <div class="slide-caption">
-                <?php if($slide['judul']): ?>
-                  <h2><?= htmlspecialchars($slide['judul']) ?></h2>
-                <?php endif; ?>
-                <?php if($slide['deskripsi']): ?>
-                  <p><?= htmlspecialchars($slide['deskripsi']) ?></p>
-                <?php endif; ?>
+            <?php if (!empty($slider_path)): ?>
+              <img 
+                src="<?= $slider_path ?>" 
+                alt="<?= htmlspecialchars($slide['judul']) ?>"
+                loading="lazy"
+                style="width: 100%; height: 100%; object-fit: cover;">
+            <?php else: ?>
+              <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #d8d8d8, #c5c5c5); display: flex; align-items: center; justify-content: center; color: #999; font-weight: 600;">
+                📸 Slider Image
               </div>
             <?php endif; ?>
           </div>
         <?php endforeach; ?>
+        
+        <!-- SLIDER NAVIGATION BUTTONS -->
+        <button class="slider-btn slider-btn-prev" aria-label="Previous slide">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        
+        <button class="slider-btn slider-btn-next" aria-label="Next slide">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
         
         <!-- Slider Navigation Dots -->
         <div class="slider-dots">
@@ -81,7 +108,6 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
         </div>
       </div>
     <?php else: ?>
-      <!-- PLACEHOLDER jika belum ada data slider -->
       <div class="gallery-placeholder">
         Galeri Slider (Belum ada data)
         <div class="slider-dots">
@@ -118,27 +144,26 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
     <div class="grid-3">
       <?php if(count($fasilitas_kategori) > 0): ?>
         <?php foreach($fasilitas_kategori as $kategori): ?>
-          <a href="fasilitas.php?kategori=<?= urlencode($kategori['kategori_fasilitas']) ?>" class="facility-card" style="text-decoration: none; color: inherit; cursor: pointer; transition: transform 0.3s;">
+          <a href="fasilitas.php?kategori=<?= urlencode($kategori['kategori_fasilitas']) ?>" class="facility-card">
             <div class="icon-placeholder">Icon</div>
             <h4><?= htmlspecialchars($kategori['kategori_fasilitas']) ?></h4>
             <p>Lihat detail fasilitas <?= htmlspecialchars($kategori['kategori_fasilitas']) ?></p>
           </a>
         <?php endforeach; ?>
       <?php else: ?>
-        <!-- PLACEHOLDER jika belum ada data -->
-        <a href="fasilitas.php?kategori=Ruang Praktikum & Penelitian" class="facility-card" style="text-decoration: none; color: inherit;">
+        <a href="fasilitas.php?kategori=Ruang Praktikum & Penelitian" class="facility-card">
           <div class="icon-placeholder">Icon</div>
           <h4>Ruang Praktikum & Penelitian</h4>
           <p>Ruang laboratorium yang nyaman untuk kegiatan praktikum, eksperimen, dan penelitian.</p>
         </a>
         
-        <a href="fasilitas.php?kategori=Perangkat Lunak" class="facility-card" style="text-decoration: none; color: inherit;">
+        <a href="fasilitas.php?kategori=Perangkat Lunak" class="facility-card">
           <div class="icon-placeholder">Icon</div>
           <h4>Perangkat Lunak</h4>
           <p>Software analisis data, machine learning, serta tools big data untuk kebutuhan riset dan pembelajaran.</p>
         </a>
         
-        <a href="fasilitas.php?kategori=Perangkat Komputer" class="facility-card" style="text-decoration: none; color: inherit;">
+        <a href="fasilitas.php?kategori=Perangkat Komputer" class="facility-card">
           <div class="icon-placeholder">Icon</div>
           <h4>Perangkat Komputer</h4>
           <p>Software analisis data, machine learning, serta tools big data untuk kebutuhan riset dan pembelajaran.</p>
@@ -149,51 +174,45 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
 </section>
 
 <!-- ============================================
-     BERITA SECTION
+     BERITA SECTION - IMPROVED & MODERN
 ============================================= -->
 <section class="news-section">
   <div class="container">
     <h2 class="section-title">Berita</h2>
-    <p style="opacity: 0.85; margin-top: -20px; margin-bottom: 24px;">Kabar terbaru dan aktivitas kampus terkini</p>
+    <p>Kabar terbaru dan aktivitas kampus terkini</p>
     
-    <div class="news-grid">
-      <?php if(count($berita_list) > 0): ?>
+    <?php if(count($berita_list) > 0): ?>
+      <div class="news-grid">
         <?php foreach($berita_list as $berita): ?>
-          <div class="news-card">
-            <?php if($berita['gambar']): ?>
-              <img src="uploads/konten/<?= htmlspecialchars($berita['gambar']) ?>" alt="<?= htmlspecialchars($berita['judul']) ?>" class="thumb" style="width: 100%; height: 200px; object-fit: cover;">
-            <?php else: ?>
-              <div class="thumb">Thumbnail Berita</div>
-            <?php endif; ?>
+          <a href="konten_detail.php?id=<?= (int)$berita['id_konten'] ?>" class="news-card">
+            <div class="thumb">
+              <?php if($berita['gambar'] && file_exists("uploads/konten/" . $berita['gambar'])): ?>
+                <img src="uploads/konten/<?= htmlspecialchars($berita['gambar']) ?>" 
+                     alt="<?= htmlspecialchars($berita['judul']) ?>">
+              <?php else: ?>
+                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #d8d8d8, #c5c5c5); color: #999; font-size: 14px; font-weight: 600;">
+                  📰 Thumbnail Berita
+                </div>
+              <?php endif; ?>
+            </div>
+            
             <div class="news-card-content">
+              <span class="news-badge"><?= htmlspecialchars($berita['kategori_konten'] ?? 'Berita') ?></span>
               <h4><?= htmlspecialchars($berita['judul']) ?></h4>
-              <p><?= htmlspecialchars(substr(strip_tags($berita['isi']), 0, 120)) ?>...</p>
+              <p><?= htmlspecialchars(substr(strip_tags($berita['isi']), 0, 150)) ?>...</p>
               <small class="text-muted"><?= date('d F Y', strtotime($berita['tanggal_posting'])) ?></small>
             </div>
-          </div>
+          </a>
         <?php endforeach; ?>
-      <?php else: ?>
-        <!-- PLACEHOLDER jika belum ada data -->
-        <div class="news-card">
-          <div class="thumb">Thumbnail Berita</div>
-          <div class="news-card-content">
-            <h4>Prestasi Gemilang! Mahasiswa Prodi D4 Sistem Informasi Bisnis Juara</h4>
-            <p>Mahasiswa Prodi D4 Sistem Informasi Bisnis Juara di Entrepreneurs Festival 2025 Politeknik Negeri Malang.</p>
-          </div>
-        </div>
-        
-        <div class="news-card">
-          <div class="thumb">Thumbnail Berita</div>
-          <div class="news-card-content">
-            <h4>Prestasi Gemilang! Mahasiswa Prodi D4 Sistem Informasi Bisnis Juara</h4>
-            <p>Mahasiswa Prodi D4 Sistem Informasi Bisnis Juara di Entrepreneurs Festival 2025 Politeknik Negeri Malang.</p>
-          </div>
-        </div>
-      <?php endif; ?>
-    </div>
+      </div>
+    <?php else: ?>
+      <div class="news-empty">
+        <p>Belum ada berita terbaru</p>
+      </div>
+    <?php endif; ?>
     
-    <div style="text-align: center;">
-      <a href="konten.php?kategori=Berita" class="load-more-btn">Load more</a>
+    <div style="text-align: center; margin-top: 40px;">
+      <a href="konten.php?kategori=Berita" class="load-more-btn">Lihat Semua Berita →</a>
     </div>
   </div>
 </section>
@@ -213,7 +232,7 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
       <?php if(count($publikasi_list) > 0): ?>
         <?php foreach($publikasi_list as $pub): ?>
           <div class="pub-card">
-            <?php if($pub['cover']): ?>
+            <?php if($pub['cover'] && file_exists("uploads/publikasi/cover/" . $pub['cover'])): ?>
               <img src="uploads/publikasi/cover/<?= htmlspecialchars($pub['cover']) ?>" alt="<?= htmlspecialchars($pub['judul']) ?>" class="pub-placeholder" style="width: 100%; height: 250px; object-fit: cover;">
             <?php else: ?>
               <div class="pub-placeholder">Cover Publikasi</div>
@@ -223,8 +242,8 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
               <p class="pub-meta"><?= htmlspecialchars($pub['penulis'] ?? 'Penulis') ?> • <?= htmlspecialchars($pub['tahun']) ?></p>
               <?php if($pub['link_shinta']): ?>
                 <a href="<?= htmlspecialchars($pub['link_shinta']) ?>" target="_blank" class="pub-link">Baca Selengkapnya >>></a>
-              <?php elseif($pub['file_path']): ?>
-                <a href="uploads/publikasi/files/<?= htmlspecialchars($pub['file_path']) ?>" target="_blank" class="pub-link">Baca Selengkapnya >>></a>
+              <?php elseif($pub['file_path'] && file_exists("uploads/publikasi/" . $pub['file_path'])): ?>
+                <a href="uploads/publikasi/<?= htmlspecialchars($pub['file_path']) ?>" target="_blank" class="pub-link">Baca Selengkapnya >>></a>
               <?php else: ?>
                 <span class="pub-link text-muted">Tidak ada link tersedia</span>
               <?php endif; ?>
@@ -232,19 +251,10 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
           </div>
         <?php endforeach; ?>
       <?php else: ?>
-        <!-- PLACEHOLDER -->
         <div class="pub-card">
           <div class="pub-placeholder">Cover Publikasi</div>
           <div class="pub-card-inner">
-            <h4>Sistem Prediksi Penjualan Frozen Food dengan Metode Monte Carlo (Studi Kasus: Supermama Frozen Food)</h4>
-            <p class="pub-meta">Penulis • 2025</p>
-            <a href="#" class="pub-link">Baca Selengkapnya >>></a>
-          </div>
-        </div>
-        <div class="pub-card">
-          <div class="pub-placeholder">Cover Publikasi</div>
-          <div class="pub-card-inner">
-            <h4>Sistem Prediksi Penjualan Frozen Food dengan Metode Monte Carlo (Studi Kasus: Supermama Frozen Food)</h4>
+            <h4>Sistem Prediksi Penjualan Frozen Food dengan Metode Monte Carlo</h4>
             <p class="pub-meta">Penulis • 2025</p>
             <a href="#" class="pub-link">Baca Selengkapnya >>></a>
           </div>
@@ -269,7 +279,11 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
       <?php if(count($galeri_list) > 0): ?>
         <?php foreach($galeri_list as $galeri): ?>
           <div class="activity-card">
-            <img src="uploads/galeri/<?= htmlspecialchars($galeri['gambar']) ?>" alt="<?= htmlspecialchars($galeri['judul']) ?>" class="activity-placeholder" style="width: 100%; height: 200px; object-fit: cover;">
+            <?php if($galeri['gambar'] && file_exists("uploads/galeri/" . $galeri['gambar'])): ?>
+              <img src="uploads/galeri/<?= htmlspecialchars($galeri['gambar']) ?>" alt="<?= htmlspecialchars($galeri['judul']) ?>" class="activity-placeholder" style="width: 100%; height: 200px; object-fit: cover;">
+            <?php else: ?>
+              <div class="activity-placeholder">Foto Kegiatan</div>
+            <?php endif; ?>
             <div class="activity-card-content">
               <h4><?= htmlspecialchars($galeri['judul']) ?></h4>
               <p><?= htmlspecialchars(substr($galeri['deskripsi'], 0, 80)) ?><?= strlen($galeri['deskripsi']) > 80 ? '...' : '' ?></p>
@@ -277,28 +291,6 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
           </div>
         <?php endforeach; ?>
       <?php else: ?>
-        <!-- PLACEHOLDER -->
-        <div class="activity-card">
-          <div class="activity-placeholder">Foto Kegiatan</div>
-          <div class="activity-card-content">
-            <h4>Praktikum Mahasiswa</h4>
-            <p>Kegiatan pembelajaran berbasis praktik untuk mempertajam kemampuan teknikal siswa.</p>
-          </div>
-        </div>
-        <div class="activity-card">
-          <div class="activity-placeholder">Foto Kegiatan</div>
-          <div class="activity-card-content">
-            <h4>Praktikum Mahasiswa</h4>
-            <p>Kegiatan pembelajaran berbasis praktik untuk mempertajam kemampuan teknikal siswa.</p>
-          </div>
-        </div>
-        <div class="activity-card">
-          <div class="activity-placeholder">Foto Kegiatan</div>
-          <div class="activity-card-content">
-            <h4>Praktikum Mahasiswa</h4>
-            <p>Kegiatan pembelajaran berbasis praktik untuk mempertajam kemampuan teknikal siswa.</p>
-          </div>
-        </div>
         <div class="activity-card">
           <div class="activity-placeholder">Foto Kegiatan</div>
           <div class="activity-card-content">
@@ -331,28 +323,6 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
           <?php endif; ?>
         <?php endforeach; ?>
       <?php else: ?>
-        <!-- PLACEHOLDER -->
-        <div class="activity-card">
-          <div class="activity-placeholder">Icon Matakuliah</div>
-          <div class="activity-card-content">
-            <h4>Basis Data</h4>
-            <p>Perancangan, Implementasi, dan pengaturan sistem basis data</p>
-          </div>
-        </div>
-        <div class="activity-card">
-          <div class="activity-placeholder">Icon Matakuliah</div>
-          <div class="activity-card-content">
-            <h4>Basis Data</h4>
-            <p>Perancangan, Implementasi, dan pengaturan sistem basis data</p>
-          </div>
-        </div>
-        <div class="activity-card">
-          <div class="activity-placeholder">Icon Matakuliah</div>
-          <div class="activity-card-content">
-            <h4>Basis Data</h4>
-            <p>Perancangan, Implementasi, dan pengaturan sistem basis data</p>
-          </div>
-        </div>
         <div class="activity-card">
           <div class="activity-placeholder">Icon Matakuliah</div>
           <div class="activity-card-content">
@@ -366,3 +336,129 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
 </section>
 
 <?php include 'footer.php'; ?>
+
+<!-- ============================================
+     SLIDER JAVASCRIPT - INLINE
+============================================= -->
+<script>
+class SliderController {
+  constructor() {
+    this.slides = document.querySelectorAll('.gallery-slider .slide');
+    this.dots = document.querySelectorAll('.slider-dots span');
+    this.btnPrev = document.querySelector('.slider-btn-prev');
+    this.btnNext = document.querySelector('.slider-btn-next');
+    this.currentIndex = 0;
+    this.autoplayInterval = null;
+    
+    this.init();
+  }
+
+  init() {
+    // Auto-play slider setiap 5 detik
+    this.startAutoplay();
+
+    // Event listener untuk dots
+    this.dots.forEach((dot, index) => {
+      dot.addEventListener('click', () => this.goToSlide(index));
+    });
+
+    // Event listener untuk navigation buttons
+    if (this.btnPrev) {
+      this.btnPrev.addEventListener('click', () => this.prevSlide());
+    }
+    if (this.btnNext) {
+      this.btnNext.addEventListener('click', () => this.nextSlide());
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') this.prevSlide();
+      if (e.key === 'ArrowRight') this.nextSlide();
+    });
+
+    // Touch support untuk mobile
+    this.addTouchSupport();
+  }
+
+  goToSlide(index) {
+    if (index < 0) {
+      this.currentIndex = this.slides.length - 1;
+    } else if (index >= this.slides.length) {
+      this.currentIndex = 0;
+    } else {
+      this.currentIndex = index;
+    }
+
+    // Update slides visibility
+    this.slides.forEach((slide, i) => {
+      slide.classList.remove('active');
+      if (i === this.currentIndex) {
+        slide.classList.add('active');
+      }
+    });
+
+    // Update dots
+    this.dots.forEach((dot, i) => {
+      dot.classList.remove('active');
+      if (i === this.currentIndex) {
+        dot.classList.add('active');
+      }
+    });
+
+    // Reset autoplay
+    this.resetAutoplay();
+  }
+
+  nextSlide() {
+    this.goToSlide(this.currentIndex + 1);
+  }
+
+  prevSlide() {
+    this.goToSlide(this.currentIndex - 1);
+  }
+
+  startAutoplay() {
+    this.autoplayInterval = setInterval(() => {
+      this.nextSlide();
+    }, 5000);
+  }
+
+  resetAutoplay() {
+    clearInterval(this.autoplayInterval);
+    this.startAutoplay();
+  }
+
+  addTouchSupport() {
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    const slider = document.querySelector('.gallery-slider');
+    if (!slider) return;
+
+    slider.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    });
+
+    slider.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      this.handleSwipe();
+    });
+
+    const handleSwipe = () => {
+      if (touchEndX < touchStartX - 50) {
+        this.nextSlide(); // Swipe ke kiri = next
+      }
+      if (touchEndX > touchStartX + 50) {
+        this.prevSlide(); // Swipe ke kanan = prev
+      }
+    };
+
+    this.handleSwipe = handleSwipe;
+  }
+}
+
+// Initialize slider ketika DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+  new SliderController();
+});
+</script>
