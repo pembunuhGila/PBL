@@ -43,12 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
         }
         
-        elseif ($action == 'add_visi') {
-            $stmt = $pdo->prepare("INSERT INTO visi (isi_visi, urutan, status, id_user) VALUES (?, ?, 'pending', ?)");
-            $stmt->execute([$_POST['isi_visi'], $_POST['urutan'], $_SESSION['id_user']]);
-            $success = "Visi ditambahkan! Menunggu approval admin.";
-        }
-        
         elseif ($action == 'edit_visi') {
             $id_visi = $_POST['id_visi'];
             $stmt_check = $pdo->prepare("SELECT id_user, status FROM visi WHERE id_visi = ?");
@@ -384,9 +378,6 @@ include "navbar.php";
                 <?php else: ?>
                     <p class="text-muted small">Belum ada visi</p>
                 <?php endif; ?>
-                <button class="btn btn-primary btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#visiModal" onclick="resetVisiForm()">
-                    <i class="bi bi-plus-circle"></i> Tambah Visi
-                </button>
             </div>
         </div>
         

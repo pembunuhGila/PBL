@@ -16,24 +16,40 @@ $limit = 10;
 $page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page_num - 1) * $limit;
 
-// Handle Delete - HANYA BISA HAPUS PENDING MILIK SENDIRI
+// Handle Delete - PENDING LANGSUNG DIHAPUS, ACTIVE JADI PENDING
 if (isset($_GET['delete'])) {
     try {
         $stmt_check = $pdo->prepare("SELECT id_user, status, nama FROM anggota_lab WHERE id_anggota = ?");
         $stmt_check->execute([$_GET['delete']]);
         $old_data = $stmt_check->fetch();
         
-        if ($old_data && $old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
-            $stmt = $pdo->prepare("DELETE FROM anggota_lab WHERE id_anggota = ?");
-            $stmt->execute([$_GET['delete']]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['anggota_lab', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus anggota: ' . $old_data['nama']]);
-            
-            header("Location: anggota.php?success=deleted&page=" . $page_num);
-            exit;
+        if ($old_data) {
+            // JIKA PENDING MILIK SENDIRI -> HAPUS LANGSUNG
+            if ($old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
+                $stmt = $pdo->prepare("DELETE FROM anggota_lab WHERE id_anggota = ?");
+                $stmt->execute([$_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['anggota_lab', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus anggota: ' . $old_data['nama']]);
+                
+                header("Location: anggota.php?success=deleted&page=" . $page_num);
+                exit;
+            }
+            // JIKA ACTIVE -> UBAH STATUS JADI PENDING (MENUNGGU APPROVAL HAPUS)
+            elseif ($old_data['status'] == 'active') {
+                $stmt = $pdo->prepare("UPDATE anggota_lab SET status='pending', id_user=? WHERE id_anggota=?");
+                $stmt->execute([$_SESSION['id_user'], $_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['anggota_lab', $_GET['delete'], $_SESSION['id_user'], 'active', 'pending', 'Ajukan hapus anggota: ' . $old_data['nama']]);
+                
+                header("Location: anggota.php?success=delete_pending&page=" . $page_num);
+                exit;
+            } else {
+                $error = "Anda hanya bisa menghapus data pending milik Anda atau data active!";
+            }
         } else {
-            $error = "Anda hanya bisa menghapus data pending milik Anda!";
+            $error = "Data tidak ditemukan!";
         }
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
@@ -193,7 +209,7 @@ if ($status_filter) {
 
 $where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-// Get total count - FIX: tambahkan alias 'a'
+// Get total count
 $count_query = "SELECT COUNT(*) FROM anggota_lab a $where_sql";
 $count_stmt = $pdo->prepare($count_query);
 $count_stmt->execute($params);
@@ -225,6 +241,7 @@ include "navbar.php";
         if ($_GET['success'] == 'added') echo "Anggota berhasil ditambahkan! Menunggu persetujuan admin.";
         if ($_GET['success'] == 'updated') echo "Anggota berhasil diupdate! Menunggu persetujuan admin.";
         if ($_GET['success'] == 'deleted') echo "Anggota berhasil dihapus!";
+        if ($_GET['success'] == 'delete_pending') echo "Permintaan hapus anggota berhasil diajukan! Menunggu persetujuan admin.";
         ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
@@ -235,7 +252,7 @@ include "navbar.php";
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua anggota. Setiap perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit dan menghapus semua anggota. Setiap perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <!-- Search -->
@@ -350,8 +367,13 @@ include "navbar.php";
                                 <i class="bi bi-pencil"></i>
                             </button>
                             
+                            <!-- HAPUS: PENDING MILIK SENDIRI LANGSUNG, ACTIVE JADI PENDING -->
                             <?php if ($anggota['id_user'] == $_SESSION['id_user'] && $anggota['status'] == 'pending'): ?>
                                 <a href="?delete=<?php echo $anggota['id_anggota']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            <?php elseif ($anggota['status'] == 'active'): ?>
+                                <a href="?delete=<?php echo $anggota['id_anggota']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Ajukan permintaan hapus data ini ke admin?')">
                                     <i class="bi bi-trash"></i>
                                 </a>
                             <?php endif; ?>

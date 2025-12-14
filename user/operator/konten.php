@@ -14,24 +14,40 @@ $limit = 10;
 $page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page_num - 1) * $limit;
 
-// Handle Delete - HANYA BISA HAPUS PENDING MILIK SENDIRI
+// Handle Delete
 if (isset($_GET['delete'])) {
     try {
         $stmt_check = $pdo->prepare("SELECT id_user, status, judul FROM konten WHERE id_konten = ?");
         $stmt_check->execute([$_GET['delete']]);
         $old_data = $stmt_check->fetch();
         
-        if ($old_data && $old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
-            $stmt = $pdo->prepare("DELETE FROM konten WHERE id_konten = ?");
-            $stmt->execute([$_GET['delete']]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['konten', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus konten: ' . $old_data['judul']]);
-            
-            header("Location: konten.php?success=deleted&page=" . $page_num);
-            exit;
+        if ($old_data) {
+            // JIKA PENDING MILIK SENDIRI -> HAPUS LANGSUNG
+            if ($old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
+                $stmt = $pdo->prepare("DELETE FROM konten WHERE id_konten = ?");
+                $stmt->execute([$_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['konten', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus konten: ' . $old_data['judul']]);
+                
+                header("Location: konten.php?success=deleted&page=" . $page_num);
+                exit;
+            }
+            // JIKA ACTIVE -> UBAH STATUS JADI PENDING
+            elseif ($old_data['status'] == 'active') {
+                $stmt = $pdo->prepare("UPDATE konten SET status='pending', id_user=? WHERE id_konten=?");
+                $stmt->execute([$_SESSION['id_user'], $_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['konten', $_GET['delete'], $_SESSION['id_user'], 'active', 'pending', 'Ajukan hapus konten: ' . $old_data['judul']]);
+                
+                header("Location: konten.php?success=delete_pending&page=" . $page_num);
+                exit;
+            } else {
+                $error = "Anda hanya bisa menghapus data pending milik Anda atau data active!";
+            }
         } else {
-            $error = "Anda hanya bisa menghapus data pending milik Anda!";
+            $error = "Data tidak ditemukan!";
         }
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
@@ -162,6 +178,7 @@ include "navbar.php";
         if ($_GET['success'] == 'added') echo "✓ Konten berhasil ditambahkan! Menunggu persetujuan admin.";
         if ($_GET['success'] == 'updated') echo "✓ Konten berhasil diupdate! Menunggu persetujuan admin.";
         if ($_GET['success'] == 'deleted') echo "✓ Konten berhasil dihapus!";
+        if ($_GET['success'] == 'delete_pending') echo "✓ Permintaan hapus konten berhasil diajukan! Menunggu persetujuan admin.";
         ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
@@ -301,6 +318,10 @@ include "navbar.php";
                             
                             <?php if ($kon['id_user'] == $_SESSION['id_user'] && $kon['status'] == 'pending'): ?>
                                 <a href="?delete=<?php echo $kon['id_konten']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            <?php elseif ($kon['status'] == 'active'): ?>
+                                <a href="?delete=<?php echo $kon['id_konten']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Ajukan permintaan hapus konten ini ke admin?')">
                                     <i class="bi bi-trash"></i>
                                 </a>
                             <?php endif; ?>

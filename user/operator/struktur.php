@@ -11,7 +11,7 @@ include "../../conn.php";
 $page_title = "Struktur Lab";
 $current_page = "struktur.php";
 
-// Handle Delete - Hanya data pending milik sendiri
+// Handle Delete - PENDING LANGSUNG DIHAPUS, ACTIVE JADI PENDING
 if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
     try {
@@ -19,16 +19,31 @@ if (isset($_GET['delete'])) {
         $stmt_check->execute([$id]);
         $old_data = $stmt_check->fetch();
         
-        if ($old_data && $old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
-            $stmt = $pdo->prepare("DELETE FROM struktur_lab WHERE id_struktur = ?");
-            $stmt->execute([$id]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['struktur_lab', $id, $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus struktur: ' . $old_data['jabatan']]);
-            
-            $success = "Struktur berhasil dihapus!";
+        if ($old_data) {
+            // JIKA PENDING MILIK SENDIRI -> HAPUS LANGSUNG
+            if ($old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
+                $stmt = $pdo->prepare("DELETE FROM struktur_lab WHERE id_struktur = ?");
+                $stmt->execute([$id]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['struktur_lab', $id, $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus struktur: ' . $old_data['jabatan']]);
+                
+                $success = "Struktur berhasil dihapus!";
+            }
+            // JIKA ACTIVE -> UBAH STATUS JADI PENDING
+            elseif ($old_data['status'] == 'active') {
+                $stmt = $pdo->prepare("UPDATE struktur_lab SET status='pending', id_user=? WHERE id_struktur=?");
+                $stmt->execute([$_SESSION['id_user'], $id]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['struktur_lab', $id, $_SESSION['id_user'], 'active', 'pending', 'Ajukan hapus struktur: ' . $old_data['jabatan']]);
+                
+                $success = "Permintaan hapus struktur berhasil diajukan! Menunggu persetujuan admin.";
+            } else {
+                $error = "Anda hanya bisa menghapus data pending milik Anda atau data active!";
+            }
         } else {
-            $error = "Anda hanya bisa menghapus data pending milik Anda!";
+            $error = "Data tidak ditemukan!";
         }
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
@@ -78,29 +93,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Pagination untuk data milik operator
-$limit = 10;
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $limit;
-
-// Get total records milik operator
-$count_stmt = $pdo->prepare("SELECT COUNT(*) FROM struktur_lab WHERE id_user = ?");
-$count_stmt->execute([$_SESSION['id_user']]);
-$total_records = $count_stmt->fetchColumn();
-$total_pages = ceil($total_records / $limit);
-
-// Data milik operator dengan pagination
-$stmt = $pdo->prepare("
-    SELECT s.*, a.nama, a.foto, a.email 
-    FROM struktur_lab s
-    JOIN anggota_lab a ON s.id_anggota = a.id_anggota
-    WHERE s.id_user = ?
-    ORDER BY s.urutan ASC, s.created_at DESC
-    LIMIT ? OFFSET ?
-");
-$stmt->execute([$_SESSION['id_user'], $limit, $offset]);
-$struktur_list = $stmt->fetchAll();
-
 // Pagination untuk semua data (bisa diedit)
 $limit_all = 10;
 $page_all = isset($_GET['page_all']) ? (int)$_GET['page_all'] : 1;
@@ -127,7 +119,7 @@ $stmt_anggota = $pdo->query("
     SELECT id_anggota, nama, foto 
     FROM anggota_lab 
     WHERE status = 'active' 
-    AND id_anggota NOT IN (SELECT id_anggota FROM struktur_lab)
+    AND id_anggota NOT IN (SELECT id_anggota FROM struktur_lab WHERE status = 'active')
     ORDER BY nama
 ");
 $anggota_options = $stmt_anggota->fetchAll();
@@ -159,137 +151,144 @@ include "navbar.php";
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua struktur. Semua perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit dan menghapus semua struktur. Semua perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
 </div>
 
-<!-- Table View for All Data (Bisa Edit) -->
+<!-- Table View for All Data (Bisa Edit & Hapus) -->
 <div class="card shadow">
     <div class="card-body">
-        <div class="card shadow">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h6 class="mb-0">Total Semua Data: <?php echo $total_records_all; ?> struktur</h6>
-                    <small class="text-muted">Halaman <?php echo $page_all; ?> dari <?php echo $total_pages_all; ?></small>
-                </div>
-                
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i> Anda dapat mengedit semua data di bawah ini. Setiap edit akan mengubah status menjadi <strong>Pending</strong> dan memerlukan persetujuan admin.
-                </div>
-                
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>No</th>
-                                <th>Urutan</th>
-                                <th>Foto</th>
-                                <th>Nama</th>
-                                <th>Jabatan</th>
-                                <th>Email</th>
-                                <th>Status</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php 
-                            if (count($all_struktur_list) > 0) {
-                                $no_all = $offset_all + 1;
-                                foreach ($all_struktur_list as $struktur): 
-                            ?>
-                            <tr>
-                                <td><?php echo $no_all++; ?></td>
-                                <td>
-                                    <span class="badge bg-secondary">#<?php echo $struktur['urutan']; ?></span>
-                                    <?php if ($struktur['urutan'] == 1): ?>
-                                        <i class="bi bi-star-fill text-warning" title="Ketua"></i>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($struktur['foto']): ?>
-                                        <img src="../../uploads/anggota/<?php echo $struktur['foto']; ?>" width="50" height="50" class="rounded-circle" style="object-fit: cover;">
-                                    <?php else: ?>
-                                        <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($struktur['nama']); ?>" width="50" height="50" class="rounded-circle">
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo htmlspecialchars($struktur['nama']); ?></td>
-                                <td><?php echo htmlspecialchars($struktur['jabatan']); ?></td>
-                                <td><small><?php echo htmlspecialchars($struktur['email'] ?? '-'); ?></small></td>
-                                <td>
-                                    <?php if ($struktur['status'] == 'pending'): ?>
-                                        <span class="badge bg-warning text-dark">Pending</span>
-                                    <?php elseif ($struktur['status'] == 'active'): ?>
-                                        <span class="badge bg-success">Active</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-danger">Rejected</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-warning" onclick='editStruktur(<?php echo json_encode($struktur); ?>)' title="Edit (akan jadi Pending)">
-                                        <i class="bi bi-pencil"></i> Edit
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php 
-                                endforeach;
-                            } else {
-                            ?>
-                            <tr>
-                                <td colspan="8" class="text-center py-4">
-                                    <div class="text-muted">
-                                        <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
-                                        <p class="mt-3 mb-0">Belum ada data struktur</p>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php } ?>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <!-- Pagination untuk All Data -->
-                <?php if ($total_pages_all > 1): ?>
-                <nav aria-label="Page navigation" class="mt-3">
-                    <ul class="pagination justify-content-center">
-                        <li class="page-item <?php echo $page_all <= 1 ? 'disabled' : ''; ?>">
-                            <a class="page-link" href="?page_all=<?php echo $page_all - 1; ?>#all-data">
-                                <i class="bi bi-chevron-left"></i> Previous
-                            </a>
-                        </li>
-                        
-                        <?php
-                        $start_page_all = max(1, $page_all - 2);
-                        $end_page_all = min($total_pages_all, $page_all + 2);
-                        
-                        if ($start_page_all > 1): ?>
-                            <li class="page-item"><a class="page-link" href="?page_all=1#all-data">1</a></li>
-                            <?php if ($start_page_all > 2): ?>
-                                <li class="page-item disabled"><span class="page-link">...</span></li>
-                            <?php endif; ?>
-                        <?php endif; ?>
-                        
-                        <?php for ($i = $start_page_all; $i <= $end_page_all; $i++): ?>
-                            <li class="page-item <?php echo $i == $page_all ? 'active' : ''; ?>">
-                                <a class="page-link" href="?page_all=<?php echo $i; ?>#all-data"><?php echo $i; ?></a>
-                            </li>
-                        <?php endfor; ?>
-                        
-                        <?php if ($end_page_all < $total_pages_all): ?>
-                            <?php if ($end_page_all < $total_pages_all - 1): ?>
-                                <li class="page-item disabled"><span class="page-link">...</span></li>
-                            <?php endif; ?>
-                            <li class="page-item"><a class="page-link" href="?page_all=<?php echo $total_pages_all; ?>#all-data"><?php echo $total_pages_all; ?></a></li>
-                        <?php endif; ?>
-                        
-                        <li class="page-item <?php echo $page_all >= $total_pages_all ? 'disabled' : ''; ?>">
-                            <a class="page-link" href="?page_all=<?php echo $page_all + 1; ?>#all-data">
-                                Next <i class="bi bi-chevron-right"></i>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
-                <?php endif; ?>
-            </div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">Total Semua Data: <?php echo $total_records_all; ?> struktur</h6>
+            <small class="text-muted">Halaman <?php echo $page_all; ?> dari <?php echo $total_pages_all; ?></small>
         </div>
+        
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> Anda dapat mengedit dan menghapus semua data di bawah ini. Setiap perubahan akan mengubah status menjadi <strong>Pending</strong> dan memerlukan persetujuan admin.
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Urutan</th>
+                        <th>Foto</th>
+                        <th>Nama</th>
+                        <th>Jabatan</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php 
+                    if (count($all_struktur_list) > 0) {
+                        $no_all = $offset_all + 1;
+                        foreach ($all_struktur_list as $struktur): 
+                    ?>
+                    <tr>
+                        <td><?php echo $no_all++; ?></td>
+                        <td>
+                            <span class="badge bg-secondary">#<?php echo $struktur['urutan']; ?></span>
+                            <?php if ($struktur['urutan'] == 1): ?>
+                                <i class="bi bi-star-fill text-warning" title="Ketua"></i>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($struktur['foto']): ?>
+                                <img src="../../uploads/anggota/<?php echo $struktur['foto']; ?>" width="50" height="50" class="rounded-circle" style="object-fit: cover;">
+                            <?php else: ?>
+                                <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($struktur['nama']); ?>" width="50" height="50" class="rounded-circle">
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo htmlspecialchars($struktur['nama']); ?></td>
+                        <td><?php echo htmlspecialchars($struktur['jabatan']); ?></td>
+                        <td><small><?php echo htmlspecialchars($struktur['email'] ?? '-'); ?></small></td>
+                        <td>
+                            <?php if ($struktur['status'] == 'pending'): ?>
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            <?php elseif ($struktur['status'] == 'active'): ?>
+                                <span class="badge bg-success">Active</span>
+                            <?php else: ?>
+                                <span class="badge bg-danger">Rejected</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-warning" onclick='editStruktur(<?php echo json_encode($struktur); ?>)' title="Edit (akan jadi Pending)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            
+                            <!-- HAPUS: PENDING MILIK SENDIRI LANGSUNG, ACTIVE JADI PENDING -->
+                            <?php if ($struktur['id_user'] == $_SESSION['id_user'] && $struktur['status'] == 'pending'): ?>
+                                <a href="?delete=<?php echo $struktur['id_struktur']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            <?php elseif ($struktur['status'] == 'active'): ?>
+                                <a href="?delete=<?php echo $struktur['id_struktur']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Ajukan permintaan hapus struktur ini ke admin?')">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php 
+                        endforeach;
+                    } else {
+                    ?>
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <div class="text-muted">
+                                <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                                <p class="mt-3 mb-0">Belum ada data struktur</p>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php } ?>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination untuk All Data -->
+        <?php if ($total_pages_all > 1): ?>
+        <nav aria-label="Page navigation" class="mt-3">
+            <ul class="pagination justify-content-center">
+                <li class="page-item <?php echo $page_all <= 1 ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page_all=<?php echo $page_all - 1; ?>#all-data">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                </li>
+                
+                <?php
+                $start_page_all = max(1, $page_all - 2);
+                $end_page_all = min($total_pages_all, $page_all + 2);
+                
+                if ($start_page_all > 1): ?>
+                    <li class="page-item"><a class="page-link" href="?page_all=1#all-data">1</a></li>
+                    <?php if ($start_page_all > 2): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                <?php endif; ?>
+                
+                <?php for ($i = $start_page_all; $i <= $end_page_all; $i++): ?>
+                    <li class="page-item <?php echo $i == $page_all ? 'active' : ''; ?>">
+                        <a class="page-link" href="?page_all=<?php echo $i; ?>#all-data"><?php echo $i; ?></a>
+                    </li>
+                <?php endfor; ?>
+                
+                <?php if ($end_page_all < $total_pages_all): ?>
+                    <?php if ($end_page_all < $total_pages_all - 1): ?>
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    <?php endif; ?>
+                    <li class="page-item"><a class="page-link" href="?page_all=<?php echo $total_pages_all; ?>#all-data"><?php echo $total_pages_all; ?></a></li>
+                <?php endif; ?>
+                
+                <li class="page-item <?php echo $page_all >= $total_pages_all ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="?page_all=<?php echo $page_all + 1; ?>#all-data">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -389,15 +388,6 @@ function resetForm() {
     const tempOptions = selectAnggota.querySelectorAll('option[data-temp="true"]');
     tempOptions.forEach(option => option.remove());
 }
-
-// Auto-switch to all-data tab if page_all parameter exists
-window.addEventListener('DOMContentLoaded', function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('page_all')) {
-        const allDataTab = new bootstrap.Tab(document.getElementById('all-data-tab'));
-        allDataTab.show();
-    }
-});
 </script>
 
 <style>

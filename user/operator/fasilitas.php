@@ -11,23 +11,38 @@ include "../../conn.php";
 $page_title = "Fasilitas";
 $current_page = "fasilitas.php";
 
-// Handle Delete - HANYA BISA HAPUS PENDING MILIK SENDIRI
+// Handle Delete - PENDING LANGSUNG DIHAPUS, ACTIVE JADI PENDING
 if (isset($_GET['delete'])) {
     try {
         $stmt_check = $pdo->prepare("SELECT id_user, status, judul FROM fasilitas WHERE id_fasilitas = ?");
         $stmt_check->execute([$_GET['delete']]);
         $old_data = $stmt_check->fetch();
         
-        if ($old_data && $old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
-            $stmt = $pdo->prepare("DELETE FROM fasilitas WHERE id_fasilitas = ?");
-            $stmt->execute([$_GET['delete']]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['fasilitas', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus fasilitas: ' . $old_data['judul']]);
-            
-            $success = "Fasilitas berhasil dihapus!";
+        if ($old_data) {
+            // JIKA PENDING MILIK SENDIRI -> HAPUS LANGSUNG
+            if ($old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
+                $stmt = $pdo->prepare("DELETE FROM fasilitas WHERE id_fasilitas = ?");
+                $stmt->execute([$_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['fasilitas', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus fasilitas: ' . $old_data['judul']]);
+                
+                $success = "Fasilitas berhasil dihapus!";
+            }
+            // JIKA ACTIVE -> UBAH STATUS JADI PENDING (MENUNGGU APPROVAL HAPUS)
+            elseif ($old_data['status'] == 'active') {
+                $stmt = $pdo->prepare("UPDATE fasilitas SET status='pending', id_user=? WHERE id_fasilitas=?");
+                $stmt->execute([$_SESSION['id_user'], $_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['fasilitas', $_GET['delete'], $_SESSION['id_user'], 'active', 'pending', 'Ajukan hapus fasilitas: ' . $old_data['judul']]);
+                
+                $success = "Permintaan hapus fasilitas berhasil diajukan! Menunggu persetujuan admin.";
+            } else {
+                $error = "Anda hanya bisa menghapus data pending milik Anda atau data active!";
+            }
         } else {
-            $error = "Anda hanya bisa menghapus data pending milik Anda!";
+            $error = "Data tidak ditemukan!";
         }
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
@@ -146,7 +161,7 @@ include "navbar.php";
 
 <div class="alert alert-info">
     <i class="bi bi-info-circle"></i> 
-    <strong>Info:</strong> Anda bisa mengedit semua fasilitas. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
+    <strong>Info:</strong> Anda bisa mengedit dan menghapus semua fasilitas. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <div class="row">
@@ -191,9 +206,13 @@ include "navbar.php";
                         <i class="bi bi-pencil"></i> Edit
                     </button>
                     
-                    <!-- HANYA BISA HAPUS PENDING MILIK SENDIRI -->
+                    <!-- HAPUS: PENDING MILIK SENDIRI LANGSUNG, ACTIVE JADI PENDING -->
                     <?php if ($fas['id_user'] == $_SESSION['id_user'] && $fas['status'] == 'pending'): ?>
                         <a href="?delete=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>&filter=<?php echo $filter; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                            <i class="bi bi-trash"></i> Hapus
+                        </a>
+                    <?php elseif ($fas['status'] == 'active'): ?>
+                        <a href="?delete=<?php echo $fas['id_fasilitas']; ?>&page=<?php echo $page; ?>&filter=<?php echo $filter; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Ajukan permintaan hapus data ini ke admin?')">
                             <i class="bi bi-trash"></i> Hapus
                         </a>
                     <?php endif; ?>

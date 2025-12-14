@@ -27,22 +27,39 @@ if (isset($_GET['delete'])) {
         $stmt_check->execute([$id]);
         $old_data = $stmt_check->fetch();
         
-        if ($old_data && $old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
-            $stmt = $pdo->prepare("DELETE FROM publikasi WHERE id_publikasi = ?");
-            $stmt->execute([$id]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['publikasi', $id, $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus publikasi: ' . $old_data['judul']]);
-            
-            header("Location: publikasi.php?success=deleted&page=$page_num");
-            exit;
+        if ($old_data) {
+            // JIKA PENDING MILIK SENDIRI -> HAPUS LANGSUNG
+            if ($old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
+                $stmt = $pdo->prepare("DELETE FROM publikasi WHERE id_publikasi = ?");
+                $stmt->execute([$id]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['publikasi', $id, $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus publikasi: ' . $old_data['judul']]);
+                
+                header("Location: publikasi.php?success=deleted&page=$page_num");
+                exit;
+            }
+            // JIKA ACTIVE -> UBAH STATUS JADI PENDING
+            elseif ($old_data['status'] == 'active') {
+                $stmt = $pdo->prepare("UPDATE publikasi SET status='pending', id_user=? WHERE id_publikasi=?");
+                $stmt->execute([$_SESSION['id_user'], $id]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['publikasi', $id, $_SESSION['id_user'], 'active', 'pending', 'Ajukan hapus publikasi: ' . $old_data['judul']]);
+                
+                header("Location: publikasi.php?success=delete_pending&page=$page_num");
+                exit;
+            } else {
+                $error = "Anda hanya bisa menghapus data pending milik Anda atau data active!";
+            }
         } else {
-            $error = "Anda hanya bisa menghapus data pending milik Anda!";
+            $error = "Data tidak ditemukan!";
         }
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
     }
 }
+
 
 // Handle Add/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -231,6 +248,7 @@ include "navbar.php";
         if ($_GET['success'] == 'added') echo "Publikasi berhasil ditambahkan! Menunggu persetujuan admin.";
         if ($_GET['success'] == 'updated') echo "Publikasi berhasil diupdate! Menunggu persetujuan admin.";
         if ($_GET['success'] == 'deleted') echo "Publikasi berhasil dihapus!";
+        if ($_GET['success'] == 'delete_pending') echo "Permintaan hapus publikasi berhasil diajukan! Menunggu persetujuan admin.";
         ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
@@ -353,6 +371,10 @@ include "navbar.php";
                                 
                                 <?php if ($pub['id_user'] == $_SESSION['id_user'] && $pub['status'] == 'pending'): ?>
                                     <a href="?delete=<?php echo $pub['id_publikasi']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                <?php elseif ($pub['status'] == 'active'): ?>
+                                    <a href="?delete=<?php echo $pub['id_publikasi']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Ajukan permintaan hapus publikasi ini ke admin?')">
                                         <i class="bi bi-trash"></i>
                                     </a>
                                 <?php endif; ?>

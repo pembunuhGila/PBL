@@ -11,29 +11,45 @@ include "../../conn.php";
 $page_title = "Galeri";
 $current_page = "galeri.php";
 
-// Handle Delete - HANYA BISA HAPUS YANG PENDING MILIK SENDIRI
+// Handle Delete - PENDING LANGSUNG DIHAPUS, ACTIVE JADI PENDING
 if (isset($_GET['delete'])) {
     try {
         $stmt_check = $pdo->prepare("SELECT id_user, status, judul, gambar FROM galeri WHERE id_galeri = ?");
         $stmt_check->execute([$_GET['delete']]);
         $old_data = $stmt_check->fetch();
         
-        if ($old_data && $old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
-            // Hapus file gambar
-            if ($old_data['gambar'] && file_exists("../../uploads/galeri/" . $old_data['gambar'])) {
-                unlink("../../uploads/galeri/" . $old_data['gambar']);
+        if ($old_data) {
+            // JIKA PENDING MILIK SENDIRI -> HAPUS LANGSUNG + HAPUS FILE
+            if ($old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
+                // Hapus file gambar
+                if ($old_data['gambar'] && file_exists("../../uploads/galeri/" . $old_data['gambar'])) {
+                    unlink("../../uploads/galeri/" . $old_data['gambar']);
+                }
+                
+                $stmt = $pdo->prepare("DELETE FROM galeri WHERE id_galeri = ?");
+                $stmt->execute([$_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['galeri', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus foto: ' . ($old_data['judul'] ?? 'Galeri')]);
+                
+                header("Location: galeri.php?success=deleted&page=" . (isset($_GET['page']) ? $_GET['page'] : 1));
+                exit;
             }
-            
-            $stmt = $pdo->prepare("DELETE FROM galeri WHERE id_galeri = ?");
-            $stmt->execute([$_GET['delete']]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['galeri', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus foto: ' . ($old_data['judul'] ?? 'Galeri')]);
-            
-            header("Location: galeri.php?success=deleted&page=" . (isset($_GET['page']) ? $_GET['page'] : 1));
-            exit;
+            // JIKA ACTIVE -> UBAH STATUS JADI PENDING (MENUNGGU APPROVAL HAPUS)
+            elseif ($old_data['status'] == 'active') {
+                $stmt = $pdo->prepare("UPDATE galeri SET status='pending', id_user=? WHERE id_galeri=?");
+                $stmt->execute([$_SESSION['id_user'], $_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['galeri', $_GET['delete'], $_SESSION['id_user'], 'active', 'pending', 'Ajukan hapus foto: ' . ($old_data['judul'] ?? 'Galeri')]);
+                
+                header("Location: galeri.php?success=delete_pending&page=" . (isset($_GET['page']) ? $_GET['page'] : 1));
+                exit;
+            } else {
+                $error = "Anda hanya bisa menghapus data pending milik Anda atau data active!";
+            }
         } else {
-            $error = "Anda hanya bisa menghapus data pending milik Anda!";
+            $error = "Data tidak ditemukan!";
         }
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
@@ -82,11 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             unlink("../../uploads/galeri/" . $data_owner['gambar']);
                         }
                         
-                        $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, gambar=?, status=? WHERE id_galeri=?");
-                        $stmt->execute([$judul, $deskripsi, $gambar, $status, $id]);
+                        $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, gambar=?, status=?, id_user=? WHERE id_galeri=?");
+                        $stmt->execute([$judul, $deskripsi, $gambar, $status, $_SESSION['id_user'], $id]);
                     } else {
-                        $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, status=? WHERE id_galeri=?");
-                        $stmt->execute([$judul, $deskripsi, $status, $id]);
+                        $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, status=?, id_user=? WHERE id_galeri=?");
+                        $stmt->execute([$judul, $deskripsi, $status, $_SESSION['id_user'], $id]);
                     }
                     
                     $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
@@ -155,13 +171,14 @@ include "navbar.php";
     <div class="alert alert-success alert-dismissible fade show">
         <?php 
         if ($_GET['success'] == 'deleted') echo "✅ Foto berhasil dihapus!";
+        if ($_GET['success'] == 'delete_pending') echo "✅ Permintaan hapus foto berhasil diajukan! Menunggu persetujuan admin.";
         ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua foto. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit dan menghapus semua foto. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <div class="row">
@@ -205,11 +222,17 @@ include "navbar.php";
                         <i class="bi bi-pencil"></i>
                     </button>
                     
-                    <!-- Delete Button - hanya untuk pending milik sendiri -->
+                    <!-- Delete Button - PENDING MILIK SENDIRI LANGSUNG, ACTIVE JADI PENDING -->
                     <?php if ($gal['id_user'] == $_SESSION['id_user'] && $gal['status'] == 'pending'): ?>
                         <a href="?delete=<?php echo $gal['id_galeri']; ?>&page=<?php echo $page; ?>" 
                            class="btn btn-sm btn-danger" 
                            onclick="return confirm('Yakin hapus: <?php echo htmlspecialchars($gal['judul']); ?>?')">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                    <?php elseif ($gal['status'] == 'active'): ?>
+                        <a href="?delete=<?php echo $gal['id_galeri']; ?>&page=<?php echo $page; ?>" 
+                           class="btn btn-sm btn-danger" 
+                           onclick="return confirm('Ajukan permintaan hapus foto ini ke admin?')">
                             <i class="bi bi-trash"></i>
                         </a>
                     <?php endif; ?>

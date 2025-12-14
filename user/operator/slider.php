@@ -23,17 +23,33 @@ if (isset($_GET['delete'])) {
         $stmt_check->execute([$_GET['delete']]);
         $old_data = $stmt_check->fetch();
         
-        if ($old_data && $old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
-            $stmt = $pdo->prepare("DELETE FROM slider WHERE id_slider = ?");
-            $stmt->execute([$_GET['delete']]);
-            
-            $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt_riwayat->execute(['slider', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus slider: ' . $old_data['judul']]);
-            
-            header("Location: slider.php?success=deleted&page=$page");
-            exit;
+        if ($old_data) {
+            // JIKA PENDING MILIK SENDIRI -> HAPUS LANGSUNG
+            if ($old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
+                $stmt = $pdo->prepare("DELETE FROM slider WHERE id_slider = ?");
+                $stmt->execute([$_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['slider', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus slider: ' . $old_data['judul']]);
+                
+                header("Location: slider.php?success=deleted&page=$page");
+                exit;
+            }
+            // JIKA ACTIVE -> UBAH STATUS JADI PENDING
+            elseif ($old_data['status'] == 'active') {
+                $stmt = $pdo->prepare("UPDATE slider SET status='pending', id_user=? WHERE id_slider=?");
+                $stmt->execute([$_SESSION['id_user'], $_GET['delete']]);
+                
+                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_riwayat->execute(['slider', $_GET['delete'], $_SESSION['id_user'], 'active', 'pending', 'Ajukan hapus slider: ' . $old_data['judul']]);
+                
+                header("Location: slider.php?success=delete_pending&page=$page");
+                exit;
+            } else {
+                $error = "Anda hanya bisa menghapus data pending milik Anda atau data active!";
+            }
         } else {
-            $error = "Anda hanya bisa menghapus data pending milik Anda!";
+            $error = "Data tidak ditemukan!";
         }
     } catch (PDOException $e) {
         $error = "Gagal menghapus: " . $e->getMessage();
@@ -135,6 +151,7 @@ include "navbar.php";
         if ($_GET['success'] == 'added') echo "Slider berhasil ditambahkan! Menunggu persetujuan admin.";
         if ($_GET['success'] == 'updated') echo "Slider berhasil diupdate! Menunggu persetujuan admin.";
         if ($_GET['success'] == 'deleted') echo "Slider berhasil dihapus!";
+        if ($_GET['success'] == 'delete_pending') echo "Permintaan hapus slider berhasil diajukan! Menunggu persetujuan admin.";
         ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
@@ -200,13 +217,16 @@ include "navbar.php";
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <!-- OPERATOR BISA EDIT SEMUA -->
                                 <button class="btn btn-sm btn-warning" onclick='editSlider(<?php echo json_encode($slider); ?>)'>
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 
                                 <?php if ($slider['id_user'] == $_SESSION['id_user'] && $slider['status'] == 'pending'): ?>
                                     <a href="?delete=<?php echo $slider['id_slider']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                <?php elseif ($slider['status'] == 'active'): ?>
+                                    <a href="?delete=<?php echo $slider['id_slider']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Ajukan permintaan hapus slider ini ke admin?')">
                                         <i class="bi bi-trash"></i>
                                     </a>
                                 <?php endif; ?>
