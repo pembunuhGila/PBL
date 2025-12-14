@@ -296,10 +296,10 @@ include 'navbar.php'; // Navbar
     <?php if (count($struktur_list) > 0): ?>
       <div class="struktur-grid">
         
-        <!-- KETUA LAB (Urutan pertama) -->
+        <!-- KETUA LAB (Urutan pertama) - Standalone -->
         <?php 
-        $ketua = $struktur_list[0]; // Ambil ketua (urutan pertama)
-        $anggota_lain = array_slice($struktur_list, 1); // Anggota lainnya
+        $ketua = $struktur_list[0];
+        $anggota_lain = array_slice($struktur_list, 1);
         ?>
         
         <div class="struktur-ketua-container">
@@ -307,8 +307,6 @@ include 'navbar.php'; // Navbar
             <div class="struktur-photo">
               <?php 
                 $foto_path = '';
-                
-                // Cek foto dari database
                 if ($ketua['foto']) {
                   $foto_path = get_foto_path($ketua['foto']);
                 }
@@ -322,7 +320,6 @@ include 'navbar.php'; // Navbar
                   loading="lazy"
                   onerror="this.src='https://ui-avatars.com/api/?name=<?= urlencode($ketua['nama']) ?>&background=1e4a7a&color=fff&size=400'">
               <?php else: ?>
-                <!-- Avatar placeholder jika foto tidak ada -->
                 <img 
                   src="https://ui-avatars.com/api/?name=<?= urlencode($ketua['nama']) ?>&background=1e4a7a&color=fff&size=400" 
                   alt="<?= htmlspecialchars($ketua['nama']) ?>"
@@ -331,16 +328,19 @@ include 'navbar.php'; // Navbar
               <?php endif; ?>
             </div>
             
-            <h4><?= htmlspecialchars($ketua['nama']) ?></h4>
-            <p class="jabatan"><?= htmlspecialchars($ketua['jabatan']) ?></p>
-            
-            <?php if ($ketua['nip']): ?>
-              <p class="nip"><?= htmlspecialchars($ketua['nip']) ?></p>
-            <?php endif; ?>
+            <div class="struktur-info">
+              <div>
+                <h4><?= htmlspecialchars($ketua['nama']) ?></h4>
+                <p class="jabatan"><?= htmlspecialchars($ketua['jabatan']) ?></p>
+              </div>
+              <?php if ($ketua['nip']): ?>
+                <p class="nip"><?= htmlspecialchars($ketua['nip']) ?></p>
+              <?php endif; ?>
+            </div>
           </a>
         </div>
         
-        <!-- ANGGOTA LAINNYA (Grid 4 kolom) -->
+        <!-- ANGGOTA LAINNYA (Grid 3 kolom) -->
         <?php if (count($anggota_lain) > 0): ?>
         <div class="struktur-anggota-container">
           <?php foreach($anggota_lain as $struktur): ?>
@@ -348,8 +348,6 @@ include 'navbar.php'; // Navbar
               <div class="struktur-photo">
                 <?php 
                   $foto_path = '';
-                  
-                  // Cek foto dari database
                   if ($struktur['foto']) {
                     $foto_path = get_foto_path($struktur['foto']);
                   }
@@ -363,7 +361,6 @@ include 'navbar.php'; // Navbar
                     loading="lazy"
                     onerror="this.src='https://ui-avatars.com/api/?name=<?= urlencode($struktur['nama']) ?>&background=1e4a7a&color=fff&size=400'">
                 <?php else: ?>
-                  <!-- Avatar placeholder jika foto tidak ada -->
                   <img 
                     src="https://ui-avatars.com/api/?name=<?= urlencode($struktur['nama']) ?>&background=1e4a7a&color=fff&size=400" 
                     alt="<?= htmlspecialchars($struktur['nama']) ?>"
@@ -372,12 +369,15 @@ include 'navbar.php'; // Navbar
                 <?php endif; ?>
               </div>
               
-              <h4><?= htmlspecialchars($struktur['nama']) ?></h4>
-              <p class="jabatan"><?= htmlspecialchars($struktur['jabatan']) ?></p>
-              
-              <?php if ($struktur['nip']): ?>
-                <p class="nip"><?= htmlspecialchars($struktur['nip']) ?></p>
-              <?php endif; ?>
+              <div class="struktur-info">
+                <div>
+                  <h4><?= htmlspecialchars($struktur['nama']) ?></h4>
+                  <p class="jabatan"><?= htmlspecialchars($struktur['jabatan']) ?></p>
+                </div>
+                <?php if ($struktur['nip']): ?>
+                  <p class="nip"><?= htmlspecialchars($struktur['nip']) ?></p>
+                <?php endif; ?>
+              </div>
             </a>
           <?php endforeach; ?>
         </div>

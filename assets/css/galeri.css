@@ -62,6 +62,20 @@
   color: #666;
 }
 
+.galeri-image img {
+  cursor: zoom-in;
+}
+
+.galeri-image img {
+  cursor: zoom-in;
+}
+
+.galeri-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
 /* KATEGORI HEADER */
 .kategori-header {
   display: flex;

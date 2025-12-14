@@ -61,6 +61,7 @@ try {
           $deskripsi = htmlspecialchars($item['deskripsi']);
           $imageExists = file_exists('uploads/galeri/' . $foto);
       ?>
+      <a href="uploads/galeri/<?php echo $foto; ?>" target="_blank" class="galeri-link">
       <div class="galeri-item">
         <div class="galeri-image">
           <?php if ($imageExists): ?>
@@ -86,7 +87,7 @@ try {
       }
       ?>
     </div>
-    
+
     <!-- PAGINATION -->
     <?php if ($total_pages > 1): ?>
     <div style="margin-top: 50px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">

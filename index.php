@@ -1,5 +1,5 @@
 <?php
-// index.php - Halaman Beranda Lab Data Technology (Cleaned Version)
+// index.php - Halaman Beranda Lab Data Technology
 $activePage = 'index';
 include 'conn.php';
 include 'navbar.php';
@@ -63,12 +63,9 @@ function check_image_path($filename, $folder) {
           <div class="slide <?= $index === 0 ? 'active' : '' ?>">
             <?php 
               $slider_path = check_image_path($slide['gambar'], 'slider');
+              if (!empty($slider_path)):
             ?>
-            
-            <?php if (!empty($slider_path)): ?>
               <img src="<?= $slider_path ?>" alt="<?= htmlspecialchars($slide['judul']) ?>" loading="lazy">
-            <?php else: ?>
-              <div class="slide-placeholder"></div>
             <?php endif; ?>
           </div>
         <?php endforeach; ?>
@@ -95,12 +92,7 @@ function check_image_path($filename, $folder) {
       </div>
     <?php else: ?>
       <div class="gallery-placeholder">
-        <svg width="80" height="80" fill="none" stroke="#999" stroke-width="2" viewBox="0 0 24 24">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <circle cx="8.5" cy="8.5" r="1.5"></circle>
-          <polyline points="21 15 16 10 5 21"></polyline>
-        </svg>
-        <p style="margin-top: 12px;">Slider belum tersedia</p>
+        <p>Slider belum tersedia</p>
         <div class="slider-dots">
           <span class="active"></span>
           <span></span>
@@ -143,10 +135,6 @@ function check_image_path($filename, $folder) {
             <p>Lihat detail fasilitas dan peralatan</p>
           </a>
         <?php endforeach; ?>
-      <?php else: ?>
-        <p style="grid-column: 1/-1; text-align: center; color: #999; padding: 40px 0;">
-          Data fasilitas belum tersedia
-        </p>
       <?php endif; ?>
     </div>
   </div>
@@ -165,17 +153,9 @@ function check_image_path($filename, $folder) {
             <div class="thumb">
               <?php 
                 $berita_img = check_image_path($berita['gambar'], 'konten');
+                if($berita_img):
               ?>
-              <?php if($berita_img): ?>
                 <img src="<?= $berita_img ?>" alt="<?= htmlspecialchars($berita['judul']) ?>">
-              <?php else: ?>
-                <div class="thumb-placeholder">
-                  <svg width="60" height="60" fill="none" stroke="#999" stroke-width="2" viewBox="0 0 24 24">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                    <polyline points="21 15 16 10 5 21"></polyline>
-                  </svg>
-                </div>
               <?php endif; ?>
             </div>
             
@@ -190,12 +170,6 @@ function check_image_path($filename, $folder) {
       </div>
     <?php else: ?>
       <div class="news-empty">
-        <svg width="64" height="64" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2" viewBox="0 0 24 24">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="16" y1="13" x2="8" y2="13"></line>
-          <line x1="16" y1="17" x2="8" y2="17"></line>
-        </svg>
         <p>Belum ada berita terbaru</p>
       </div>
     <?php endif; ?>
@@ -223,19 +197,14 @@ function check_image_path($filename, $folder) {
       <?php if(count($publikasi_list) > 0): ?>
         <?php foreach($publikasi_list as $pub): ?>
           <div class="pub-card">
-            <?php 
-              $cover_img = check_image_path($pub['cover'], 'publikasi/cover');
-            ?>
-            <?php if($cover_img): ?>
-              <img src="<?= $cover_img ?>" alt="<?= htmlspecialchars($pub['judul']) ?>" class="pub-placeholder">
-            <?php else: ?>
-              <div class="pub-placeholder">
-                <svg width="60" height="60" fill="none" stroke="#999" stroke-width="2" viewBox="0 0 24 24">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                </svg>
-              </div>
-            <?php endif; ?>
+            <div class="pub-placeholder">
+              <?php 
+                $cover_img = check_image_path($pub['cover'], 'publikasi/cover');
+                if($cover_img):
+              ?>
+                <img src="<?= $cover_img ?>" alt="<?= htmlspecialchars($pub['judul']) ?>">
+              <?php endif; ?>
+            </div>
             <div class="pub-card-inner">
               <h4><?= htmlspecialchars(substr($pub['judul'], 0, 100)) ?><?= strlen($pub['judul']) > 100 ? '...' : '' ?></h4>
               <p class="pub-meta">
@@ -248,10 +217,6 @@ function check_image_path($filename, $folder) {
             </div>
           </div>
         <?php endforeach; ?>
-      <?php else: ?>
-        <p style="grid-column: 1/-1; text-align: center; color: #999; padding: 40px 0;">
-          Data publikasi belum tersedia
-        </p>
       <?php endif; ?>
     </div>
 
@@ -272,30 +237,20 @@ function check_image_path($filename, $folder) {
       <?php if(count($galeri_list) > 0): ?>
         <?php foreach($galeri_list as $galeri): ?>
           <div class="activity-card">
-            <?php 
-              $galeri_img = check_image_path($galeri['gambar'], 'galeri');
-            ?>
-            <?php if($galeri_img): ?>
-              <img src="<?= $galeri_img ?>" alt="<?= htmlspecialchars($galeri['judul']) ?>" class="activity-placeholder">
-            <?php else: ?>
-              <div class="activity-placeholder">
-                <svg width="60" height="60" fill="none" stroke="#999" stroke-width="2" viewBox="0 0 24 24">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
-              </div>
-            <?php endif; ?>
+            <div class="activity-placeholder">
+              <?php 
+                $galeri_img = check_image_path($galeri['gambar'], 'galeri');
+                if($galeri_img):
+              ?>
+                <img src="<?= $galeri_img ?>" alt="<?= htmlspecialchars($galeri['judul']) ?>">
+              <?php endif; ?>
+            </div>
             <div class="activity-card-content">
               <h4><?= htmlspecialchars($galeri['judul']) ?></h4>
               <p><?= htmlspecialchars(substr($galeri['deskripsi'], 0, 80)) ?><?= strlen($galeri['deskripsi']) > 80 ? '...' : '' ?></p>
             </div>
           </div>
         <?php endforeach; ?>
-      <?php else: ?>
-        <p style="grid-column: 1/-1; text-align: center; color: #999; padding: 40px 0;">
-          Data kegiatan belum tersedia
-        </p>
       <?php endif; ?>
     </div>
   </div>

@@ -117,13 +117,6 @@ foreach ($kategoriOrder as $kategori):
                 <span style="color: #999; font-weight: 600;">Foto Fasilitas</span>
               </div>
             <?php endif; ?>
-            
-            <div class="image-overlay">
-              <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.35-4.35"></path>
-              </svg>
-            </div>
           </div>
           
           <div class="fasilitas-content">
