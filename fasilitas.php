@@ -1,5 +1,4 @@
 <?php
-// fasilitas.php - Halaman Fasilitas Lab Data Technology (Publik)
 $activePage = 'fasilitas';
 include 'conn.php';
 include 'navbar.php';

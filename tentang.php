@@ -247,7 +247,7 @@ include 'navbar.php'; // Navbar
 </section>
 
 <!-- ============================================
-     ROADMAP - REDESIGNED
+     ROADMAP
 ============================================= -->
 <section id="roadmap" class="section roadmap-section">
   <div class="container">
@@ -295,43 +295,94 @@ include 'navbar.php'; // Navbar
     
     <?php if (count($struktur_list) > 0): ?>
       <div class="struktur-grid">
-        <?php foreach($struktur_list as $index => $struktur): ?>
-          <a href="anggota_detail.php?id=<?= $struktur['id_anggota'] ?>" class="struktur-card <?= $index === 0 ? 'kepala' : '' ?>">
+        
+        <!-- KETUA LAB (Urutan pertama) -->
+        <?php 
+        $ketua = $struktur_list[0]; // Ambil ketua (urutan pertama)
+        $anggota_lain = array_slice($struktur_list, 1); // Anggota lainnya
+        ?>
+        
+        <div class="struktur-ketua-container">
+          <a href="anggota_detail.php?id=<?= $ketua['id_anggota'] ?>" class="struktur-card kepala">
             <div class="struktur-photo">
               <?php 
                 $foto_path = '';
                 
                 // Cek foto dari database
-                if ($struktur['foto']) {
-                  $foto_path = get_foto_path($struktur['foto']);
+                if ($ketua['foto']) {
+                  $foto_path = get_foto_path($ketua['foto']);
                 }
               ?>
               
               <?php if (!empty($foto_path)): ?>
                 <img 
                   src="<?= $foto_path ?>" 
-                  alt="<?= htmlspecialchars($struktur['nama']) ?>"
+                  alt="<?= htmlspecialchars($ketua['nama']) ?>"
                   class="struktur-photo-img"
                   loading="lazy"
-                  onerror="this.src='https://ui-avatars.com/api/?name=<?= urlencode($struktur['nama']) ?>&background=1e4a7a&color=fff'">
+                  onerror="this.src='https://ui-avatars.com/api/?name=<?= urlencode($ketua['nama']) ?>&background=1e4a7a&color=fff&size=400'">
               <?php else: ?>
                 <!-- Avatar placeholder jika foto tidak ada -->
                 <img 
-                  src="https://ui-avatars.com/api/?name=<?= urlencode($struktur['nama']) ?>&background=1e4a7a&color=fff" 
-                  alt="<?= htmlspecialchars($struktur['nama']) ?>"
+                  src="https://ui-avatars.com/api/?name=<?= urlencode($ketua['nama']) ?>&background=1e4a7a&color=fff&size=400" 
+                  alt="<?= htmlspecialchars($ketua['nama']) ?>"
                   class="struktur-photo-img"
                   loading="lazy">
               <?php endif; ?>
             </div>
             
-            <h4><?= htmlspecialchars($struktur['nama']) ?></h4>
-            <p class="jabatan"><?= htmlspecialchars($struktur['jabatan']) ?></p>
+            <h4><?= htmlspecialchars($ketua['nama']) ?></h4>
+            <p class="jabatan"><?= htmlspecialchars($ketua['jabatan']) ?></p>
             
-            <?php if ($struktur['nip']): ?>
-              <p class="nip"><?= htmlspecialchars($struktur['nip']) ?></p>
+            <?php if ($ketua['nip']): ?>
+              <p class="nip"><?= htmlspecialchars($ketua['nip']) ?></p>
             <?php endif; ?>
           </a>
-        <?php endforeach; ?>
+        </div>
+        
+        <!-- ANGGOTA LAINNYA (Grid 4 kolom) -->
+        <?php if (count($anggota_lain) > 0): ?>
+        <div class="struktur-anggota-container">
+          <?php foreach($anggota_lain as $struktur): ?>
+            <a href="anggota_detail.php?id=<?= $struktur['id_anggota'] ?>" class="struktur-card">
+              <div class="struktur-photo">
+                <?php 
+                  $foto_path = '';
+                  
+                  // Cek foto dari database
+                  if ($struktur['foto']) {
+                    $foto_path = get_foto_path($struktur['foto']);
+                  }
+                ?>
+                
+                <?php if (!empty($foto_path)): ?>
+                  <img 
+                    src="<?= $foto_path ?>" 
+                    alt="<?= htmlspecialchars($struktur['nama']) ?>"
+                    class="struktur-photo-img"
+                    loading="lazy"
+                    onerror="this.src='https://ui-avatars.com/api/?name=<?= urlencode($struktur['nama']) ?>&background=1e4a7a&color=fff&size=400'">
+                <?php else: ?>
+                  <!-- Avatar placeholder jika foto tidak ada -->
+                  <img 
+                    src="https://ui-avatars.com/api/?name=<?= urlencode($struktur['nama']) ?>&background=1e4a7a&color=fff&size=400" 
+                    alt="<?= htmlspecialchars($struktur['nama']) ?>"
+                    class="struktur-photo-img"
+                    loading="lazy">
+                <?php endif; ?>
+              </div>
+              
+              <h4><?= htmlspecialchars($struktur['nama']) ?></h4>
+              <p class="jabatan"><?= htmlspecialchars($struktur['jabatan']) ?></p>
+              
+              <?php if ($struktur['nip']): ?>
+                <p class="nip"><?= htmlspecialchars($struktur['nip']) ?></p>
+              <?php endif; ?>
+            </a>
+          <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+        
       </div>
     <?php else: ?>
       <p style="text-align: center; margin-top: 40px; color: #888; font-size: 14px; font-style: italic;">

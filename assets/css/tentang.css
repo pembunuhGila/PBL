@@ -1,10 +1,167 @@
 /* ================================================
-   IMAGE STYLING - LOGO & STRUKTUR ANGGOTA
-   Tambahkan ke assets/css/style.css
+   TENTANG.CSS - Complete Enhanced Styling
+   Fixed Layout & Responsive Design
 ================================================ */
 
 /* =====================================
-   LOGO IDENTITAS LAB
+   PAGE HERO
+===================================== */
+.page-hero {
+  position: relative;
+  height: 400px;
+  margin-top: 85px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-hero-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(30, 74, 122, 0.9), rgba(37, 99, 168, 0.85));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-title {
+  font-size: 48px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 16px 0;
+  text-align: center;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.page-subtitle {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.95);
+  text-align: center;
+  margin: 0;
+}
+
+/* =====================================
+   QUICK NAVIGATION
+===================================== */
+.quick-nav-section {
+  padding: 0;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 85px;
+  z-index: 100;
+}
+
+.quick-nav {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+}
+
+.quick-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  color: var(--text-dark);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s;
+  border-bottom: 3px solid transparent;
+  position: relative;
+}
+
+.quick-nav-item:hover {
+  color: var(--primary-blue);
+  background: #f8f9fb;
+  border-bottom-color: var(--primary-blue);
+}
+
+.quick-nav-item svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* =====================================
+   SECTIONS
+===================================== */
+.section {
+  padding: 80px 0;
+}
+
+.section-title {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--primary-blue);
+  text-align: center;
+  margin-bottom: 16px;
+  position: relative;
+  padding-bottom: 16px;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-blue), var(--accent-green));
+  border-radius: 2px;
+}
+
+.section-subtitle {
+  text-align: center;
+  color: #666;
+  font-size: 16px;
+  margin-bottom: 48px;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* =====================================
+   PROFIL SECTION
+===================================== */
+.profil-section {
+  background: #fafbfc;
+}
+
+.profil-text-content {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #fff;
+  padding: 40px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-left: 5px solid var(--primary-blue);
+}
+
+.profil-text-content p {
+  font-size: 16px;
+  line-height: 1.8;
+  color: #444;
+  margin-bottom: 20px;
+  text-align: justify;
+}
+
+.profil-text-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* =====================================
+   LOGO & IDENTITAS LAB
 ===================================== */
 .logo-section {
   padding: 80px 0;
@@ -27,7 +184,7 @@
   align-items: center;
   justify-content: center;
   min-height: 300px;
-  background: linear-gradient(135deg, #f0f0f0, #e5e5e5);
+  background: linear-gradient(135deg, #f5f5f5, #e8e8e8);
   border-radius: 12px;
   padding: 30px;
   overflow: hidden;
@@ -47,20 +204,6 @@
   padding: 0;
 }
 
-.logo-description h3 {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-dark);
-  margin-bottom: 16px;
-}
-
-.logo-description p {
-  font-size: 15px;
-  line-height: 1.8;
-  color: #555;
-  margin-bottom: 16px;
-}
-
 .logo-title {
   font-size: 28px;
   font-weight: 700;
@@ -69,25 +212,237 @@
 }
 
 .logo-desc {
-  color: #666;
-  text-align: justify;
   font-size: 15px;
   line-height: 1.8;
+  color: #555;
+  text-align: justify;
 }
 
 /* =====================================
-   STRUKTUR ORGANISASI GRID
+   VISI & MISI
+===================================== */
+.visi-misi-section {
+  background: #fff;
+}
+
+.visi-misi-wrapper {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 40px;
+  margin-top: 48px;
+}
+
+.vm-card {
+  background: #fff;
+  padding: 40px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-top: 5px solid var(--primary-blue);
+  transition: all 0.3s;
+}
+
+.vm-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+.vm-icon {
+  width: 70px;
+  height: 70px;
+  background: linear-gradient(135deg, var(--primary-blue), #2563a8);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  color: #fff;
+}
+
+.vm-card h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary-blue);
+  margin-bottom: 20px;
+}
+
+.vm-card p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #555;
+  margin-bottom: 16px;
+  text-align: justify;
+}
+
+.misi-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.misi-list li {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #555;
+  padding-left: 32px;
+  margin-bottom: 16px;
+  position: relative;
+  text-align: justify;
+}
+
+.misi-list li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  background: var(--accent-green);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.misi-list li:last-child {
+  margin-bottom: 0;
+}
+
+/* =====================================
+   ROADMAP - Timeline Style
+===================================== */
+.roadmap-section {
+  background: #fafbfc;
+  padding: 80px 0;
+}
+
+.roadmap-container {
+  position: relative;
+  max-width: 900px;
+  margin: 48px auto 0;
+  padding: 0 20px;
+}
+
+/* Timeline center line */
+.roadmap-container::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--primary-blue), var(--accent-green));
+  transform: translateX(-50%);
+}
+
+.roadmap-item {
+  position: relative;
+  margin-bottom: 60px;
+  display: grid;
+  grid-template-columns: 1fr 50px 1fr;
+  gap: 20px;
+  align-items: center;
+}
+
+/* Dot on timeline */
+.roadmap-dot {
+  width: 20px;
+  height: 20px;
+  background: var(--primary-blue);
+  border: 5px solid #fff;
+  border-radius: 50%;
+  position: relative;
+  z-index: 10;
+  box-shadow: 0 0 0 4px rgba(30, 74, 122, 0.2);
+  justify-self: center;
+}
+
+/* Left items */
+.roadmap-item.left .roadmap-content {
+  grid-column: 1;
+  text-align: right;
+}
+
+.roadmap-item.left .roadmap-dot {
+  grid-column: 2;
+}
+
+/* Right items */
+.roadmap-item.right .roadmap-content {
+  grid-column: 3;
+  text-align: left;
+}
+
+.roadmap-item.right .roadmap-dot {
+  grid-column: 2;
+}
+
+.roadmap-year {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary-blue);
+  margin-bottom: 12px;
+}
+
+.roadmap-card {
+  background: #fff;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 2px solid #e8ebef;
+  transition: all 0.3s;
+  position: relative;
+}
+
+.roadmap-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border-color: var(--primary-blue);
+}
+
+.roadmap-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--accent-green), #27ae60);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  margin-bottom: 12px;
+}
+
+.roadmap-card h4 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.roadmap-card p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #666;
+  margin: 0;
+  text-align: justify;
+}
+
+/* =====================================
+   STRUKTUR ORGANISASI
 ===================================== */
 .struktur-section {
-  padding: 70px 0;
-  background: #fafbfc;
+  padding: 80px 0;
+  background: #fff;
 }
 
 .struktur-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 24px;
-  margin-top: 40px;
+  margin-top: 48px;
 }
 
 .struktur-card {
@@ -98,7 +453,7 @@
   color: inherit;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  border: 2px solid transparent;
+  border: 2px solid #e8ebef;
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -111,10 +466,12 @@
   border-color: var(--primary-blue);
 }
 
+/* Kepala Lab Highlight */
 .struktur-card.kepala {
   grid-column: 1 / 2;
   background: linear-gradient(135deg, var(--primary-blue), #2563a8);
   color: #fff;
+  border-color: var(--primary-blue);
 }
 
 .struktur-card.kepala h4 {
@@ -143,7 +500,7 @@
   z-index: 10;
 }
 
-/* Struktur Photo Container */
+/* Photo Container */
 .struktur-photo {
   position: relative;
   width: 100%;
@@ -155,23 +512,13 @@
   justify-content: center;
 }
 
-.struktur-photo img {
+.struktur-photo img,
+.struktur-photo-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: center;
   display: block;
-}
-
-.struktur-photo-img {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  object-position: center !important;
-}
-
-.struktur-card:hover .struktur-photo::after {
-  opacity: 1;
 }
 
 .struktur-photo::after {
@@ -187,18 +534,23 @@
   z-index: 5;
 }
 
-/* Struktur Info */
+.struktur-card:hover .struktur-photo::after {
+  opacity: 1;
+}
+
+/* Info Text */
 .struktur-card h4 {
   padding: 16px 16px 8px;
   font-size: 16px;
   font-weight: 700;
   color: var(--text-dark);
   line-height: 1.4;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  margin: 0;
+  -webkit-line-clamp: 2;
 }
 
 .jabatan {
@@ -211,6 +563,7 @@
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   min-height: 32px;
 }
 
@@ -225,336 +578,332 @@
   white-space: nowrap;
 }
 
-/* Photo Placeholder */
-.photo-placeholder {
-  background: linear-gradient(135deg, #e8e8e8, #d5d5d5);
-  color: #999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 220px;
-  width: 100%;
-}
-
-.photo-placeholder svg {
-  stroke: #999;
-}
-
 /* =====================================
-   ANGGOTA DETAIL - PROFILE PHOTO
+   RESPONSIVE DESIGN
 ===================================== */
-.profile-photo {
-  width: 100%;
-  max-width: 250px;
-  aspect-ratio: 1;
-  border-radius: 16px;
-  overflow: hidden;
-  background: linear-gradient(135deg, #e0e0e0, #d0d0d0);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 24px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
 
-.profile-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
+/* Desktop Large (1200px+) */
+@media (min-width: 1200px) {
+  .container {
+    max-width: 1140px;
+  }
 }
-
-/* =====================================
-   RESPONSIVE - LOGO SECTION
-===================================== */
 
 /* Tablet Landscape (1024px - 1199px) */
 @media (max-width: 1199px) {
+  .page-title {
+    font-size: 42px;
+  }
+  
+  .section-title {
+    font-size: 32px;
+  }
+  
   .logo-identity {
-    grid-template-columns: 1fr;
-    gap: 30px;
+    gap: 40px;
     padding: 30px;
   }
-
-  .logo-box {
-    min-height: 250px;
-    order: 2;
+  
+  .visi-misi-wrapper {
+    gap: 30px;
   }
-
-  .logo-description {
-    order: 1;
-  }
-
-  .logo-title {
-    font-size: 24px;
-  }
-
-  .logo-desc {
-    font-size: 14px;
-  }
-}
-
-/* Tablet Portrait (768px - 1023px) */
-@media (max-width: 1023px) {
-  .logo-section {
-    padding: 60px 0;
-  }
-
-  .logo-identity {
-    grid-template-columns: 1fr;
-    gap: 25px;
-    padding: 25px;
-  }
-
-  .logo-box {
-    min-height: 220px;
-    padding: 20px;
-    order: 2;
-  }
-
-  .logo-description {
-    order: 1;
-  }
-
-  .logo-title {
-    font-size: 22px;
-    margin-bottom: 12px;
-  }
-
-  .logo-desc {
-    font-size: 13px;
-    line-height: 1.6;
-  }
-}
-
-/* Mobile Landscape (576px - 767px) */
-@media (max-width: 767px) and (min-width: 576px) {
-  .logo-section {
-    padding: 50px 0;
-  }
-
-  .logo-identity {
-    gap: 20px;
-    padding: 20px;
-  }
-
-  .logo-box {
-    min-height: 180px;
-    padding: 15px;
-  }
-
-  .lab-logo {
-    max-height: 150px;
-  }
-
-  .logo-title {
-    font-size: 20px;
-  }
-
-  .logo-desc {
-    font-size: 12px;
-  }
-}
-
-/* Mobile Portrait (320px - 575px) */
-@media (max-width: 575px) {
-  .logo-section {
-    padding: 50px 0;
-  }
-
-  .logo-identity {
-    grid-template-columns: 1fr;
-    gap: 15px;
-    padding: 15px;
-  }
-
-  .logo-box {
-    min-height: 150px;
-    padding: 15px;
-    order: 2;
-  }
-
-  .logo-description {
-    order: 1;
-  }
-
-  .lab-logo {
-    max-height: 120px;
-  }
-
-  .logo-title {
-    font-size: 18px;
-    margin-bottom: 10px;
-  }
-
-  .logo-desc {
-    font-size: 12px;
-    line-height: 1.5;
-  }
-}
-
-/* =====================================
-   RESPONSIVE - STRUKTUR GRID
-===================================== */
-
-/* Tablet Landscape (1024px - 1199px) */
-@media (max-width: 1199px) {
+  
   .struktur-grid {
     grid-template-columns: repeat(3, 1fr);
     gap: 20px;
   }
-
-  .struktur-photo {
-    height: 200px;
-  }
-
-  .struktur-card h4 {
-    font-size: 15px;
-    padding: 14px 14px 6px;
-  }
-
-  .jabatan {
-    padding: 0 14px 6px;
-    font-size: 12px;
-  }
-
-  .nip {
-    padding: 0 14px 12px;
-    font-size: 10px;
-  }
 }
 
 /* Tablet Portrait (768px - 1023px) */
 @media (max-width: 1023px) {
+  .page-hero {
+    height: 350px;
+    margin-top: 70px;
+  }
+  
+  .page-title {
+    font-size: 38px;
+  }
+  
+  .page-subtitle {
+    font-size: 16px;
+  }
+  
+  .quick-nav-section {
+    top: 70px;
+  }
+  
+  .quick-nav-item {
+    padding: 14px 20px;
+    font-size: 13px;
+  }
+  
+  .section {
+    padding: 60px 0;
+  }
+  
+  .section-title {
+    font-size: 28px;
+  }
+  
+  .logo-identity {
+    grid-template-columns: 1fr;
+    gap: 30px;
+    padding: 25px;
+  }
+  
+  .logo-box {
+    min-height: 250px;
+    order: 2;
+  }
+  
+  .logo-description {
+    order: 1;
+  }
+  
+  .visi-misi-wrapper {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  
+  .roadmap-container::before {
+    left: 30px;
+  }
+  
+  .roadmap-item {
+    grid-template-columns: 40px 1fr;
+    gap: 20px;
+  }
+  
+  .roadmap-item.left .roadmap-content,
+  .roadmap-item.right .roadmap-content {
+    grid-column: 2;
+    text-align: left;
+  }
+  
+  .roadmap-dot {
+    grid-column: 1;
+  }
+  
   .struktur-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
-    margin-top: 30px;
   }
-
+  
   .struktur-card.kepala {
     grid-column: 1 / -1;
-  }
-
-  .struktur-photo {
-    height: 180px;
-  }
-
-  .struktur-card h4 {
-    font-size: 14px;
-    padding: 12px 12px 4px;
-  }
-
-  .jabatan {
-    font-size: 11px;
-    padding: 0 12px 4px;
-  }
-
-  .nip {
-    font-size: 9px;
-    padding: 0 12px 10px;
   }
 }
 
 /* Mobile Landscape (576px - 767px) */
 @media (max-width: 767px) and (min-width: 576px) {
-  .struktur-section {
+  .page-hero {
+    height: 300px;
+  }
+  
+  .page-title {
+    font-size: 32px;
+  }
+  
+  .page-subtitle {
+    font-size: 14px;
+  }
+  
+  .quick-nav-item {
+    padding: 12px 16px;
+    font-size: 12px;
+  }
+  
+  .section {
     padding: 50px 0;
   }
-
-  .struktur-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    margin-top: 25px;
+  
+  .section-title {
+    font-size: 24px;
   }
-
-  .struktur-card.kepala {
-    grid-column: 1 / -1;
+  
+  .profil-text-content {
+    padding: 30px;
   }
-
+  
+  .logo-identity {
+    padding: 20px;
+  }
+  
+  .logo-box {
+    min-height: 200px;
+  }
+  
+  .vm-card {
+    padding: 30px;
+  }
+  
   .struktur-photo {
-    height: 160px;
-  }
-
-  .struktur-card h4 {
-    font-size: 13px;
-    padding: 10px 10px 4px;
-  }
-
-  .jabatan {
-    font-size: 11px;
-    padding: 0 10px 4px;
-  }
-
-  .nip {
-    font-size: 9px;
-    padding: 0 10px 8px;
+    height: 180px;
   }
 }
 
 /* Mobile Portrait (320px - 575px) */
 @media (max-width: 575px) {
-  .struktur-section {
-    padding: 50px 0;
+  .page-hero {
+    height: 250px;
+    margin-top: 65px;
   }
-
+  
+  .page-title {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+  
+  .page-subtitle {
+    font-size: 13px;
+  }
+  
+  .quick-nav-section {
+    top: 65px;
+  }
+  
+  .quick-nav {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding: 0 10px;
+  }
+  
+  .quick-nav-item {
+    padding: 12px 14px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  
+  .quick-nav-item svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .section {
+    padding: 40px 0;
+  }
+  
+  .section-title {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+  
+  .section-subtitle {
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+  
+  .profil-text-content {
+    padding: 24px 20px;
+  }
+  
+  .profil-text-content p {
+    font-size: 14px;
+  }
+  
+  .logo-identity {
+    padding: 15px;
+    gap: 20px;
+  }
+  
+  .logo-box {
+    min-height: 150px;
+    padding: 15px;
+  }
+  
+  .lab-logo {
+    max-height: 120px;
+  }
+  
+  .logo-title {
+    font-size: 20px;
+  }
+  
+  .logo-desc {
+    font-size: 13px;
+  }
+  
+  .vm-card {
+    padding: 24px 20px;
+  }
+  
+  .vm-icon {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .vm-card h3 {
+    font-size: 20px;
+  }
+  
+  .vm-card p,
+  .misi-list li {
+    font-size: 13px;
+  }
+  
+  .roadmap-container {
+    padding: 0 10px;
+  }
+  
+  .roadmap-container::before {
+    left: 20px;
+  }
+  
+  .roadmap-item {
+    grid-template-columns: 30px 1fr;
+    gap: 15px;
+    margin-bottom: 40px;
+  }
+  
+  .roadmap-dot {
+    width: 16px;
+    height: 16px;
+    border-width: 4px;
+  }
+  
+  .roadmap-year {
+    font-size: 20px;
+  }
+  
+  .roadmap-card {
+    padding: 20px;
+  }
+  
+  .roadmap-card h4 {
+    font-size: 16px;
+  }
+  
+  .roadmap-card p {
+    font-size: 13px;
+  }
+  
   .struktur-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
-    margin-top: 20px;
   }
-
+  
   .struktur-card.kepala {
     grid-column: 1 / -1;
   }
-
+  
   .struktur-photo {
     height: 140px;
   }
-
-  .struktur-card {
-    border-radius: 12px;
-  }
-
+  
   .struktur-card h4 {
-    font-size: 12px;
+    font-size: 13px;
     padding: 10px 10px 4px;
-    line-height: 1.3;
   }
-
+  
   .jabatan {
-    font-size: 10px;
+    font-size: 11px;
     padding: 0 10px 4px;
     min-height: auto;
   }
-
+  
   .nip {
-    font-size: 8px;
+    font-size: 9px;
     padding: 0 10px 8px;
-  }
-}
-
-/* =====================================
-   RESPONSIVE - PROFILE DETAIL
-===================================== */
-
-@media (max-width: 1023px) {
-  .profile-photo {
-    max-width: 220px;
-    margin: 0 auto 24px;
-  }
-}
-
-@media (max-width: 768px) {
-  .profile-photo {
-    max-width: 200px;
-    margin: 0 auto 24px;
-  }
-}
-
-@media (max-width: 575px) {
-  .profile-photo {
-    max-width: 180px;
-    margin: 0 auto 20px;
   }
 }

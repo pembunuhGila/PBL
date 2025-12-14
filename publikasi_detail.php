@@ -1,6 +1,7 @@
 <?php
-$auth_required = false;
-include "auth.php";
+// Hapus baris auth.php yang error
+// $auth_required = false;
+// include "auth.php";
 
 $activePage = 'publikasi';
 require_once 'conn.php';
@@ -40,6 +41,25 @@ $stmt_related = $pdo->prepare("
 ");
 $stmt_related->execute([$id_publikasi, $publikasi['tahun'], $publikasi['jurnal']]);
 $related_publikasi = $stmt_related->fetchAll();
+
+// HELPER FUNCTION: Cari foto di multiple locations
+function get_foto_path($foto_name) {
+    if (empty($foto_name)) return '';
+    
+    $possible_paths = [
+        'assets/img/anggota/' . htmlspecialchars($foto_name),
+        'uploads/anggota/' . htmlspecialchars($foto_name),
+        'uploads/' . htmlspecialchars($foto_name)
+    ];
+    
+    foreach ($possible_paths as $path) {
+        if (file_exists($path)) {
+            return $path;
+        }
+    }
+    
+    return '';
+}
 
 include 'navbar.php';
 ?>
@@ -85,6 +105,7 @@ include 'navbar.php';
   font-weight: 700;
   font-size: 18px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .author-avatar img {
@@ -126,6 +147,7 @@ include 'navbar.php';
   line-height: 1.8;
   color: #444;
   position: relative;
+  padding-top: 30px;
 }
 
 .citation-box::before {
@@ -166,6 +188,7 @@ include 'navbar.php';
   gap: 12px;
   flex-wrap: wrap;
   margin-top: 20px;
+  margin-bottom: 24px;
 }
 
 .stat-pill {
@@ -204,6 +227,33 @@ include 'navbar.php';
   padding: 12px;
   margin: -8px -12px 8px -12px;
   border-radius: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .authors-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .pub-stats {
+    flex-direction: column;
+  }
+  
+  .stat-pill {
+    justify-content: center;
+  }
+  
+  .citation-box {
+    padding: 20px 16px;
+    font-size: 12px;
+  }
+  
+  .copy-citation-btn {
+    position: static;
+    display: block;
+    width: 100%;
+    margin-bottom: 12px;
+  }
 }
 </style>
 
@@ -306,7 +356,7 @@ include 'navbar.php';
               <div>
                 <span class="meta-label">Link Shinta:</span>
                 <span class="meta-value">
-                  <a href="<?= htmlspecialchars($publikasi['link_shinta']) ?>" target="_blank" style="color: var(--primary-blue);">
+                  <a href="<?= htmlspecialchars($publikasi['link_shinta']) ?>" target="_blank" rel="noopener noreferrer" style="color: var(--primary-blue); text-decoration: none;">
                     <?= htmlspecialchars($publikasi['link_shinta']) ?>
                   </a>
                 </span>
@@ -323,8 +373,15 @@ include 'navbar.php';
               <?php foreach($penulis_list as $penulis): ?>
               <a href="anggota_detail.php?id=<?= $penulis['id_anggota'] ?>" class="author-card">
                 <div class="author-avatar">
-                  <?php if ($penulis['foto'] && file_exists('assets/img/anggota/' . $penulis['foto'])): ?>
-                    <img src="assets/img/anggota/<?= htmlspecialchars($penulis['foto']) ?>" alt="<?= htmlspecialchars($penulis['nama']) ?>">
+                  <?php 
+                    $foto_path = get_foto_path($penulis['foto']);
+                    if (!empty($foto_path)): 
+                  ?>
+                    <img 
+                      src="<?= $foto_path ?>" 
+                      alt="<?= htmlspecialchars($penulis['nama']) ?>"
+                      loading="lazy"
+                      onerror="this.style.display='none'; this.parentElement.textContent='<?= strtoupper(substr($penulis['nama'], 0, 1)) ?>';">
                   <?php else: ?>
                     <?= strtoupper(substr($penulis['nama'], 0, 1)) ?>
                   <?php endif; ?>
@@ -352,7 +409,7 @@ include 'navbar.php';
             <button class="copy-citation-btn" onclick="copyCitation()">
               📋 Copy
             </button>
-            <div id="citation-text" style="margin-top: 20px;">
+            <div id="citation-text" style="margin-top: 8px;">
               <?php 
               $authors = array_map(function($p) { return $p['nama']; }, $penulis_list);
               $authors_str = implode(', ', $authors);
@@ -376,7 +433,7 @@ include 'navbar.php';
             <?php endif; ?>
             
             <?php if ($publikasi['link_shinta']): ?>
-            <a href="<?= htmlspecialchars($publikasi['link_shinta']) ?>" class="btn-cite" target="_blank">
+            <a href="<?= htmlspecialchars($publikasi['link_shinta']) ?>" class="btn-cite" target="_blank" rel="noopener noreferrer">
               <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
@@ -437,7 +494,7 @@ include 'navbar.php';
         
         <!-- Quick Info -->
         <div class="sidebar-widget" style="background: linear-gradient(135deg, var(--primary-blue), #2563a8); color: #fff;">
-          <h3 class="widget-title" style="border-color: rgba(255,255,255,0.2);">ℹ️ Info Cepat</h3>
+          <h3 class="widget-title" style="border-color: rgba(255,255,255,0.2); color: #fff;">ℹ️ Info Cepat</h3>
           <div style="display: flex; flex-direction: column; gap: 16px; font-size: 14px;">
             <div>
               <strong>Tahun Publikasi:</strong><br>
@@ -475,24 +532,37 @@ function copyCitation() {
   const citationText = document.getElementById('citation-text').innerText;
   navigator.clipboard.writeText(citationText).then(() => {
     const btn = document.querySelector('.copy-citation-btn');
+    const originalText = btn.textContent;
     btn.textContent = '✓ Copied!';
+    btn.style.background = '#27ae60';
     setTimeout(() => {
-      btn.textContent = '📋 Copy';
+      btn.textContent = originalText;
+      btn.style.background = '';
     }, 2000);
+  }).catch(err => {
+    alert('Gagal menyalin: ' + err);
   });
 }
 
 function sharePublication() {
+  const title = '<?= addslashes($publikasi['judul']) ?>';
+  const text = 'Publikasi ilmiah dari Lab Data Technology';
+  const url = window.location.href;
+  
   if (navigator.share) {
     navigator.share({
-      title: '<?= addslashes($publikasi['judul']) ?>',
-      text: 'Publikasi ilmiah dari Lab Data Technology',
-      url: window.location.href
+      title: title,
+      text: text,
+      url: url
+    }).catch(err => {
+      console.log('Error sharing:', err);
     });
   } else {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url);
-    alert('Link telah disalin ke clipboard:\n' + url);
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Link telah disalin ke clipboard:\n' + url);
+    }).catch(err => {
+      alert('Gagal menyalin link: ' + err);
+    });
   }
 }
 </script>

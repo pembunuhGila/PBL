@@ -14,18 +14,24 @@ $current_page = "galeri.php";
 // Handle Delete - HANYA BISA HAPUS YANG PENDING MILIK SENDIRI
 if (isset($_GET['delete'])) {
     try {
-        $stmt_check = $pdo->prepare("SELECT id_user, status, judul FROM galeri WHERE id_galeri = ?");
+        $stmt_check = $pdo->prepare("SELECT id_user, status, judul, gambar FROM galeri WHERE id_galeri = ?");
         $stmt_check->execute([$_GET['delete']]);
         $old_data = $stmt_check->fetch();
         
         if ($old_data && $old_data['id_user'] == $_SESSION['id_user'] && $old_data['status'] == 'pending') {
+            // Hapus file gambar
+            if ($old_data['gambar'] && file_exists("../../uploads/galeri/" . $old_data['gambar'])) {
+                unlink("../../uploads/galeri/" . $old_data['gambar']);
+            }
+            
             $stmt = $pdo->prepare("DELETE FROM galeri WHERE id_galeri = ?");
             $stmt->execute([$_GET['delete']]);
             
             $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
             $stmt_riwayat->execute(['galeri', $_GET['delete'], $_SESSION['id_user'], $old_data['status'], 'deleted', 'Hapus foto: ' . ($old_data['judul'] ?? 'Galeri')]);
             
-            $success = "Foto berhasil dihapus!";
+            header("Location: galeri.php?success=deleted&page=" . (isset($_GET['page']) ? $_GET['page'] : 1));
+            exit;
         } else {
             $error = "Anda hanya bisa menghapus data pending milik Anda!";
         }
@@ -36,8 +42,8 @@ if (isset($_GET['delete'])) {
 
 // Handle Add/Edit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $judul = $_POST['judul'];
-    $deskripsi = $_POST['deskripsi'];
+    $judul = trim($_POST['judul']);
+    $deskripsi = trim($_POST['deskripsi']);
     $status = 'pending'; // SELALU PENDING UNTUK OPERATOR
     
     $gambar = null;
@@ -45,62 +51,75 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $target_dir = "../../uploads/galeri/";
         if (!file_exists($target_dir)) mkdir($target_dir, 0777, true);
         
-        $file_extension = pathinfo($_FILES['gambar']['name'], PATHINFO_EXTENSION);
-        $gambar = 'galeri_' . time() . '.' . $file_extension;
-        move_uploaded_file($_FILES['gambar']['tmp_name'], $target_dir . $gambar);
+        $file_extension = strtolower(pathinfo($_FILES['gambar']['name'], PATHINFO_EXTENSION));
+        $allowed_extensions = ['jpg', 'jpeg', 'png', 'gif'];
+        
+        if (in_array($file_extension, $allowed_extensions)) {
+            $gambar = 'galeri_' . time() . '_' . uniqid() . '.' . $file_extension;
+            move_uploaded_file($_FILES['gambar']['tmp_name'], $target_dir . $gambar);
+        } else {
+            $error = "Format gambar tidak valid! Gunakan JPG, PNG, atau GIF.";
+        }
     }
     
-    try {
-        if (isset($_POST['id_galeri']) && !empty($_POST['id_galeri'])) {
-            $id = $_POST['id_galeri'];
-            
-            // CEK APAKAH DATA ADA
-            $stmt_check = $pdo->prepare("SELECT id_user, status FROM galeri WHERE id_galeri = ?");
-            $stmt_check->execute([$id]);
-            $data_owner = $stmt_check->fetch();
-            
-            if ($data_owner) {
-                $status_lama = $data_owner['status'];
+    if (!isset($error)) {
+        try {
+            if (isset($_POST['id_galeri']) && !empty($_POST['id_galeri'])) {
+                $id = $_POST['id_galeri'];
                 
-                // OPERATOR BISA EDIT SEMUA DATA - STATUS JADI PENDING
-                if ($gambar) {
-                    $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, gambar=?, status=?, filter_kategori=NULL WHERE id_galeri=?");
-                    $stmt->execute([$judul, $deskripsi, $gambar, $status, $id]);
+                // CEK APAKAH DATA ADA
+                $stmt_check = $pdo->prepare("SELECT id_user, status, gambar FROM galeri WHERE id_galeri = ?");
+                $stmt_check->execute([$id]);
+                $data_owner = $stmt_check->fetch();
+                
+                if ($data_owner) {
+                    $status_lama = $data_owner['status'];
+                    
+                    // OPERATOR BISA EDIT SEMUA DATA - STATUS JADI PENDING
+                    if ($gambar) {
+                        // Hapus gambar lama jika ada
+                        if ($data_owner['gambar'] && file_exists("../../uploads/galeri/" . $data_owner['gambar'])) {
+                            unlink("../../uploads/galeri/" . $data_owner['gambar']);
+                        }
+                        
+                        $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, gambar=?, status=? WHERE id_galeri=?");
+                        $stmt->execute([$judul, $deskripsi, $gambar, $status, $id]);
+                    } else {
+                        $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, status=? WHERE id_galeri=?");
+                        $stmt->execute([$judul, $deskripsi, $status, $id]);
+                    }
+                    
+                    $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt_riwayat->execute(['galeri', $id, $_SESSION['id_user'], $status_lama, $status, 'Update foto: ' . $judul]);
+                    
+                    $success = "Galeri berhasil diupdate! Menunggu persetujuan admin.";
                 } else {
-                    $stmt = $pdo->prepare("UPDATE galeri SET judul=?, deskripsi=?, status=?, filter_kategori=NULL WHERE id_galeri=?");
-                    $stmt->execute([$judul, $deskripsi, $status, $id]);
+                    $error = "Data tidak ditemukan!";
                 }
-                
-                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_riwayat->execute(['galeri', $id, $_SESSION['id_user'], $status_lama, $status, 'Update foto: ' . $judul]);
-                
-                $success = "Galeri berhasil diupdate! Menunggu persetujuan admin.";
             } else {
-                $error = "Data tidak ditemukan!";
+                if (!$gambar) {
+                    $error = "Gambar wajib diupload!";
+                } else {
+                    $stmt = $pdo->prepare("INSERT INTO galeri (judul, deskripsi, gambar, status, id_user) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$judul, $deskripsi, $gambar, $status, $_SESSION['id_user']]);
+                    
+                    $new_id = $pdo->lastInsertId();
+                    
+                    $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
+                    $stmt_riwayat->execute(['galeri', $new_id, $_SESSION['id_user'], null, $status, 'Tambah foto: ' . $judul]);
+                    
+                    $success = "Foto berhasil ditambahkan! Menunggu persetujuan admin.";
+                }
             }
-        } else {
-            if (!$gambar) {
-                $error = "Gambar wajib diupload!";
-            } else {
-                $stmt = $pdo->prepare("INSERT INTO galeri (judul, deskripsi, gambar, status, filter_kategori, id_user) VALUES (?, ?, ?, ?, NULL, ?)");
-                $stmt->execute([$judul, $deskripsi, $gambar, $status, $_SESSION['id_user']]);
-                
-                $new_id = $pdo->lastInsertId();
-                
-                $stmt_riwayat = $pdo->prepare("INSERT INTO riwayat_pengajuan (tabel_sumber, id_data, id_operator, status_lama, status_baru, catatan) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_riwayat->execute(['galeri', $new_id, $_SESSION['id_user'], null, $status, 'Tambah foto: ' . $judul]);
-                
-                $success = "Foto berhasil ditambahkan! Menunggu persetujuan admin.";
-            }
+        } catch (PDOException $e) {
+            $error = "Gagal menyimpan: " . $e->getMessage();
         }
-    } catch (PDOException $e) {
-        $error = "Gagal menyimpan: " . $e->getMessage();
     }
 }
 
 // Pagination
-$items_per_page = 12;
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$items_per_page = 9;
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $offset = ($page - 1) * $items_per_page;
 
 // Get total count - TAMPILKAN SEMUA DATA
@@ -121,7 +140,7 @@ include "navbar.php";
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Galeri Foto</h1>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#galeriModal" onclick="resetForm()">
-        <i class="bi bi-plus-circle"></i> Upload Foto
+        <i class="bi bi-plus-circle"></i> Tambah Foto
     </button>
 </div>
 
@@ -132,61 +151,68 @@ include "navbar.php";
     <div class="alert alert-danger alert-dismissible fade show"><?php echo $error; ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
 <?php endif; ?>
 
+<?php if (isset($_GET['success'])): ?>
+    <div class="alert alert-success alert-dismissible fade show">
+        <?php 
+        if ($_GET['success'] == 'deleted') echo "✅ Foto berhasil dihapus!";
+        ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua foto. Setiap perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua foto. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <div class="row">
     <?php if (count($galeri_list) > 0): ?>
         <?php foreach ($galeri_list as $gal): ?>
         <div class="col-md-4 mb-4">
-            <div class="card shadow h-100">
-                <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="card-img-top" style="height: 200px; object-fit: cover; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $gal['id_galeri']; ?>">
-                <div class="card-body">
+            <div class="card shadow h-100 position-relative">
+                <!-- Status Badge di pojok kanan atas -->
+                <div class="position-absolute top-0 end-0 m-2" style="z-index: 10;">
                     <?php if ($gal['status'] == 'pending'): ?>
-                        <span class="badge bg-warning mb-2">Pending</span>
+                        <span class="badge bg-warning text-dark">Pending</span>
                     <?php elseif ($gal['status'] == 'active'): ?>
-                        <span class="badge bg-success mb-2">Active</span>
+                        <span class="badge bg-success">Active</span>
                     <?php else: ?>
-                        <span class="badge bg-danger mb-2">Rejected</span>
+                        <span class="badge bg-danger">Rejected</span>
                     <?php endif; ?>
-                    
+                </div>
+                
+                <?php if ($gal['gambar']): ?>
+                    <img src="../../uploads/galeri/<?php echo htmlspecialchars($gal['gambar']); ?>" class="card-img-top" style="height: 200px; object-fit: cover; cursor: pointer;" onclick="viewImage('<?php echo htmlspecialchars($gal['gambar']); ?>', '<?php echo htmlspecialchars($gal['judul']); ?>')">
+                <?php else: ?>
+                    <div class="bg-secondary d-flex align-items-center justify-content-center text-white" style="height: 200px;">
+                        <i class="bi bi-image" style="font-size: 3rem;"></i>
+                    </div>
+                <?php endif; ?>
+                
+                <div class="card-body">
                     <?php if ($gal['id_user'] != $_SESSION['id_user']): ?>
-                        <span class="badge bg-secondary mb-2">By: <?php echo htmlspecialchars($gal['nama_pembuat'] ?? 'Unknown'); ?></span>
+                        <small class="text-muted d-block mb-2">
+                            <i class="bi bi-person"></i> <?php echo htmlspecialchars($gal['nama_pembuat'] ?? 'Unknown'); ?>
+                        </small>
                     <?php endif; ?>
                     
                     <h5 class="card-title"><?php echo htmlspecialchars($gal['judul']); ?></h5>
-                    <p class="card-text text-muted"><?php echo htmlspecialchars(substr($gal['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($gal['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
+                    <p class="card-text text-muted small"><?php echo htmlspecialchars(substr($gal['deskripsi'] ?? '', 0, 100)); ?><?php echo strlen($gal['deskripsi'] ?? '') > 100 ? '...' : ''; ?></p>
                 </div>
+                
                 <div class="card-footer bg-white">
-                    <!-- OPERATOR BISA EDIT SEMUA -->
+                    <!-- Edit Button -->
                     <button class="btn btn-sm btn-warning" onclick='editGaleri(<?php echo json_encode($gal); ?>)'>
-                        <i class="bi bi-pencil"></i> Edit
+                        <i class="bi bi-pencil"></i>
                     </button>
                     
+                    <!-- Delete Button - hanya untuk pending milik sendiri -->
                     <?php if ($gal['id_user'] == $_SESSION['id_user'] && $gal['status'] == 'pending'): ?>
-                        <a href="?delete=<?php echo $gal['id_galeri']; ?>&page=<?php echo $page; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">
-                            <i class="bi bi-trash"></i> Hapus
+                        <a href="?delete=<?php echo $gal['id_galeri']; ?>&page=<?php echo $page; ?>" 
+                           class="btn btn-sm btn-danger" 
+                           onclick="return confirm('Yakin hapus: <?php echo htmlspecialchars($gal['judul']); ?>?')">
+                            <i class="bi bi-trash"></i>
                         </a>
                     <?php endif; ?>
-                </div>
-            </div>
-        </div>
-        
-        <!-- View Modal -->
-        <div class="modal fade" id="viewModal<?php echo $gal['id_galeri']; ?>" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title"><?php echo htmlspecialchars($gal['judul']); ?></h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body text-center">
-                        <img src="../../uploads/galeri/<?php echo $gal['gambar']; ?>" class="img-fluid">
-                        <?php if ($gal['deskripsi']): ?>
-                            <p class="mt-3"><?php echo nl2br(htmlspecialchars($gal['deskripsi'])); ?></p>
-                        <?php endif; ?>
-                    </div>
                 </div>
             </div>
         </div>
@@ -221,13 +247,13 @@ include "navbar.php";
 </nav>
 <?php endif; ?>
 
-<!-- Add/Edit Modal -->
+<!-- Modal Add/Edit -->
 <div class="modal fade" id="galeriModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="POST" enctype="multipart/form-data">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">Upload Foto</h5>
+                    <h5 class="modal-title" id="modalTitle">Tambah Foto</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -243,9 +269,13 @@ include "navbar.php";
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Gambar *</label>
+                        <label class="form-label">Gambar</label>
+                        <div id="currentImage" style="display: none;" class="mb-2">
+                            <img id="previewImage" src="" class="img-thumbnail" style="max-height: 150px;">
+                            <small class="d-block text-muted">Gambar saat ini</small>
+                        </div>
                         <input type="file" class="form-control" name="gambar" id="gambar" accept="image/*">
-                        <small class="text-muted">Wajib upload saat tambah baru, opsional saat edit</small>
+                        <small class="text-muted">Wajib upload saat tambah baru. Kosongkan jika tidak ingin mengubah gambar saat edit</small>
                     </div>
                     
                     <div class="mb-3">
@@ -255,18 +285,34 @@ include "navbar.php";
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan & Ajukan</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
+<!-- Modal View Image -->
+<div class="modal fade" id="viewImageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewImageTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="viewImageSrc" src="" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 function resetForm() {
-    document.getElementById('modalTitle').textContent = 'Upload Foto';
+    document.getElementById('modalTitle').textContent = 'Tambah Foto';
     document.querySelector('form').reset();
     document.getElementById('id_galeri').value = '';
+    document.getElementById('currentImage').style.display = 'none';
 }
 
 function editGaleri(data) {
@@ -274,7 +320,21 @@ function editGaleri(data) {
     document.getElementById('id_galeri').value = data.id_galeri;
     document.getElementById('judul').value = data.judul || '';
     document.getElementById('deskripsi').value = data.deskripsi || '';
+    
+    if (data.gambar) {
+        document.getElementById('currentImage').style.display = 'block';
+        document.getElementById('previewImage').src = '../../uploads/galeri/' + data.gambar;
+    } else {
+        document.getElementById('currentImage').style.display = 'none';
+    }
+    
     new bootstrap.Modal(document.getElementById('galeriModal')).show();
+}
+
+function viewImage(gambar, judul) {
+    document.getElementById('viewImageTitle').textContent = judul;
+    document.getElementById('viewImageSrc').src = '../../uploads/galeri/' + gambar;
+    new bootstrap.Modal(document.getElementById('viewImageModal')).show();
 }
 </script>
 

@@ -1,7 +1,4 @@
 <?php
-$auth_required = false;
-include "auth.php";
-
 $activePage = 'struktur';
 require_once 'conn.php';
 

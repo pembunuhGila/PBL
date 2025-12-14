@@ -1,5 +1,4 @@
 <?php
-// galeri.php - Halaman Galeri Lab Data Technology (Publik)
 $activePage = 'galeri';
 include 'conn.php';
 include 'navbar.php';

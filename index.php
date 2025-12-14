@@ -1,8 +1,8 @@
 <?php
-// index.php - Halaman Beranda Lab Data Technology
+// index.php - Halaman Beranda Lab Data Technology (Cleaned Version)
 $activePage = 'index';
-include 'conn.php'; // Koneksi database
-include 'navbar.php'; // Navbar
+include 'conn.php';
+include 'navbar.php';
 
 // Ambil data slider
 $stmt_slider = $pdo->query("SELECT * FROM slider WHERE status = 'active' ORDER BY urutan, tanggal_dibuat DESC LIMIT 5");
@@ -26,7 +26,7 @@ $stmt_publikasi = $pdo->query("
     WHERE p.status = 'active'
     GROUP BY p.id_publikasi
     ORDER BY p.created_at DESC
-    LIMIT 2
+    LIMIT 3
 ");
 $publikasi_list = $stmt_publikasi->fetchAll();
 
@@ -34,73 +34,59 @@ $publikasi_list = $stmt_publikasi->fetchAll();
 $stmt_galeri = $pdo->query("SELECT * FROM galeri WHERE status = 'active' ORDER BY created_at DESC LIMIT 4");
 $galeri_list = $stmt_galeri->fetchAll();
 
-// Ambil mata kuliah terkait
-$stmt_matakuliah = $pdo->query("
-    SELECT DISTINCT jsonb_array_elements(bidang_keahlian::jsonb)->>'nama' as nama_mk
-    FROM anggota_lab 
-    WHERE status = 'active' 
-    AND bidang_keahlian IS NOT NULL
-    LIMIT 4
-");
-$matakuliah_list = $stmt_matakuliah->fetchAll();
+// Helper function untuk cek path gambar
+function check_image_path($filename, $folder) {
+    if (empty($filename)) return '';
+    
+    $possible_paths = [
+        "uploads/{$folder}/" . htmlspecialchars($filename),
+        'uploads/' . htmlspecialchars($filename),
+        "assets/img/{$folder}/" . htmlspecialchars($filename)
+    ];
+    
+    foreach ($possible_paths as $path) {
+        if (file_exists($path)) {
+            return $path;
+        }
+    }
+    return '';
+}
 ?>
 <link rel="stylesheet" href="assets/css/style.css">
 
-<!-- ============================================
-     HERO / SLIDER SECTION
-============================================= -->
+<!-- HERO / SLIDER SECTION -->
 <div class="slider-wrapper">
   <section class="hero">
     <?php if(count($sliders) > 0): ?>
-      <!-- SLIDER REAL DARI DATABASE -->
       <div class="gallery-slider">
         <?php foreach($sliders as $index => $slide): ?>
           <div class="slide <?= $index === 0 ? 'active' : '' ?>">
             <?php 
-              $slider_path = '';
-              if ($slide['gambar']) {
-                $possible_paths = [
-                  'uploads/slider/' . htmlspecialchars($slide['gambar']),
-                  'uploads/' . htmlspecialchars($slide['gambar']),
-                  'assets/img/slider/' . htmlspecialchars($slide['gambar'])
-                ];
-                foreach ($possible_paths as $path) {
-                  if (file_exists($path)) {
-                    $slider_path = $path;
-                    break;
-                  }
-                }
-              }
+              $slider_path = check_image_path($slide['gambar'], 'slider');
             ?>
             
             <?php if (!empty($slider_path)): ?>
-              <img 
-                src="<?= $slider_path ?>" 
-                alt="<?= htmlspecialchars($slide['judul']) ?>"
-                loading="lazy"
-                style="width: 100%; height: 100%; object-fit: cover;">
+              <img src="<?= $slider_path ?>" alt="<?= htmlspecialchars($slide['judul']) ?>" loading="lazy">
             <?php else: ?>
-              <div style="width: 100%; height: 100%; background: linear-gradient(135deg, #d8d8d8, #c5c5c5); display: flex; align-items: center; justify-content: center; color: #999; font-weight: 600;">
-                📸 Slider Image
-              </div>
+              <div class="slide-placeholder"></div>
             <?php endif; ?>
           </div>
         <?php endforeach; ?>
         
-        <!-- SLIDER NAVIGATION BUTTONS -->
-        <button class="slider-btn slider-btn-prev" aria-label="Previous slide">
+        <!-- Navigation Buttons -->
+        <button class="slider-btn slider-btn-prev" aria-label="Previous">
           <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
         </button>
         
-        <button class="slider-btn slider-btn-next" aria-label="Next slide">
+        <button class="slider-btn slider-btn-next" aria-label="Next">
           <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </button>
         
-        <!-- Slider Navigation Dots -->
+        <!-- Dots -->
         <div class="slider-dots">
           <?php foreach($sliders as $index => $slide): ?>
             <span class="<?= $index === 0 ? 'active' : '' ?>" data-slide="<?= $index ?>"></span>
@@ -109,7 +95,12 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
       </div>
     <?php else: ?>
       <div class="gallery-placeholder">
-        Galeri Slider (Belum ada data)
+        <svg width="80" height="80" fill="none" stroke="#999" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+        <p style="margin-top: 12px;">Slider belum tersedia</p>
         <div class="slider-dots">
           <span class="active"></span>
           <span></span>
@@ -120,9 +111,7 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
   </section>
 </div>
 
-<!-- ============================================
-     TENTANG KAMI SECTION (Overlay)
-============================================= -->
+<!-- TENTANG KAMI SECTION -->
 <section class="about-section">
   <div class="container">
     <div class="about-overlay">
@@ -134,9 +123,7 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
   </div>
 </section>
 
-<!-- ============================================
-     FASILITAS & PERALATAN
-============================================= -->
+<!-- FASILITAS & PERALATAN -->
 <section class="section">
   <div class="container">
     <h2 class="section-title">Fasilitas & Peralatan</h2>
@@ -145,37 +132,27 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
       <?php if(count($fasilitas_kategori) > 0): ?>
         <?php foreach($fasilitas_kategori as $kategori): ?>
           <a href="fasilitas.php?kategori=<?= urlencode($kategori['kategori_fasilitas']) ?>" class="facility-card">
-            <div class="icon-placeholder">Icon</div>
+            <div class="icon-placeholder">
+              <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </div>
             <h4><?= htmlspecialchars($kategori['kategori_fasilitas']) ?></h4>
-            <p>Lihat detail fasilitas <?= htmlspecialchars($kategori['kategori_fasilitas']) ?></p>
+            <p>Lihat detail fasilitas dan peralatan</p>
           </a>
         <?php endforeach; ?>
       <?php else: ?>
-        <a href="fasilitas.php?kategori=Ruang Praktikum & Penelitian" class="facility-card">
-          <div class="icon-placeholder">Icon</div>
-          <h4>Ruang Praktikum & Penelitian</h4>
-          <p>Ruang laboratorium yang nyaman untuk kegiatan praktikum, eksperimen, dan penelitian.</p>
-        </a>
-        
-        <a href="fasilitas.php?kategori=Perangkat Lunak" class="facility-card">
-          <div class="icon-placeholder">Icon</div>
-          <h4>Perangkat Lunak</h4>
-          <p>Software analisis data, machine learning, serta tools big data untuk kebutuhan riset dan pembelajaran.</p>
-        </a>
-        
-        <a href="fasilitas.php?kategori=Perangkat Komputer" class="facility-card">
-          <div class="icon-placeholder">Icon</div>
-          <h4>Perangkat Komputer</h4>
-          <p>Software analisis data, machine learning, serta tools big data untuk kebutuhan riset dan pembelajaran.</p>
-        </a>
+        <p style="grid-column: 1/-1; text-align: center; color: #999; padding: 40px 0;">
+          Data fasilitas belum tersedia
+        </p>
       <?php endif; ?>
     </div>
   </div>
 </section>
 
-<!-- ============================================
-     BERITA SECTION - IMPROVED & MODERN
-============================================= -->
+<!-- BERITA SECTION -->
 <section class="news-section">
   <div class="container">
     <h2 class="section-title">Berita</h2>
@@ -186,12 +163,18 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
         <?php foreach($berita_list as $berita): ?>
           <a href="konten_detail.php?id=<?= (int)$berita['id_konten'] ?>" class="news-card">
             <div class="thumb">
-              <?php if($berita['gambar'] && file_exists("uploads/konten/" . $berita['gambar'])): ?>
-                <img src="uploads/konten/<?= htmlspecialchars($berita['gambar']) ?>" 
-                     alt="<?= htmlspecialchars($berita['judul']) ?>">
+              <?php 
+                $berita_img = check_image_path($berita['gambar'], 'konten');
+              ?>
+              <?php if($berita_img): ?>
+                <img src="<?= $berita_img ?>" alt="<?= htmlspecialchars($berita['judul']) ?>">
               <?php else: ?>
-                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #d8d8d8, #c5c5c5); color: #999; font-size: 14px; font-weight: 600;">
-                  📰 Thumbnail Berita
+                <div class="thumb-placeholder">
+                  <svg width="60" height="60" fill="none" stroke="#999" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
                 </div>
               <?php endif; ?>
             </div>
@@ -207,6 +190,12 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
       </div>
     <?php else: ?>
       <div class="news-empty">
+        <svg width="64" height="64" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
         <p>Belum ada berita terbaru</p>
       </div>
     <?php endif; ?>
@@ -217,60 +206,64 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
   </div>
 </section>
 
-<!-- ============================================
-     PUBLIKASI SECTION
-============================================= -->
+<!-- PUBLIKASI SECTION -->
 <section class="section publikasi-section">
   <div class="container">
     <div class="publikasi-header">
       <h2 class="section-title" style="margin: 0;">Publikasi</h2>
-      <a href="https://sinta.kemdikbud.go.id/" target="_blank" class="sinta-btn">Load more in sinta</a>
+      <a href="https://sinta.kemdikbud.go.id/" target="_blank" rel="noopener noreferrer" class="sinta-btn">
+        View in Sinta
+      </a>
     </div>
-    <p style="text-align: center; color: #666; margin-top: -20px; margin-bottom: 32px;">Publikasi dari anggota Lab Data Technology</p>
+    <p style="text-align: center; color: #666; margin-top: -20px; margin-bottom: 32px;">
+      Publikasi dari anggota Lab Data Technology
+    </p>
 
     <div class="pub-row">
       <?php if(count($publikasi_list) > 0): ?>
         <?php foreach($publikasi_list as $pub): ?>
           <div class="pub-card">
-            <?php if($pub['cover'] && file_exists("uploads/publikasi/cover/" . $pub['cover'])): ?>
-              <img src="uploads/publikasi/cover/<?= htmlspecialchars($pub['cover']) ?>" alt="<?= htmlspecialchars($pub['judul']) ?>" class="pub-placeholder" style="width: 100%; height: 250px; object-fit: cover;">
+            <?php 
+              $cover_img = check_image_path($pub['cover'], 'publikasi/cover');
+            ?>
+            <?php if($cover_img): ?>
+              <img src="<?= $cover_img ?>" alt="<?= htmlspecialchars($pub['judul']) ?>" class="pub-placeholder">
             <?php else: ?>
-              <div class="pub-placeholder">Cover Publikasi</div>
+              <div class="pub-placeholder">
+                <svg width="60" height="60" fill="none" stroke="#999" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+              </div>
             <?php endif; ?>
             <div class="pub-card-inner">
-              <h4><?= htmlspecialchars($pub['judul']) ?></h4>
-              <p class="pub-meta"><?= htmlspecialchars($pub['penulis'] ?? 'Penulis') ?> • <?= htmlspecialchars($pub['tahun']) ?></p>
-              <?php if($pub['link_shinta']): ?>
-                <a href="<?= htmlspecialchars($pub['link_shinta']) ?>" target="_blank" class="pub-link">Baca Selengkapnya >>></a>
-              <?php elseif($pub['file_path'] && file_exists("uploads/publikasi/" . $pub['file_path'])): ?>
-                <a href="uploads/publikasi/<?= htmlspecialchars($pub['file_path']) ?>" target="_blank" class="pub-link">Baca Selengkapnya >>></a>
-              <?php else: ?>
-                <span class="pub-link text-muted">Tidak ada link tersedia</span>
-              <?php endif; ?>
+              <h4><?= htmlspecialchars(substr($pub['judul'], 0, 100)) ?><?= strlen($pub['judul']) > 100 ? '...' : '' ?></h4>
+              <p class="pub-meta">
+                <?= htmlspecialchars(substr($pub['penulis'] ?? 'Penulis', 0, 50)) ?><?= strlen($pub['penulis'] ?? '') > 50 ? '...' : '' ?> • 
+                <?= htmlspecialchars($pub['tahun']) ?>
+              </p>
+              <a href="publikasi_detail.php?id=<?= $pub['id_publikasi'] ?>" class="pub-link">
+                Baca Selengkapnya →
+              </a>
             </div>
           </div>
         <?php endforeach; ?>
       <?php else: ?>
-        <div class="pub-card">
-          <div class="pub-placeholder">Cover Publikasi</div>
-          <div class="pub-card-inner">
-            <h4>Sistem Prediksi Penjualan Frozen Food dengan Metode Monte Carlo</h4>
-            <p class="pub-meta">Penulis • 2025</p>
-            <a href="#" class="pub-link">Baca Selengkapnya >>></a>
-          </div>
-        </div>
+        <p style="grid-column: 1/-1; text-align: center; color: #999; padding: 40px 0;">
+          Data publikasi belum tersedia
+        </p>
       <?php endif; ?>
     </div>
 
     <div style="text-align: center; margin-top: 40px;">
-      <a href="publikasi.php" class="load-more-btn" style="background: var(--primary-blue); border-color: var(--primary-blue);">Load more</a>
+      <a href="publikasi.php" class="load-more-btn" style="background: var(--primary-blue); border-color: var(--primary-blue);">
+        Load more
+      </a>
     </div>
   </div>
 </section>
 
-<!-- ============================================
-     KEGIATAN & PROYEK
-============================================= -->
+<!-- KEGIATAN & PROYEK -->
 <section class="section">
   <div class="container">
     <h2 class="section-title">Kegiatan & Proyek</h2>
@@ -279,10 +272,19 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
       <?php if(count($galeri_list) > 0): ?>
         <?php foreach($galeri_list as $galeri): ?>
           <div class="activity-card">
-            <?php if($galeri['gambar'] && file_exists("uploads/galeri/" . $galeri['gambar'])): ?>
-              <img src="uploads/galeri/<?= htmlspecialchars($galeri['gambar']) ?>" alt="<?= htmlspecialchars($galeri['judul']) ?>" class="activity-placeholder" style="width: 100%; height: 200px; object-fit: cover;">
+            <?php 
+              $galeri_img = check_image_path($galeri['gambar'], 'galeri');
+            ?>
+            <?php if($galeri_img): ?>
+              <img src="<?= $galeri_img ?>" alt="<?= htmlspecialchars($galeri['judul']) ?>" class="activity-placeholder">
             <?php else: ?>
-              <div class="activity-placeholder">Foto Kegiatan</div>
+              <div class="activity-placeholder">
+                <svg width="60" height="60" fill="none" stroke="#999" stroke-width="2" viewBox="0 0 24 24">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+              </div>
             <?php endif; ?>
             <div class="activity-card-content">
               <h4><?= htmlspecialchars($galeri['judul']) ?></h4>
@@ -291,45 +293,9 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
           </div>
         <?php endforeach; ?>
       <?php else: ?>
-        <div class="activity-card">
-          <div class="activity-placeholder">Foto Kegiatan</div>
-          <div class="activity-card-content">
-            <h4>Praktikum Mahasiswa</h4>
-            <p>Kegiatan pembelajaran berbasis praktik untuk mempertajam kemampuan teknikal siswa.</p>
-          </div>
-        </div>
-      <?php endif; ?>
-    </div>
-  </div>
-</section>
-
-<!-- ============================================
-     PERKULIAHAN TERKAIT
-============================================= -->
-<section class="section" style="padding-top: 0;">
-  <div class="container">
-    <h2 class="section-title">Perkuliahan terkait</h2>
-    <div class="grid-4">
-      <?php if(count($matakuliah_list) > 0): ?>
-        <?php foreach($matakuliah_list as $mk): ?>
-          <?php if(!empty($mk['nama_mk'])): ?>
-          <div class="activity-card">
-            <div class="activity-placeholder">Icon Matakuliah</div>
-            <div class="activity-card-content">
-              <h4><?= htmlspecialchars($mk['nama_mk']) ?></h4>
-              <p>Mata kuliah yang diampu oleh dosen Lab Data Technology</p>
-            </div>
-          </div>
-          <?php endif; ?>
-        <?php endforeach; ?>
-      <?php else: ?>
-        <div class="activity-card">
-          <div class="activity-placeholder">Icon Matakuliah</div>
-          <div class="activity-card-content">
-            <h4>Basis Data</h4>
-            <p>Perancangan, Implementasi, dan pengaturan sistem basis data</p>
-          </div>
-        </div>
+        <p style="grid-column: 1/-1; text-align: center; color: #999; padding: 40px 0;">
+          Data kegiatan belum tersedia
+        </p>
       <?php endif; ?>
     </div>
   </div>
@@ -337,9 +303,7 @@ $matakuliah_list = $stmt_matakuliah->fetchAll();
 
 <?php include 'footer.php'; ?>
 
-<!-- ============================================
-     SLIDER JAVASCRIPT - INLINE
-============================================= -->
+<!-- SLIDER JAVASCRIPT -->
 <script>
 class SliderController {
   constructor() {
@@ -350,19 +314,18 @@ class SliderController {
     this.currentIndex = 0;
     this.autoplayInterval = null;
     
-    this.init();
+    if (this.slides.length > 0) {
+      this.init();
+    }
   }
 
   init() {
-    // Auto-play slider setiap 5 detik
     this.startAutoplay();
 
-    // Event listener untuk dots
     this.dots.forEach((dot, index) => {
       dot.addEventListener('click', () => this.goToSlide(index));
     });
 
-    // Event listener untuk navigation buttons
     if (this.btnPrev) {
       this.btnPrev.addEventListener('click', () => this.prevSlide());
     }
@@ -370,13 +333,11 @@ class SliderController {
       this.btnNext.addEventListener('click', () => this.nextSlide());
     }
 
-    // Keyboard navigation
     document.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowLeft') this.prevSlide();
       if (e.key === 'ArrowRight') this.nextSlide();
     });
 
-    // Touch support untuk mobile
     this.addTouchSupport();
   }
 
@@ -389,23 +350,14 @@ class SliderController {
       this.currentIndex = index;
     }
 
-    // Update slides visibility
     this.slides.forEach((slide, i) => {
-      slide.classList.remove('active');
-      if (i === this.currentIndex) {
-        slide.classList.add('active');
-      }
+      slide.classList.toggle('active', i === this.currentIndex);
     });
 
-    // Update dots
     this.dots.forEach((dot, i) => {
-      dot.classList.remove('active');
-      if (i === this.currentIndex) {
-        dot.classList.add('active');
-      }
+      dot.classList.toggle('active', i === this.currentIndex);
     });
 
-    // Reset autoplay
     this.resetAutoplay();
   }
 
@@ -444,20 +396,17 @@ class SliderController {
       this.handleSwipe();
     });
 
-    const handleSwipe = () => {
+    this.handleSwipe = () => {
       if (touchEndX < touchStartX - 50) {
-        this.nextSlide(); // Swipe ke kiri = next
+        this.nextSlide();
       }
       if (touchEndX > touchStartX + 50) {
-        this.prevSlide(); // Swipe ke kanan = prev
+        this.prevSlide();
       }
     };
-
-    this.handleSwipe = handleSwipe;
   }
 }
 
-// Initialize slider ketika DOM ready
 document.addEventListener('DOMContentLoaded', () => {
   new SliderController();
 });
