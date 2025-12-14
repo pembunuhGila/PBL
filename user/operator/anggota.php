@@ -1,8 +1,6 @@
 <?php
 /**
- * @var PDO $pdo
- * @var string $current_page
- * @var int $current_id_user
+ * Operator - Anggota Lab (with role_anggota support)
  */
 $required_role = "operator";
 include "../auth.php";
@@ -11,7 +9,6 @@ include "../../conn.php";
 $page_title = "Anggota Lab";
 $current_page = "anggota.php";
 
-// Pagination setup
 $limit = 10;
 $page_num = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page_num - 1) * $limit;
@@ -40,16 +37,15 @@ if (isset($_GET['delete'])) {
     }
 }
 
-// Handle Add/Edit
+// Handle Add/Edit - UPDATED WITH ROLE SUPPORT
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
     try {
-        // Validasi input required
         if (empty($_POST['nama']) || empty($_POST['role_anggota']) || empty($_POST['nip_nim'])) {
             throw new Exception("Nama, Role, dan NIP/NIM wajib diisi!");
         }
         
         $nama = trim($_POST['nama']);
-        $role_anggota = $_POST['role_anggota'];
+        $role_anggota = $_POST['role_anggota']; // NEW: explicitly save role
         $nip_nim = trim($_POST['nip_nim']);
         $email = trim($_POST['email'] ?? '');
         $kontak = trim($_POST['kontak'] ?? '');
@@ -100,7 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
         if (isset($_POST['id_anggota']) && !empty($_POST['id_anggota'])) {
             $id = $_POST['id_anggota'];
             
-            // CEK APAKAH DATA ADA
             $stmt_check = $pdo->prepare("SELECT id_user, status FROM anggota_lab WHERE id_anggota = ?");
             $stmt_check->execute([$id]);
             $data_owner = $stmt_check->fetch();
@@ -111,16 +106,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
             
             $status_lama = $data_owner['status'];
             
-            // OPERATOR BISA EDIT SEMUA - UPDATE LANGSUNG
+            // OPERATOR BISA EDIT SEMUA - UPDATE LANGSUNG dengan role_anggota
             if ($foto) {
-                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, foto=?, status=?, id_user=? WHERE id_anggota=?");
-                $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user'], $id]);
+                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, role_anggota=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, foto=?, status=?, id_user=? WHERE id_anggota=?");
+                $stmt->execute([$nama, $role_anggota, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user'], $id]);
             } else {
-                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, status=?, id_user=? WHERE id_anggota=?");
-                $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $status, $_SESSION['id_user'], $id]);
+                $stmt = $pdo->prepare("UPDATE anggota_lab SET nama=?, role_anggota=?, nip=?, email=?, kontak=?, biodata_teks=?, pendidikan=?, bidang_keahlian=?, tanggal_bergabung=?, status=?, id_user=? WHERE id_anggota=?");
+                $stmt->execute([$nama, $role_anggota, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $status, $_SESSION['id_user'], $id]);
             }
             
-            // Handle social media (LinkedIn & SHINTA)
+            // Handle social media
             $stmt_del = $pdo->prepare("DELETE FROM social_media_anggota WHERE id_anggota = ? AND platform IN ('linkedin', 'scholar')");
             $stmt_del->execute([$id]);
             
@@ -139,13 +134,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
             header("Location: anggota.php?success=updated&page=" . $page_num);
             exit;
         } else {
-            // INSERT BARU
-            $stmt = $pdo->prepare("INSERT INTO anggota_lab (nama, nip, email, kontak, biodata_teks, pendidikan, bidang_keahlian, tanggal_bergabung, foto, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$nama, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user']]);
+            // INSERT BARU dengan role_anggota
+            $stmt = $pdo->prepare("INSERT INTO anggota_lab (nama, role_anggota, nip, email, kontak, biodata_teks, pendidikan, bidang_keahlian, tanggal_bergabung, foto, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$nama, $role_anggota, $nip_nim, $email, $kontak, $biodata_teks, $pendidikan, $bidang_keahlian, $tanggal_bergabung, $foto, $status, $_SESSION['id_user']]);
             
             $new_id = $pdo->lastInsertId();
             
-            // Insert social media
             if (!empty($linkedin)) {
                 $stmt_sm = $pdo->prepare("INSERT INTO social_media_anggota (id_anggota, platform, url) VALUES (?, 'linkedin', ?)");
                 $stmt_sm->execute([$new_id, $linkedin]);
@@ -174,7 +168,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && !isset($_POST['search'])) {
 $search = $_GET['search'] ?? '';
 $status_filter = $_GET['status_filter'] ?? '';
 
-// TAMPILKAN SEMUA DATA
 $where_clauses = [];
 $params = [];
 
@@ -193,14 +186,12 @@ if ($status_filter) {
 
 $where_sql = count($where_clauses) > 0 ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
-// Get total count - FIX: tambahkan alias 'a'
 $count_query = "SELECT COUNT(*) FROM anggota_lab a $where_sql";
 $count_stmt = $pdo->prepare($count_query);
 $count_stmt->execute($params);
 $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
-// Get data with pagination
 $query = "SELECT a.*, u.nama as nama_pembuat FROM anggota_lab a LEFT JOIN users u ON a.id_user = u.id_user $where_sql ORDER BY a.created_at DESC LIMIT ? OFFSET ?";
 $params_with_limit = array_merge($params, [$limit, $offset]);
 $stmt = $pdo->prepare($query);
@@ -222,20 +213,23 @@ include "navbar.php";
 <?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success alert-dismissible fade show">
         <?php 
-        if ($_GET['success'] == 'added') echo "Anggota berhasil ditambahkan! Menunggu persetujuan admin.";
-        if ($_GET['success'] == 'updated') echo "Anggota berhasil diupdate! Menunggu persetujuan admin.";
-        if ($_GET['success'] == 'deleted') echo "Anggota berhasil dihapus!";
+        if ($_GET['success'] == 'added') echo "✅ Anggota berhasil ditambahkan! Menunggu persetujuan admin.";
+        if ($_GET['success'] == 'updated') echo "✅ Anggota berhasil diupdate! Menunggu persetujuan admin.";
+        if ($_GET['success'] == 'deleted') echo "✅ Anggota berhasil dihapus!";
         ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
 
 <?php if (isset($error)): ?>
-    <div class="alert alert-danger alert-dismissible fade show"><?php echo htmlspecialchars($error); ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+    <div class="alert alert-danger alert-dismissible fade show">
+        <i class="bi bi-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
 <?php endif; ?>
 
 <div class="alert alert-info">
-    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua anggota. Setiap perubahan akan berstatus <span class="badge bg-warning">Pending</span> dan menunggu persetujuan admin.
+    <i class="bi bi-info-circle"></i> Anda dapat mengedit semua anggota. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
 </div>
 
 <!-- Search -->
@@ -268,7 +262,7 @@ include "navbar.php";
 </div>
 
 <?php if ($search || $status_filter): ?>
-<div class="alert alert-info">
+<div class="alert alert-secondary">
     <i class="bi bi-info-circle"></i> 
     Menampilkan <?php echo count($anggota_list); ?> hasil
     <?php if ($search): ?>
@@ -284,21 +278,22 @@ include "navbar.php";
 <div class="card shadow">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h6 class="mb-0">
-            Total: <?php echo $total_items; ?> anggota
+            <i class="bi bi-people"></i> Total: <?php echo $total_items; ?> anggota
             <?php if ($search || $status_filter): ?>
                 <span class="badge bg-info">Filtered</span>
             <?php endif; ?>
         </h6>
-        <span class="text-muted">Halaman <?php echo $page_num; ?> dari <?php echo max(1, $total_pages); ?></span>
+        <small class="text-muted">Halaman <?php echo $page_num; ?> dari <?php echo max(1, $total_pages); ?></small>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
                     <tr>
-                        <th>No</th>
+                        <th class="ps-3">No</th>
                         <th>Foto</th>
                         <th>Nama</th>
+                        <th>Role</th>
                         <th>NIP/NIM</th>
                         <th>Email</th>
                         <th>Status</th>
@@ -311,47 +306,55 @@ include "navbar.php";
                     if (count($anggota_list) > 0) {
                         $no = $offset + 1; 
                         foreach ($anggota_list as $anggota): 
-                            // Get social media
                             $stmt_sm = $pdo->prepare("SELECT platform, url FROM social_media_anggota WHERE id_anggota = ?");
                             $stmt_sm->execute([$anggota['id_anggota']]);
                             $social_media = $stmt_sm->fetchAll(PDO::FETCH_KEY_PAIR);
                     ?>
                     <tr>
-                        <td><?php echo $no++; ?></td>
+                        <td class="ps-3"><?php echo $no++; ?></td>
                         <td>
                             <?php if ($anggota['foto']): ?>
-                                <img src="../../uploads/anggota/<?php echo $anggota['foto']; ?>" width="50" height="50" class="rounded-circle" style="object-fit: cover;">
+                                <img src="../../uploads/anggota/<?php echo $anggota['foto']; ?>" width="45" height="45" class="rounded-circle" style="object-fit: cover;">
                             <?php else: ?>
-                                <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($anggota['nama']); ?>" width="50" height="50" class="rounded-circle">
+                                <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($anggota['nama']); ?>&background=4e73df&color=fff" width="45" height="45" class="rounded-circle">
                             <?php endif; ?>
                         </td>
-                        <td><?php echo htmlspecialchars($anggota['nama']); ?></td>
-                        <td><?php echo htmlspecialchars($anggota['nip'] ?? '-'); ?></td>
-                        <td><?php echo htmlspecialchars($anggota['email'] ?? '-'); ?></td>
+                        <td><strong><?php echo htmlspecialchars($anggota['nama']); ?></strong></td>
+                        <td>
+                            <?php 
+                            $role_display = $anggota['role_anggota'] ?? 'mahasiswa';
+                            if ($role_display == 'dosen'): 
+                            ?>
+                                <span class="badge bg-primary"><i class="bi bi-mortarboard"></i> Dosen</span>
+                            <?php else: ?>
+                                <span class="badge bg-info"><i class="bi bi-person"></i> Mahasiswa</span>
+                            <?php endif; ?>
+                        </td>
+                        <td><code><?php echo htmlspecialchars($anggota['nip'] ?? '-'); ?></code></td>
+                        <td><small><?php echo htmlspecialchars($anggota['email'] ?? '-'); ?></small></td>
                         <td>
                             <?php if ($anggota['status'] == 'pending'): ?>
-                                <span class="badge bg-warning text-dark">Pending</span>
+                                <span class="badge bg-warning text-dark">⏳ Pending</span>
                             <?php elseif ($anggota['status'] == 'active'): ?>
-                                <span class="badge bg-success">Active</span>
+                                <span class="badge bg-success">✅ Active</span>
                             <?php else: ?>
-                                <span class="badge bg-danger">Rejected</span>
+                                <span class="badge bg-danger">❌ Rejected</span>
                             <?php endif; ?>
                         </td>
                         <td>
                             <?php if ($anggota['id_user'] == $_SESSION['id_user']): ?>
-                                <span class="badge bg-secondary">Anda</span>
+                                <span class="badge bg-secondary"><i class="bi bi-person-circle"></i> Anda</span>
                             <?php else: ?>
                                 <small><?php echo htmlspecialchars($anggota['nama_pembuat'] ?? 'Unknown'); ?></small>
                             <?php endif; ?>
                         </td>
                         <td>
-                            <!-- OPERATOR BISA EDIT SEMUA -->
-                            <button class="btn btn-sm btn-warning" onclick='editAnggota(<?php echo htmlspecialchars(json_encode(array_merge($anggota, ['social_media' => $social_media])), ENT_QUOTES, 'UTF-8'); ?>)'>
+                            <button class="btn btn-sm btn-warning" onclick='editAnggota(<?php echo htmlspecialchars(json_encode(array_merge($anggota, ['social_media' => $social_media])), ENT_QUOTES, 'UTF-8'); ?>)' title="Edit">
                                 <i class="bi bi-pencil"></i>
                             </button>
                             
                             <?php if ($anggota['id_user'] == $_SESSION['id_user'] && $anggota['status'] == 'pending'): ?>
-                                <a href="?delete=<?php echo $anggota['id_anggota']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus?')">
+                                <a href="?delete=<?php echo $anggota['id_anggota']; ?>&page=<?php echo $page_num; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menghapus anggota ini?')" title="Hapus">
                                     <i class="bi bi-trash"></i>
                                 </a>
                             <?php endif; ?>
@@ -362,9 +365,9 @@ include "navbar.php";
                     } else {
                     ?>
                     <tr>
-                        <td colspan="8" class="text-center py-5">
+                        <td colspan="9" class="text-center py-5">
                             <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
-                            <p class="mt-3 text-muted">
+                            <p class="mt-3 text-muted mb-0">
                                 <?php if ($search || $status_filter): ?>
                                     Tidak ada anggota yang sesuai dengan pencarian
                                 <?php else: ?>
@@ -449,8 +452,8 @@ include "navbar.php";
                             <label class="form-label">Role *</label>
                             <select class="form-select" name="role_anggota" id="role_anggota" required onchange="toggleRoleFields()">
                                 <option value="">-- Pilih Role --</option>
-                                <option value="dosen">Dosen</option>
-                                <option value="mahasiswa">Mahasiswa</option>
+                                <option value="dosen">🎓 Dosen</option>
+                                <option value="mahasiswa">👤 Mahasiswa</option>
                             </select>
                         </div>
                     </div>
@@ -466,7 +469,7 @@ include "navbar.php";
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Kontak</label>
-                            <input type="text" class="form-control" name="kontak" id="kontak">
+                            <input type="text" class="form-control" name="kontak" id="kontak" placeholder="08xxxxxxxxxx">
                         </div>
                     </div>
                     
@@ -486,19 +489,20 @@ include "navbar.php";
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Foto</label>
+                        <label class="form-label">Foto Profil</label>
                         <input type="file" class="form-control" name="foto" id="foto_input" accept="image/*">
-                        <div id="currentFotoPreview"></div>
+                        <small class="text-muted">Format: JPG, PNG. Maksimal 2MB. Rekomendasi: 400x400px</small>
+                        <div id="currentFotoPreview" class="mt-2"></div>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Biodata</label>
-                        <textarea class="form-control" name="biodata_teks" id="biodata_teks" rows="3"></textarea>
+                        <label class="form-label">Biodata / Deskripsi Singkat</label>
+                        <textarea class="form-control" name="biodata_teks" id="biodata_teks" rows="3" placeholder="Ceritakan sedikit tentang anggota ini..."></textarea>
                     </div>
                     
                     <div id="dosenSection" style="display: none;">
                         <hr class="my-4">
-                        <h6 class="mb-3">Riwayat Pendidikan</h6>
+                        <h6 class="mb-3"><i class="bi bi-mortarboard"></i> Riwayat Pendidikan</h6>
                         
                         <div id="pendidikanContainer"></div>
                         
@@ -507,7 +511,7 @@ include "navbar.php";
                         </button>
                         
                         <hr class="my-4">
-                        <h6 class="mb-3">Mata Kuliah yang Diampu</h6>
+                        <h6 class="mb-3"><i class="bi bi-book"></i> Mata Kuliah yang Diampu</h6>
 
                         <div id="matakuliahContainer"></div>
                         
@@ -517,7 +521,9 @@ include "navbar.php";
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Batal
+                    </button>
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-send"></i> Simpan & Ajukan
                     </button>
@@ -536,17 +542,10 @@ function toggleRoleFields() {
     
     if (roleAnggota === 'dosen') {
         dosenSection.style.display = 'block';
-        
-        // Add default items if empty
-        if (pendidikanContainer.children.length === 0) {
-            addPendidikan();
-        }
-        if (matakuliahContainer.children.length === 0) {
-            addMatakuliah();
-        }
+        if (pendidikanContainer.children.length === 0) addPendidikan();
+        if (matakuliahContainer.children.length === 0) addMatakuliah();
     } else {
         dosenSection.style.display = 'none';
-        // Clear containers when switching to mahasiswa
         pendidikanContainer.innerHTML = '';
         matakuliahContainer.innerHTML = '';
     }
@@ -612,7 +611,7 @@ function addMatakuliah() {
             </div>
             <div class="col mb-2">
                 <label class="form-label small">Nama Mata Kuliah *</label>
-                <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web">
+                <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web, Basis Data, dll">
             </div>
         </div>
     `;
@@ -629,11 +628,7 @@ function updateDeleteButtons(type) {
     const items = document.querySelectorAll(`.${type}-item`);
     items.forEach((item, index) => {
         const deleteBtn = item.querySelector('.btn-danger');
-        if (items.length > 1) {
-            deleteBtn.style.display = 'inline-block';
-        } else {
-            deleteBtn.style.display = 'none';
-        }
+        deleteBtn.style.display = items.length > 1 ? 'inline-block' : 'none';
     });
 }
 
@@ -642,14 +637,8 @@ function resetForm() {
     document.getElementById('anggotaForm').reset();
     document.getElementById('id_anggota').value = '';
     document.getElementById('role_anggota').value = '';
-    
-    // Remove foto preview if exists
     document.getElementById('currentFotoPreview').innerHTML = '';
-    
-    // Hide dosen section
     document.getElementById('dosenSection').style.display = 'none';
-    
-    // Reset containers
     document.getElementById('pendidikanContainer').innerHTML = '';
     document.getElementById('matakuliahContainer').innerHTML = '';
 }
@@ -664,23 +653,18 @@ function editAnggota(data) {
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
     
-    // Handle role anggota - auto detect from data
-    const roleAnggota = data.nip && data.nip.length >= 15 ? 'dosen' : 'mahasiswa';
+    // UPDATED: use database role_anggota directly
+    const roleAnggota = data.role_anggota || 'mahasiswa';
     document.getElementById('role_anggota').value = roleAnggota;
-    
-    // Trigger toggle to show/hide dosen fields
     toggleRoleFields();
     
-    // Load social media
     if (data.social_media) {
         document.getElementById('linkedin').value = data.social_media.linkedin || '';
         document.getElementById('shinta').value = data.social_media.scholar || '';
     }
     
-    // Show current photo preview
     const previewContainer = document.getElementById('currentFotoPreview');
     previewContainer.innerHTML = '';
-    
     if (data.foto) {
         previewContainer.innerHTML = `
             <div class="mt-2">
@@ -690,16 +674,13 @@ function editAnggota(data) {
         `;
     }
     
-    // Load pendidikan data
+    // Load pendidikan
     const pendidikanContainer = document.getElementById('pendidikanContainer');
     pendidikanContainer.innerHTML = '';
-    
     let pendidikanData = [];
     if (data.pendidikan) {
         try {
-            pendidikanData = typeof data.pendidikan === 'string' 
-                ? JSON.parse(data.pendidikan) 
-                : data.pendidikan;
+            pendidikanData = typeof data.pendidikan === 'string' ? JSON.parse(data.pendidikan) : data.pendidikan;
         } catch (e) {
             console.error('Error parsing pendidikan:', e);
         }
@@ -725,16 +706,16 @@ function editAnggota(data) {
                     </div>
                     <div class="col-md-4 mb-2">
                         <label class="form-label small">Institusi *</label>
-                        <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" placeholder="Universitas..." value="${item.institusi || ''}">
+                        <input type="text" class="form-control form-control-sm" name="pendidikan_institusi[]" value="${item.institusi || ''}">
                     </div>
                     <div class="col-md-3 mb-2">
                         <label class="form-label small">Jurusan</label>
-                        <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" placeholder="Teknik Informatika..." value="${item.jurusan || ''}">
+                        <input type="text" class="form-control form-control-sm" name="pendidikan_jurusan[]" value="${item.jurusan || ''}">
                     </div>
                     <div class="col-md-2 mb-2">
                         <label class="form-label small">Tahun</label>
                         <div class="d-flex gap-1">
-                            <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" placeholder="2020" value="${item.tahun || ''}">
+                            <input type="text" class="form-control form-control-sm" name="pendidikan_tahun[]" value="${item.tahun || ''}">
                             <button type="button" class="btn btn-sm btn-danger" onclick="removePendidikan(this)">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -749,16 +730,13 @@ function editAnggota(data) {
     }
     updateDeleteButtons('pendidikan');
     
-    // Load mata kuliah data
+    // Load mata kuliah
     const matakuliahContainer = document.getElementById('matakuliahContainer');
     matakuliahContainer.innerHTML = '';
-    
     let matakuliahData = [];
     if (data.bidang_keahlian) {
         try {
-            matakuliahData = typeof data.bidang_keahlian === 'string' 
-                ? JSON.parse(data.bidang_keahlian) 
-                : data.bidang_keahlian;
+            matakuliahData = typeof data.bidang_keahlian === 'string' ? JSON.parse(data.bidang_keahlian) : data.bidang_keahlian;
         } catch (e) {
             console.error('Error parsing bidang_keahlian:', e);
         }
@@ -778,7 +756,7 @@ function editAnggota(data) {
                     </div>
                     <div class="col mb-2">
                         <label class="form-label small">Nama Mata Kuliah *</label>
-                        <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" placeholder="Pemrograman Web" value="${item.nama || ''}">
+                        <input type="text" class="form-control form-control-sm" name="matakuliah_nama[]" value="${item.nama || ''}">
                     </div>
                 </div>
             `;
@@ -789,7 +767,6 @@ function editAnggota(data) {
     }
     updateDeleteButtons('matakuliah');
     
-    // Show modal
     new bootstrap.Modal(document.getElementById('anggotaModal')).show();
 }
 </script>
@@ -801,6 +778,9 @@ function editAnggota(data) {
 .pagination .page-item.active .page-link {
     background-color: #4e73df;
     border-color: #4e73df;
+}
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
 }
 </style>
 

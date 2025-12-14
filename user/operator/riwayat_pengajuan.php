@@ -1,9 +1,6 @@
 <?php
 /**
- * Operator Riwayat Pengajuan - Connected to ALL modules
- * @var PDO $pdo
- * @var string $current_page
- * @var int $current_id_user
+ * Operator Riwayat Pengajuan - Using Stored Procedure
  */
 $required_role = "operator";
 include "../auth.php";
@@ -23,180 +20,69 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
 // ========================================
-// BUILD UNIFIED QUERY - SEMUA DATA MILIK OPERATOR
+// GET DATA USING STORED PROCEDURE
 // ========================================
-$id_user = $_SESSION['id_user'];
-
-// UNION query untuk gabungkan semua data milik operator
-$union_parts = [];
-
-// 1. Data dari riwayat_pengajuan (modul lama)
-$riwayat_query = "
-    SELECT 
-        r.created_at,
-        r.tabel_sumber,
-        r.id_data::text as id_data,
-        r.status_lama,
-        r.status_baru,
-        u.nama as admin_nama,
-        r.catatan
-    FROM riwayat_pengajuan r
-    LEFT JOIN users u ON r.id_admin = u.id_user
-    WHERE r.id_operator = ?
-";
-$union_parts[] = $riwayat_query;
-
-// 2. Data dari kontak milik operator
-$kontak_query = "
-    SELECT 
-        k.updated_at as created_at,
-        'kontak' as tabel_sumber,
-        k.id_kontak::text as id_data,
-        NULL as status_lama,
-        k.status as status_baru,
-        NULL as admin_nama,
-        CONCAT('Kontak - ', k.email) as catatan
-    FROM kontak k
-    WHERE k.id_user = ? AND k.status IN ('pending', 'rejected', 'active')
-";
-$union_parts[] = $kontak_query;
-
-// 3. Data dari tentang_kami milik operator
-$profil_query = "
-    SELECT 
-        t.updated_at as created_at,
-        'tentang_kami' as tabel_sumber,
-        t.id_profil::text as id_data,
-        NULL as status_lama,
-        t.status as status_baru,
-        NULL as admin_nama,
-        'Profil Lab' as catatan
-    FROM tentang_kami t
-    WHERE t.id_user = ? AND t.status IN ('pending', 'rejected', 'active')
-";
-$union_parts[] = $profil_query;
-
-// 4. Data dari visi milik operator
-$visi_query = "
-    SELECT 
-        v.created_at,
-        'visi' as tabel_sumber,
-        v.id_visi::text as id_data,
-        NULL as status_lama,
-        v.status as status_baru,
-        NULL as admin_nama,
-        CONCAT('Visi: ', LEFT(v.isi_visi, 40), '...') as catatan
-    FROM visi v
-    WHERE v.id_user = ? AND v.status IN ('pending', 'rejected', 'active')
-";
-$union_parts[] = $visi_query;
-
-// 5. Data dari misi milik operator
-$misi_query = "
-    SELECT 
-        m.created_at,
-        'misi' as tabel_sumber,
-        m.id_misi::text as id_data,
-        NULL as status_lama,
-        m.status as status_baru,
-        NULL as admin_nama,
-        CONCAT('Misi #', m.urutan, ': ', LEFT(m.isi_misi, 40), '...') as catatan
-    FROM misi m
-    WHERE m.id_user = ? AND m.status IN ('pending', 'rejected', 'active')
-";
-$union_parts[] = $misi_query;
-
-// 6. Data dari sejarah/roadmap milik operator
-$sejarah_query = "
-    SELECT 
-        s.created_at,
-        'sejarah' as tabel_sumber,
-        s.id_sejarah::text as id_data,
-        NULL as status_lama,
-        s.status as status_baru,
-        NULL as admin_nama,
-        CONCAT('Roadmap ', s.tahun, ': ', s.judul) as catatan
-    FROM sejarah s
-    WHERE s.id_user = ? AND s.status IN ('pending', 'rejected', 'active')
-";
-$union_parts[] = $sejarah_query;
-
-// Gabungkan semua query dengan UNION ALL
-$base_query = "SELECT * FROM (" . implode(" UNION ALL ", $union_parts) . ") as all_riwayat";
-
-// Parameter untuk base query (6 kali id_user untuk 6 UNION parts)
-$union_params = array_fill(0, 6, $id_user);
-
-// Apply filters
-$where_clauses = [];
-$filter_params = [];
-
-if ($filter_tabel) {
-    $where_clauses[] = "tabel_sumber = ?";
-    $filter_params[] = $filter_tabel;
+try {
+    $id_user = $_SESSION['id_user'];
+    
+    // Get paginated data using SP
+    $query = "SELECT * FROM sp_get_riwayat_operator(?, ?, ?, ?, ?, ?)";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([
+        $id_user,
+        $filter_status ?: null,
+        $filter_tabel ?: null,
+        $filter_bulan ?: null,
+        $limit,
+        $offset
+    ]);
+    $riwayat_list = $stmt->fetchAll();
+    
+    // Get statistics using SP
+    $stats_query = "SELECT * FROM sp_get_riwayat_stats_operator(?)";
+    $stats_stmt = $pdo->prepare($stats_query);
+    $stats_stmt->execute([$id_user]);
+    $stats = $stats_stmt->fetch();
+    
+    $pending = $stats['pending'] ?? 0;
+    $approved = $stats['approved'] ?? 0;
+    $rejected = $stats['rejected'] ?? 0;
+    $deleted = $stats['deleted'] ?? 0;
+    $total_records = $stats['total'] ?? 0;
+    
+    $total_pages = ceil($total_records / $limit);
+    
+    // Get available months for filter
+    $months_query = "
+        SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month 
+        FROM (
+            SELECT created_at FROM riwayat_pengajuan WHERE id_operator = ?
+            UNION ALL
+            SELECT updated_at FROM kontak WHERE id_user = ? AND status IN ('pending', 'rejected', 'active')
+            UNION ALL
+            SELECT updated_at FROM tentang_kami WHERE id_user = ? AND status IN ('pending', 'rejected', 'active')
+            UNION ALL
+            SELECT created_at FROM visi WHERE id_user = ? AND status IN ('pending', 'rejected', 'active')
+            UNION ALL
+            SELECT created_at FROM misi WHERE id_user = ? AND status IN ('pending', 'rejected', 'active')
+            UNION ALL
+            SELECT created_at FROM sejarah WHERE id_user = ? AND status IN ('pending', 'rejected', 'active')
+        ) as all_dates
+        ORDER BY month DESC LIMIT 12
+    ";
+    $months_stmt = $pdo->prepare($months_query);
+    $months_stmt->execute(array_fill(0, 6, $id_user));
+    $available_months = $months_stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+} catch (PDOException $e) {
+    error_log("Error getting riwayat operator: " . $e->getMessage());
+    $riwayat_list = [];
+    $pending = $approved = $rejected = $deleted = $total_records = 0;
+    $total_pages = 1;
+    $available_months = [];
+    $error = "Terjadi kesalahan saat mengambil data riwayat";
 }
 
-if ($filter_status) {
-    $where_clauses[] = "status_baru = ?";
-    $filter_params[] = $filter_status;
-}
-
-if ($filter_bulan) {
-    $where_clauses[] = "TO_CHAR(created_at, 'YYYY-MM') = ?";
-    $filter_params[] = $filter_bulan;
-}
-
-$where_sql = "";
-if (count($where_clauses) > 0) {
-    $where_sql = " WHERE " . implode(" AND ", $where_clauses);
-}
-
-// Count total
-$count_query = "SELECT COUNT(*) FROM ($base_query $where_sql) as count_table";
-$count_stmt = $pdo->prepare($count_query);
-$count_stmt->execute(array_merge($union_params, $filter_params));
-$total_records = $count_stmt->fetchColumn();
-$total_pages = ceil($total_records / $limit);
-
-// Get paginated data
-$final_query = "$base_query $where_sql ORDER BY created_at DESC LIMIT ? OFFSET ?";
-$all_params = array_merge($union_params, $filter_params, [$limit, $offset]);
-
-$stmt = $pdo->prepare($final_query);
-$stmt->execute($all_params);
-$riwayat_list = $stmt->fetchAll();
-
-// ========================================
-// GET STATISTICS - FIXED: Gunakan $union_params saja
-// ========================================
-
-$pending_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'pending'";
-$pending_stmt = $pdo->prepare($pending_query);
-$pending_stmt->execute($union_params);
-$pending = $pending_stmt->fetchColumn();
-
-$approved_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'active'";
-$approved_stmt = $pdo->prepare($approved_query);
-$approved_stmt->execute($union_params);
-$approved = $approved_stmt->fetchColumn();
-
-$rejected_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'rejected'";
-$rejected_stmt = $pdo->prepare($rejected_query);
-$rejected_stmt->execute($union_params);
-$rejected = $rejected_stmt->fetchColumn();
-
-$deleted_query = "SELECT COUNT(*) FROM ($base_query) as riwayat_data WHERE status_baru = 'deleted'";
-$deleted_stmt = $pdo->prepare($deleted_query);
-$deleted_stmt->execute($union_params);
-$deleted = $deleted_stmt->fetchColumn();
-
-// Get available months untuk filter
-$months_query = "SELECT DISTINCT TO_CHAR(created_at, 'YYYY-MM') as month FROM ($base_query) as riwayat_data ORDER BY month DESC LIMIT 12";
-$months_stmt = $pdo->prepare($months_query);
-$months_stmt->execute($union_params);
-$available_months = $months_stmt->fetchAll(PDO::FETCH_COLUMN);
-
-// Daftar tabel
 $all_tables = [
     'anggota_lab' => 'Anggota Lab',
     'struktur_lab' => 'Struktur Lab',
@@ -355,12 +241,18 @@ include "navbar.php";
     <span class="badge bg-danger">Rejected</span> ditolak oleh admin.
 </div>
 
-<!-- Alert untuk Pending -->
 <?php if ($pending > 0): ?>
 <div class="alert alert-warning alert-dismissible fade show">
     <i class="bi bi-hourglass-split"></i> 
     <strong>Perhatian:</strong> Anda memiliki <strong><?php echo $pending; ?> pengajuan</strong> yang masih menunggu review admin.
     <a href="?status=pending" class="alert-link">Lihat semua pending</a>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
+<?php if (isset($error)): ?>
+<div class="alert alert-danger alert-dismissible fade show">
+    <i class="bi bi-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 <?php endif; ?>
@@ -497,13 +389,12 @@ include "navbar.php";
         </div>
     </div>
     
-    <!-- Pagination -->
     <?php if ($total_pages > 1): ?>
     <div class="card-footer bg-white">
         <nav aria-label="Page navigation">
             <ul class="pagination justify-content-center mb-0">
                 <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
-                    <a class="page-link" href="?page=<?php echo $page - 1; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page - 1; ?><?php echo $filter_tabel ? '&tabel=' . urlencode($filter_tabel) : ''; ?><?php echo $filter_status ? '&status=' . urlencode($filter_status) : ''; ?><?php echo $filter_bulan ? '&bulan=' . urlencode($filter_bulan) : ''; ?>">
                         <i class="bi bi-chevron-left"></i> Previous
                     </a>
                 </li>
@@ -513,7 +404,7 @@ include "navbar.php";
                 $end_page = min($total_pages, $page + 2);
                 
                 if ($start_page > 1): ?>
-                    <li class="page-item"><a class="page-link" href="?page=1<?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>">1</a></li>
+                    <li class="page-item"><a class="page-link" href="?page=1<?php echo $filter_tabel ? '&tabel=' . urlencode($filter_tabel) : ''; ?><?php echo $filter_status ? '&status=' . urlencode($filter_status) : ''; ?><?php echo $filter_bulan ? '&bulan=' . urlencode($filter_bulan) : ''; ?>">1</a></li>
                     <?php if ($start_page > 2): ?>
                         <li class="page-item disabled"><span class="page-link">...</span></li>
                     <?php endif; ?>
@@ -521,7 +412,7 @@ include "navbar.php";
                 
                 <?php for ($i = $start_page; $i <= $end_page; $i++): ?>
                     <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
-                        <a class="page-link" href="?page=<?php echo $i; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>"><?php echo $i; ?></a>
+                        <a class="page-link" href="?page=<?php echo $i; ?><?php echo $filter_tabel ? '&tabel=' . urlencode($filter_tabel) : ''; ?><?php echo $filter_status ? '&status=' . urlencode($filter_status) : ''; ?><?php echo $filter_bulan ? '&bulan=' . urlencode($filter_bulan) : ''; ?>"><?php echo $i; ?></a>
                     </li>
                 <?php endfor; ?>
                 
@@ -529,11 +420,11 @@ include "navbar.php";
                     <?php if ($end_page < $total_pages - 1): ?>
                         <li class="page-item disabled"><span class="page-link">...</span></li>
                     <?php endif; ?>
-                    <li class="page-item"><a class="page-link" href="?page=<?php echo $total_pages; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>"><?php echo $total_pages; ?></a></li>
+                    <li class="page-item"><a class="page-link" href="?page=<?php echo $total_pages; ?><?php echo $filter_tabel ? '&tabel=' . urlencode($filter_tabel) : ''; ?><?php echo $filter_status ? '&status=' . urlencode($filter_status) : ''; ?><?php echo $filter_bulan ? '&bulan=' . urlencode($filter_bulan) : ''; ?>"><?php echo $total_pages; ?></a></li>
                 <?php endif; ?>
                 
                 <li class="page-item <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
-                    <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo $filter_tabel ? '&tabel=' . $filter_tabel : ''; ?><?php echo $filter_status ? '&status=' . $filter_status : ''; ?><?php echo $filter_bulan ? '&bulan=' . $filter_bulan : ''; ?>">
+                    <a class="page-link" href="?page=<?php echo $page + 1; ?><?php echo $filter_tabel ? '&tabel=' . urlencode($filter_tabel) : ''; ?><?php echo $filter_status ? '&status=' . urlencode($filter_status) : ''; ?><?php echo $filter_bulan ? '&bulan=' . urlencode($filter_bulan) : ''; ?>">
                         Next <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
@@ -550,7 +441,8 @@ include "navbar.php";
 
 .table td, .table th {
     vertical-align: middle;
-}a
+}
+
 .badge {
     font-weight: 500;
 }

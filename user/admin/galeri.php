@@ -365,4 +365,5 @@ function viewImage(gambar, judul) {
 }
 </script>
 
+
 <?php include "footer.php"; ?>
