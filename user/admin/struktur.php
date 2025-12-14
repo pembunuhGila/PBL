@@ -93,7 +93,14 @@ $stmt = $pdo->prepare("
 $stmt->execute([$limit, $offset]);
 $struktur_list = $stmt->fetchAll();
 
-$stmt_anggota = $pdo->query("SELECT id_anggota, nama, foto FROM anggota_lab WHERE status = 'active' ORDER BY nama");
+// Get anggota dropdown
+$stmt_anggota = $pdo->query("
+    SELECT id_anggota, nama, foto 
+    FROM anggota_lab 
+    WHERE status = 'active' 
+    AND id_anggota NOT IN (SELECT id_anggota FROM struktur_lab)
+    ORDER BY nama
+");
 $anggota_options = $stmt_anggota->fetchAll();
 
 include "header.php";
@@ -276,20 +283,48 @@ include "navbar.php";
 </div>
 
 <script>
+function editStruktur(data) {
+    document.getElementById('modalTitle').textContent = 'Edit Struktur';
+    document.getElementById('id_struktur').value = data.id_struktur;
+    document.getElementById('jabatan').value = data.jabatan;
+    document.getElementById('urutan').value = data.urutan;
+    
+    // Ambil dropdown anggota
+    const selectAnggota = document.getElementById('id_anggota');
+    
+    // Cek apakah anggota yang diedit sudah ada di dropdown
+    let optionExists = false;
+    for (let option of selectAnggota.options) {
+        if (option.value == data.id_anggota) {
+            optionExists = true;
+            break;
+        }
+    }
+    
+    // Jika belum ada (karena sudah di struktur), tambahkan option khusus
+    if (!optionExists) {
+        const newOption = document.createElement('option');
+        newOption.value = data.id_anggota;
+        newOption.textContent = data.nama;
+        newOption.setAttribute('data-temp', 'true'); // Tandai sebagai temporary
+        selectAnggota.appendChild(newOption);
+    }
+    
+    // Set value
+    document.getElementById('id_anggota').value = data.id_anggota;
+    
+    new bootstrap.Modal(document.getElementById('strukturModal')).show();
+}
+
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Struktur';
     document.querySelector('form').reset();
     document.getElementById('id_struktur').value = '';
-}
-
-function editStruktur(data) {
-    document.getElementById('modalTitle').textContent = 'Edit Struktur';
-    document.getElementById('id_struktur').value = data.id_struktur;
-    document.getElementById('id_anggota').value = data.id_anggota;
-    document.getElementById('jabatan').value = data.jabatan;
-    document.getElementById('urutan').value = data.urutan;
     
-    new bootstrap.Modal(document.getElementById('strukturModal')).show();
+    // Hapus option temporary saat reset
+    const selectAnggota = document.getElementById('id_anggota');
+    const tempOptions = selectAnggota.querySelectorAll('option[data-temp="true"]');
+    tempOptions.forEach(option => option.remove());
 }
 </script>
 

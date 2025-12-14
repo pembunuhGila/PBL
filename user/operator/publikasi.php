@@ -1,8 +1,6 @@
 <?php
 /**
- * @var PDO $pdo
- * @var string $current_page
- * @var int $current_id_user
+ * Operator - Publikasi (Full Implementation with Smart Penulis Selector)
  */
 $required_role = "operator";
 include "../auth.php";
@@ -21,7 +19,7 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $year_filter = isset($_GET['year']) ? trim($_GET['year']) : '';
 $status_filter = isset($_GET['status']) ? trim($_GET['status']) : '';
 
-// Handle Delete - HANYA BISA HAPUS YANG PENDING MILIK SENDIRI
+// Handle Delete
 if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
     try {
@@ -56,7 +54,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $tanggal_publikasi = $_POST['tanggal_publikasi'];
     $penulis_ids = $_POST['penulis'] ?? [];
     
-    // Validasi jika edit: cek apakah status rejected
     if (isset($_POST['id_publikasi']) && !empty($_POST['id_publikasi'])) {
         $id = $_POST['id_publikasi'];
         
@@ -70,7 +67,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     
-    // Handle cover upload
     $cover = null;
     if (isset($_FILES['cover']) && $_FILES['cover']['error'] == 0) {
         $target_dir = "../../uploads/publikasi/cover/";
@@ -80,7 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         move_uploaded_file($_FILES['cover']['tmp_name'], $target_dir . $cover);
     }
     
-    // Handle file upload
     $file_path = null;
     if (isset($_FILES['file_path']) && $_FILES['file_path']['error'] == 0) {
         $target_dir = "../../uploads/publikasi/files/";
@@ -94,7 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $pdo->beginTransaction();
         
         if (isset($_POST['id_publikasi']) && !empty($_POST['id_publikasi'])) {
-            // EDIT - SEMUA DATA BISA DIEDIT (KECUALI REJECTED), AKAN JADI PENDING
             $id = $_POST['id_publikasi'];
             
             $stmt_check = $pdo->prepare("SELECT status FROM publikasi WHERE id_publikasi = ?");
@@ -102,7 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $old_data = $stmt_check->fetch();
             $status_lama = $old_data['status'];
             
-            // Set status jadi pending untuk review admin
             $status = 'pending';
             
             $sql = "UPDATE publikasi SET judul=?, abstrak=?, tahun=?, jurnal=?, link_shinta=?, tanggal_publikasi=?, status=?, id_user=?";
@@ -130,7 +123,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             $message = "Publikasi berhasil diupdate! Menunggu persetujuan admin.";
         } else {
-            // ADD - LANGSUNG PENDING
             $status = 'pending';
             
             $stmt = $pdo->prepare("INSERT INTO publikasi (judul, abstrak, tahun, jurnal, link_shinta, tanggal_publikasi, cover, file_path, status, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -143,7 +135,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $message = "Publikasi berhasil ditambahkan! Menunggu persetujuan admin.";
         }
         
-        // Insert penulis
         $valid_penulis = array_filter($penulis_ids, function($p) { return $p !== '' && $p !== null; });
         foreach ($valid_penulis as $index => $id_anggota) {
             $stmt = $pdo->prepare("INSERT INTO publikasi_anggota (id_publikasi, id_anggota, urutan_penulis) VALUES (?, ?, ?)");
@@ -159,7 +150,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Build WHERE clause - TAMPILKAN SEMUA DATA
 $where_conditions = [];
 $where_params = [];
 
@@ -182,14 +172,12 @@ if (!empty($status_filter)) {
 
 $where_sql = count($where_conditions) > 0 ? "WHERE " . implode(" AND ", $where_conditions) : "";
 
-// Get total count
 $count_query = "SELECT COUNT(DISTINCT p.id_publikasi) FROM publikasi p $where_sql";
 $count_stmt = $pdo->prepare($count_query);
 $count_stmt->execute($where_params);
 $total_items = $count_stmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
-// Get data with pagination - SEMUA DATA
 $query = "
     SELECT p.*, 
            STRING_AGG(a.nama, ', ' ORDER BY pa.urutan_penulis) as penulis
@@ -206,11 +194,22 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $publikasi_list = $stmt->fetchAll();
 
-// Get anggota for dropdown
+foreach ($publikasi_list as &$pub) {
+    $stmt_penulis = $pdo->prepare("
+        SELECT pa.id_anggota, a.nama, pa.urutan_penulis
+        FROM publikasi_anggota pa
+        JOIN anggota_lab a ON pa.id_anggota = a.id_anggota
+        WHERE pa.id_publikasi = ?
+        ORDER BY pa.urutan_penulis ASC
+    ");
+    $stmt_penulis->execute([$pub['id_publikasi']]);
+    $pub['penulis_detail'] = $stmt_penulis->fetchAll(PDO::FETCH_ASSOC);
+}
+unset($pub);
+
 $stmt_anggota = $pdo->query("SELECT id_anggota, nama FROM anggota_lab WHERE status = 'active' ORDER BY nama");
 $anggota_options = $stmt_anggota->fetchAll();
 
-// Get available years
 $years_stmt = $pdo->query("SELECT DISTINCT tahun FROM publikasi ORDER BY tahun DESC");
 $available_years = $years_stmt->fetchAll(PDO::FETCH_COLUMN);
 
@@ -253,7 +252,6 @@ include "navbar.php";
     <strong>Sebagai Operator:</strong> Anda bisa mengedit publikasi dengan status <span class="badge bg-warning text-dark">Pending</span> atau <span class="badge bg-success">Active</span>. Publikasi yang di-reject tidak dapat diedit. Setiap perubahan akan berstatus <span class="badge bg-warning text-dark">Pending</span> dan menunggu persetujuan admin.
 </div>
 
-<!-- Search & Filter -->
 <div class="card shadow mb-4">
     <div class="card-body">
         <form method="GET" class="row g-3">
@@ -266,9 +264,7 @@ include "navbar.php";
                 <select class="form-select" name="year">
                     <option value="">Semua</option>
                     <?php foreach ($available_years as $year): ?>
-                        <option value="<?php echo $year; ?>" <?php echo $year_filter == $year ? 'selected' : ''; ?>>
-                            <?php echo $year; ?>
-                        </option>
+                        <option value="<?php echo $year; ?>" <?php echo $year_filter == $year ? 'selected' : ''; ?>><?php echo $year; ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -282,12 +278,8 @@ include "navbar.php";
                 </select>
             </div>
             <div class="col-md-3 d-flex align-items-end gap-2">
-                <button type="submit" class="btn btn-primary flex-grow-1">
-                    <i class="bi bi-search"></i> Cari
-                </button>
-                <a href="publikasi.php" class="btn btn-secondary">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </a>
+                <button type="submit" class="btn btn-primary flex-grow-1"><i class="bi bi-search"></i> Cari</button>
+                <a href="publikasi.php" class="btn btn-secondary"><i class="bi bi-arrow-clockwise"></i></a>
             </div>
         </form>
     </div>
@@ -295,12 +287,7 @@ include "navbar.php";
 
 <div class="card shadow">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h6 class="mb-0">
-            Total: <?php echo $total_items; ?> publikasi
-            <?php if ($search || $year_filter || $status_filter): ?>
-                <span class="badge bg-info">Filtered</span>
-            <?php endif; ?>
-        </h6>
+        <h6 class="mb-0">Total: <?php echo $total_items; ?> publikasi</h6>
         <?php if ($total_pages > 1): ?>
             <span class="text-muted">Halaman <?php echo $page_num; ?> dari <?php echo $total_pages; ?></span>
         <?php endif; ?>
@@ -355,7 +342,7 @@ include "navbar.php";
                             </td>
                             <td>
                                 <?php if ($pub['status'] !== 'rejected'): ?>
-                                    <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)' title="Edit (akan jadi pending)">
+                                    <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo htmlspecialchars(json_encode($pub), ENT_QUOTES, 'UTF-8'); ?>)' title="Edit">
                                         <i class="bi bi-pencil"></i>
                                     </button>
                                 <?php else: ?>
@@ -373,70 +360,14 @@ include "navbar.php";
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
-                                <?php if ($search || $year_filter || $status_filter): ?>
-                                    Tidak ada publikasi yang sesuai dengan pencarian.
-                                <?php else: ?>
-                                    Belum ada publikasi. Klik tombol "Tambah Publikasi" untuk menambahkan.
-                                <?php endif; ?>
-                            </td>
-                        </tr>
+                        <tr><td colspan="8" class="text-center py-4 text-muted">Belum ada publikasi</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
-    
-    <?php if ($total_pages > 1): ?>
-    <div class="card-footer bg-white">
-        <nav aria-label="Page navigation">
-            <ul class="pagination justify-content-center mb-0">
-                <li class="page-item <?php echo $page_num <= 1 ? 'disabled' : ''; ?>">
-                    <a class="page-link" href="?page=<?php echo $page_num - 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $year_filter ? '&year=' . urlencode($year_filter) : ''; ?><?php echo $status_filter ? '&status=' . urlencode($status_filter) : ''; ?>">
-                        <i class="bi bi-chevron-left"></i> Previous
-                    </a>
-                </li>
-                
-                <?php
-                $start_page = max(1, $page_num - 2);
-                $end_page = min($total_pages, $page_num + 2);
-                
-                if ($start_page > 1) {
-                    $url = '?page=1' . ($search ? '&search=' . urlencode($search) : '') . ($year_filter ? '&year=' . urlencode($year_filter) : '') . ($status_filter ? '&status=' . urlencode($status_filter) : '');
-                    echo "<li class='page-item'><a class='page-link' href='$url'>1</a></li>";
-                    if ($start_page > 2) {
-                        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                    }
-                }
-                
-                for ($i = $start_page; $i <= $end_page; $i++) {
-                    $active = $i == $page_num ? 'active' : '';
-                    $url = "?page=$i" . ($search ? '&search=' . urlencode($search) : '') . ($year_filter ? '&year=' . urlencode($year_filter) : '') . ($status_filter ? '&status=' . urlencode($status_filter) : '');
-                    echo "<li class='page-item $active'><a class='page-link' href='$url'>$i</a></li>";
-                }
-                
-                if ($end_page < $total_pages) {
-                    if ($end_page < $total_pages - 1) {
-                        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                    }
-                    $url = "?page=$total_pages" . ($search ? '&search=' . urlencode($search) : '') . ($year_filter ? '&year=' . urlencode($year_filter) : '') . ($status_filter ? '&status=' . urlencode($status_filter) : '');
-                    echo "<li class='page-item'><a class='page-link' href='$url'>$total_pages</a></li>";
-                }
-                ?>
-                
-                <li class="page-item <?php echo $page_num >= $total_pages ? 'disabled' : ''; ?>">
-                    <a class="page-link" href="?page=<?php echo $page_num + 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $year_filter ? '&year=' . urlencode($year_filter) : ''; ?><?php echo $status_filter ? '&status=' . urlencode($status_filter) : ''; ?>">
-                        Next <i class="bi bi-chevron-right"></i>
-                    </a>
-                </li>
-            </ul>
-        </nav>
-    </div>
-    <?php endif; ?>
 </div>
 
-<!-- Modal Form -->
 <div class="modal fade" id="publikasiModal" tabindex="-1">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -495,21 +426,7 @@ include "navbar.php";
                     
                     <div class="mb-3">
                         <label class="form-label">Penulis (urut sesuai publikasi)</label>
-                        <div id="penulisContainer">
-                            <div class="input-group mb-2">
-                                <select class="form-select" name="penulis[]">
-                                    <option value="">-- Pilih Penulis --</option>
-                                    <?php foreach ($anggota_options as $anggota): ?>
-                                        <option value="<?php echo $anggota['id_anggota']; ?>">
-                                            <?php echo htmlspecialchars($anggota['nama']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </div>
+                        <div id="penulisContainer"></div>
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="addPenulis()">
                             <i class="bi bi-plus"></i> Tambah Penulis
                         </button>
@@ -527,17 +444,47 @@ include "navbar.php";
 <script>
 const anggotaOptions = <?php echo json_encode($anggota_options); ?>;
 
+function getSelectedPenulis() {
+    const selects = document.querySelectorAll('#penulisContainer select[name="penulis[]"]');
+    const selected = [];
+    selects.forEach(select => {
+        if (select.value) selected.push(select.value);
+    });
+    return selected;
+}
+
+function updatePenulisOptions() {
+    const selected = getSelectedPenulis();
+    const selects = document.querySelectorAll('#penulisContainer select[name="penulis[]"]');
+    
+    selects.forEach(select => {
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">-- Pilih Penulis --</option>';
+        anggotaOptions.forEach(anggota => {
+            if (!selected.includes(anggota.id_anggota.toString()) || anggota.id_anggota.toString() === currentValue) {
+                const option = document.createElement('option');
+                option.value = anggota.id_anggota;
+                option.textContent = anggota.nama;
+                if (anggota.id_anggota.toString() === currentValue) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            }
+        });
+    });
+}
+
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Publikasi';
     document.querySelector('form').reset();
     document.getElementById('id_publikasi').value = '';
     document.getElementById('penulisContainer').innerHTML = `
         <div class="input-group mb-2">
-            <select class="form-select" name="penulis[]">
+            <select class="form-select" name="penulis[]" onchange="updatePenulisOptions()">
                 <option value="">-- Pilih Penulis --</option>
                 ${anggotaOptions.map(a => `<option value="${a.id_anggota}">${a.nama}</option>`).join('')}
             </select>
-            <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
+            <button type="button" class="btn btn-outline-danger" onclick="removePenulis(this)">
                 <i class="bi bi-trash"></i>
             </button>
         </div>
@@ -548,16 +495,25 @@ function addPenulis() {
     const container = document.getElementById('penulisContainer');
     const div = document.createElement('div');
     div.className = 'input-group mb-2';
+    
+    const selected = getSelectedPenulis();
+    const availableOptions = anggotaOptions.filter(a => !selected.includes(a.id_anggota.toString()));
+    
     div.innerHTML = `
-        <select class="form-select" name="penulis[]">
+        <select class="form-select" name="penulis[]" onchange="updatePenulisOptions()">
             <option value="">-- Pilih Penulis --</option>
-            ${anggotaOptions.map(a => `<option value="${a.id_anggota}">${a.nama}</option>`).join('')}
+            ${availableOptions.map(a => `<option value="${a.id_anggota}">${a.nama}</option>`).join('')}
         </select>
-        <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
+        <button type="button" class="btn btn-outline-danger" onclick="removePenulis(this)">
             <i class="bi bi-trash"></i>
         </button>
     `;
     container.appendChild(div);
+}
+
+function removePenulis(button) {
+    button.closest('.input-group').remove();
+    updatePenulisOptions();
 }
 
 function editPublikasi(data) {
@@ -570,18 +526,38 @@ function editPublikasi(data) {
     document.getElementById('link_shinta').value = data.link_shinta || '';
     document.getElementById('tanggal_publikasi').value = data.tanggal_publikasi || '';
     
+    const container = document.getElementById('penulisContainer');
+    container.innerHTML = '';
+    
+    const penulisList = data.penulis_detail || [];
+    
+    if (penulisList.length > 0) {
+        penulisList.forEach((penulis) => {
+            const div = document.createElement('div');
+            div.className = 'input-group mb-2';
+            div.innerHTML = `
+                <select class="form-select" name="penulis[]" onchange="updatePenulisOptions()">
+                    <option value="">-- Pilih Penulis --</option>
+                    ${anggotaOptions.map(a => `<option value="${a.id_anggota}" ${a.id_anggota == penulis.id_anggota ? 'selected' : ''}>${a.nama}</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-outline-danger" onclick="removePenulis(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            container.appendChild(div);
+        });
+        updatePenulisOptions();
+    } else {
+        resetForm();
+    }
+    
     new bootstrap.Modal(document.getElementById('publikasiModal')).show();
 }
 </script>
 
 <style>
-.pagination .page-link {
-    color: #4e73df;
-}
-.pagination .page-item.active .page-link {
-    background-color: #4e73df;
-    border-color: #4e73df;
-}
+.pagination .page-link {color: #4e73df;}
+.pagination .page-item.active .page-link {background-color: #4e73df;border-color: #4e73df;}
 </style>
 
 <?php include "footer.php"; ?>

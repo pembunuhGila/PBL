@@ -467,10 +467,6 @@ include "navbar.php";
                 <div class="modal-body">
                     <input type="hidden" name="id_anggota" id="id_anggota">
                     
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> <strong>Info:</strong> Sebagai admin, data yang Anda tambahkan akan langsung berstatus <span class="badge bg-success">Active</span>
-                    </div>
-                    
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Nama Lengkap *</label>
@@ -688,10 +684,9 @@ function editAnggota(data) {
     document.getElementById('biodata_teks').value = data.biodata_teks || '';
     document.getElementById('tanggal_bergabung').value = data.tanggal_bergabung || '';
     
-    // Use database role_anggota
+    // PERBAIKAN: Set role_anggota PERTAMA sebelum load data lain
     const roleAnggota = data.role_anggota || 'mahasiswa';
     document.getElementById('role_anggota').value = roleAnggota;
-    toggleRoleFields();
     
     if (data.social_media) {
         document.getElementById('linkedin').value = data.social_media.linkedin || '';
@@ -709,7 +704,7 @@ function editAnggota(data) {
         `;
     }
     
-    // Load pendidikan
+    // PERBAIKAN: Load pendidikan DULU sebelum toggleRoleFields
     const pendidikanContainer = document.getElementById('pendidikanContainer');
     pendidikanContainer.innerHTML = '';
     let pendidikanData = [];
@@ -721,6 +716,22 @@ function editAnggota(data) {
         }
     }
     
+    // PERBAIKAN: Load mata kuliah DULU sebelum toggleRoleFields
+    const matakuliahContainer = document.getElementById('matakuliahContainer');
+    matakuliahContainer.innerHTML = '';
+    let matakuliahData = [];
+    if (data.bidang_keahlian) {
+        try {
+            matakuliahData = typeof data.bidang_keahlian === 'string' ? JSON.parse(data.bidang_keahlian) : data.bidang_keahlian;
+        } catch (e) {
+            console.error('Error parsing bidang_keahlian:', e);
+        }
+    }
+    
+    // PERBAIKAN: Panggil toggleRoleFields() SETELAH data siap
+    toggleRoleFields();
+    
+    // PERBAIKAN: Populate pendidikan SETELAH section ditampilkan
     if (pendidikanData.length > 0) {
         pendidikanData.forEach(item => {
             const newItem = document.createElement('div');
@@ -760,23 +771,10 @@ function editAnggota(data) {
             `;
             pendidikanContainer.appendChild(newItem);
         });
-    } else if (roleAnggota === 'dosen') {
-        addPendidikan();
-    }
-    updateDeleteButtons('pendidikan');
-    
-    // Load mata kuliah
-    const matakuliahContainer = document.getElementById('matakuliahContainer');
-    matakuliahContainer.innerHTML = '';
-    let matakuliahData = [];
-    if (data.bidang_keahlian) {
-        try {
-            matakuliahData = typeof data.bidang_keahlian === 'string' ? JSON.parse(data.bidang_keahlian) : data.bidang_keahlian;
-        } catch (e) {
-            console.error('Error parsing bidang_keahlian:', e);
-        }
+        updateDeleteButtons('pendidikan');
     }
     
+    // PERBAIKAN: Populate mata kuliah SETELAH section ditampilkan
     if (matakuliahData.length > 0) {
         matakuliahData.forEach(item => {
             const newItem = document.createElement('div');
@@ -797,10 +795,8 @@ function editAnggota(data) {
             `;
             matakuliahContainer.appendChild(newItem);
         });
-    } else if (roleAnggota === 'dosen') {
-        addMatakuliah();
+        updateDeleteButtons('matakuliah');
     }
-    updateDeleteButtons('matakuliah');
     
     new bootstrap.Modal(document.getElementById('anggotaModal')).show();
 }

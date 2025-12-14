@@ -207,6 +207,20 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $publikasi_list = $stmt->fetchAll();
 
+// TAMBAHAN: Get penulis detail untuk setiap publikasi
+foreach ($publikasi_list as &$pub) {
+    $stmt_penulis = $pdo->prepare("
+        SELECT pa.id_anggota, a.nama, pa.urutan_penulis
+        FROM publikasi_anggota pa
+        JOIN anggota_lab a ON pa.id_anggota = a.id_anggota
+        WHERE pa.id_publikasi = ?
+        ORDER BY pa.urutan_penulis ASC
+    ");
+    $stmt_penulis->execute([$pub['id_publikasi']]);
+    $pub['penulis_detail'] = $stmt_penulis->fetchAll(PDO::FETCH_ASSOC);
+}
+unset($pub);
+
 // Get pending count
 $pending_count_query = "SELECT COUNT(*) FROM publikasi WHERE status = 'pending'";
 $pending_count_stmt = $pdo->prepare($pending_count_query);
@@ -379,7 +393,7 @@ include "navbar.php";
                                 <small><?php echo htmlspecialchars($pub['operator_nama'] ?? 'Admin'); ?></small>
                             </td>
                             <td>
-                                <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo json_encode($pub); ?>)' title="Edit">
+                                <button class="btn btn-sm btn-warning" onclick='editPublikasi(<?php echo htmlspecialchars(json_encode($pub), ENT_QUOTES, 'UTF-8'); ?>)' title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 
@@ -518,7 +532,7 @@ include "navbar.php";
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">DOI</label>
+                        <label class="form-label">Link Shinta</label>
                         <input type="text" class="form-control" name="link_shinta" id="link_shinta" placeholder="10.xxxx/xxxxx">
                     </div>
                     
@@ -526,7 +540,7 @@ include "navbar.php";
                         <label class="form-label">Penulis (urut sesuai publikasi)</label>
                         <div id="penulisContainer">
                             <div class="input-group mb-2">
-                                <select class="form-select" name="penulis[]">
+                                <select class="form-select" name="penulis[]" onchange="updatePenulisOptions()">
                                     <option value="">-- Pilih Penulis --</option>
                                     <?php foreach ($anggota_options as $anggota): ?>
                                         <option value="<?php echo $anggota['id_anggota']; ?>">
@@ -556,17 +570,50 @@ include "navbar.php";
 <script>
 const anggotaOptions = <?php echo json_encode($anggota_options); ?>;
 
+function getSelectedPenulis() {
+    const selects = document.querySelectorAll('#penulisContainer select[name="penulis[]"]');
+    const selected = [];
+    selects.forEach(select => {
+        if (select.value) selected.push(select.value);
+    });
+    return selected;
+}
+
+function updatePenulisOptions() {
+    const selected = getSelectedPenulis();
+    const selects = document.querySelectorAll('#penulisContainer select[name="penulis[]"]');
+    
+    selects.forEach(select => {
+        const currentValue = select.value;
+        
+        // Rebuild options
+        select.innerHTML = '<option value="">-- Pilih Penulis --</option>';
+        anggotaOptions.forEach(anggota => {
+            // Show if not selected OR if it's the current value of this select
+            if (!selected.includes(anggota.id_anggota.toString()) || anggota.id_anggota.toString() === currentValue) {
+                const option = document.createElement('option');
+                option.value = anggota.id_anggota;
+                option.textContent = anggota.nama;
+                if (anggota.id_anggota.toString() === currentValue) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            }
+        });
+    });
+}
+
 function resetForm() {
     document.getElementById('modalTitle').textContent = 'Tambah Publikasi';
     document.querySelector('form').reset();
     document.getElementById('id_publikasi').value = '';
     document.getElementById('penulisContainer').innerHTML = `
         <div class="input-group mb-2">
-            <select class="form-select" name="penulis[]">
+            <select class="form-select" name="penulis[]" onchange="updatePenulisOptions()">
                 <option value="">-- Pilih Penulis --</option>
                 ${anggotaOptions.map(a => `<option value="${a.id_anggota}">${a.nama}</option>`).join('')}
             </select>
-            <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
+            <button type="button" class="btn btn-outline-danger" onclick="removePenulis(this)">
                 <i class="bi bi-trash"></i>
             </button>
         </div>
@@ -577,16 +624,25 @@ function addPenulis() {
     const container = document.getElementById('penulisContainer');
     const div = document.createElement('div');
     div.className = 'input-group mb-2';
+    
+    const selected = getSelectedPenulis();
+    const availableOptions = anggotaOptions.filter(a => !selected.includes(a.id_anggota.toString()));
+    
     div.innerHTML = `
-        <select class="form-select" name="penulis[]">
+        <select class="form-select" name="penulis[]" onchange="updatePenulisOptions()">
             <option value="">-- Pilih Penulis --</option>
-            ${anggotaOptions.map(a => `<option value="${a.id_anggota}">${a.nama}</option>`).join('')}
+            ${availableOptions.map(a => `<option value="${a.id_anggota}">${a.nama}</option>`).join('')}
         </select>
-        <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">
+        <button type="button" class="btn btn-outline-danger" onclick="removePenulis(this)">
             <i class="bi bi-trash"></i>
         </button>
     `;
     container.appendChild(div);
+}
+
+function removePenulis(button) {
+    button.closest('.input-group').remove();
+    updatePenulisOptions();
 }
 
 function editPublikasi(data) {
@@ -598,6 +654,51 @@ function editPublikasi(data) {
     document.getElementById('jurnal').value = data.jurnal || '';
     document.getElementById('link_shinta').value = data.link_shinta || '';
     document.getElementById('tanggal_publikasi').value = data.tanggal_publikasi || '';
+    
+    // Load penulis jika ada
+    fetch(`get_publikasi_penulis.php?id=${data.id_publikasi}`)
+        .then(response => response.json())
+        .then(penulisList => {
+            const container = document.getElementById('penulisContainer');
+            container.innerHTML = '';
+            
+            if (penulisList.length > 0) {
+                penulisList.forEach((penulis, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'input-group mb-2';
+                    div.innerHTML = `
+                        <select class="form-select" name="penulis[]" onchange="updatePenulisOptions()">
+                            <option value="">-- Pilih Penulis --</option>
+                            ${anggotaOptions.map(a => `<option value="${a.id_anggota}" ${a.id_anggota == penulis.id_anggota ? 'selected' : ''}>${a.nama}</option>`).join('')}
+                        </select>
+                        <button type="button" class="btn btn-outline-danger" onclick="removePenulis(this)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    `;
+                    container.appendChild(div);
+                });
+                updatePenulisOptions();
+            } else {
+                // Jika tidak ada penulis, tambahkan 1 input kosong
+                addPenulis();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading penulis:', error);
+            // Fallback: tambahkan 1 input kosong
+            const container = document.getElementById('penulisContainer');
+            container.innerHTML = `
+                <div class="input-group mb-2">
+                    <select class="form-select" name="penulis[]" onchange="updatePenulisOptions()">
+                        <option value="">-- Pilih Penulis --</option>
+                        ${anggotaOptions.map(a => `<option value="${a.id_anggota}">${a.nama}</option>`).join('')}
+                    </select>
+                    <button type="button" class="btn btn-outline-danger" onclick="removePenulis(this)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            `;
+        });
     
     new bootstrap.Modal(document.getElementById('publikasiModal')).show();
 }
