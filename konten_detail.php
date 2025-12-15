@@ -322,18 +322,7 @@ include 'navbar.php';
               <?= htmlspecialchars($konten['author_name']) ?>
             </span>
             <?php endif; ?>
-            
-            <span class="meta-item">
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-              <?php 
-              $word_count = str_word_count(strip_tags($konten['isi']));
-              $read_time = $word_count > 0 ? ceil($word_count / 200) : 1;
-              echo $read_time;
-              ?> min read
-            </span>
+          
           </div>
         </div>
         
@@ -375,33 +364,6 @@ include 'navbar.php';
         </div>
         
         <!-- Navigation Prev/Next -->
-        <div class="article-navigation">
-          <?php if ($prev_konten): ?>
-          <a href="konten_detail.php?id=<?= $prev_konten['id_konten'] ?>" class="nav-link prev">
-            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path d="M15 18l-6-6 6-6"/>
-            </svg>
-            <div>
-              <span>Previous</span>
-              <strong><?= htmlspecialchars(substr($prev_konten['judul'], 0, 40)) ?>...</strong>
-            </div>
-          </a>
-          <?php else: ?>
-          <div></div>
-          <?php endif; ?>
-          
-          <?php if ($next_konten): ?>
-          <a href="konten_detail.php?id=<?= $next_konten['id_konten'] ?>" class="nav-link next">
-            <div>
-              <span>Next</span>
-              <strong><?= htmlspecialchars(substr($next_konten['judul'], 0, 40)) ?>...</strong>
-            </div>
-            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </a>
-          <?php endif; ?>
-        </div>
         
       </main>
       
@@ -449,17 +411,6 @@ include 'navbar.php';
 <?php include 'footer.php'; ?>
 
 <script>
-// Reading Progress Bar
-window.addEventListener('scroll', function() {
-  const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
-  const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-  const scrolled = (winScroll / height) * 100;
-  const progressBar = document.getElementById('progressBar');
-  if (progressBar) {
-    progressBar.style.width = scrolled + '%';
-  }
-});
-
 // Smooth scroll for TOC links (if exists)
 document.querySelectorAll('.toc-list a').forEach(anchor => {
   anchor.addEventListener('click', function (e) {
