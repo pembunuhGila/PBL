@@ -366,20 +366,37 @@ include 'navbar.php';
               <p>Informasi biodata belum tersedia.</p>
             <?php endif; ?>
             
-            <div class="bio-grid">
+           <div class="bio-grid">
+              <!-- PENDIDIKAN - Parse JSON dan tampilkan dengan format rapi -->
               <?php if ($anggota['pendidikan']): ?>
               <div class="bio-item">
                 <span class="bio-label">Pendidikan:</span>
-                <span class="bio-value"><?= nl2br(htmlspecialchars($anggota['pendidikan'])) ?></span>
+                <span class="bio-value">
+                  <?php 
+                  try {
+                    $pendidikan_data = json_decode($anggota['pendidikan'], true);
+                    if ($pendidikan_data && is_array($pendidikan_data) && count($pendidikan_data) > 0) {
+                      foreach ($pendidikan_data as $index => $pend) {
+                        if ($index > 0) echo '<br>';
+                        echo '<strong>' . htmlspecialchars($pend['jenjang'] ?? '') . '</strong> - ';
+                        echo htmlspecialchars($pend['institusi'] ?? '');
+                        if (!empty($pend['jurusan'])) {
+                          echo ', ' . htmlspecialchars($pend['jurusan']);
+                        }
+                        if (!empty($pend['tahun'])) {
+                          echo ' (' . htmlspecialchars($pend['tahun']) . ')';
+                        }
+                      }
+                    } else {
+                      echo 'Data pendidikan tidak tersedia';
+                    }
+                  } catch (Exception $e) {
+                    echo 'Data pendidikan tidak valid';
+                  }
+                  ?>
+                </span>
               </div>
-              <?php endif; ?>
-              
-              <?php if ($anggota['bidang_keahlian']): ?>
-              <div class="bio-item">
-                <span class="bio-label">Bidang Keahlian:</span>
-                <span class="bio-value"><?= nl2br(htmlspecialchars($anggota['bidang_keahlian'])) ?></span>
-              </div>
-              <?php endif; ?>
+              <?php endif; ?> 
               
               <?php if ($anggota['tanggal_bergabung']): ?>
               <div class="bio-item">
@@ -390,21 +407,31 @@ include 'navbar.php';
             </div>
             
             <!-- Research Areas -->
-            <?php if ($anggota['bidang_keahlian']): ?>
-            <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e8ebef;">
-              <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text-dark);">
-                🎯 Area Penelitian
-              </h4>
-              <div class="research-pills">
-                <?php 
-                $keahlian = explode(',', $anggota['bidang_keahlian']);
-                foreach ($keahlian as $k) {
-                  echo '<span class="research-pill">' . htmlspecialchars(trim($k)) . '</span>';
-                }
-                ?>
+           <?php if ($anggota['bidang_keahlian']): ?>
+              <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e8ebef;">
+                <h4 style="font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text-dark);">
+                  🎯 Area Penelitian
+                </h4>
+                <div class="research-pills">
+                  <?php 
+                  try {
+                    $keahlian_data = json_decode($anggota['bidang_keahlian'], true);
+                    if ($keahlian_data && is_array($keahlian_data) && count($keahlian_data) > 0) {
+                      foreach ($keahlian_data as $item) {
+                        if (isset($item['nama']) && !empty(trim($item['nama']))) {
+                          echo '<span class="research-pill">' . htmlspecialchars(trim($item['nama'])) . '</span>';
+                        }
+                      }
+                    } else {
+                      echo '<span class="research-pill">Belum ada data</span>';
+                    }
+                  } catch (Exception $e) {
+                    echo '<span class="research-pill">Data tidak valid</span>';
+                  }
+                  ?>
+                </div>
               </div>
-            </div>
-            <?php endif; ?>
+              <?php endif; ?>
           </div>
         </div>
         
